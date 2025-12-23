@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
-import { EstimationResult, AnalysisHistory } from "../types";
+import { EstimationResult, AnalysisHistory, StockItem } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
 
 const getMode = (arr: any[]) => {
@@ -117,19 +117,31 @@ export const analyzeGaraImageEnsemble = async (
   learningData: AnalysisHistory[] = [],
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
-  modelName: string = 'gemini-3-flash-preview'
+  modelName: string = 'gemini-3-flash-preview',
+  taggedStock: StockItem[] = []
 ): Promise<EstimationResult[]> => {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('APIキーが設定されていません');
   }
   const ai = new GoogleGenAI({ apiKey });
-  const learningContext = learningData
+  // 実測データからの学習
+  const historyContext = learningData
     .filter(h => h.actualTonnage !== undefined)
     .slice(0, 3)
     .map(h => ({
       text: `学習: ${h.result.licenseNumber} -> 実測${h.actualTonnage}t`
     }));
+
+  // タグ付きストックからの学習（OK/NG判定）
+  const stockContext = taggedStock
+    .filter(s => s.tag !== undefined)
+    .slice(0, 5)
+    .map(s => ({
+      text: `判定例: この荷姿は${s.tag === 'OK' ? '適正積載（OK）' : '過積載（NG）'}と判定された`
+    }));
+
+  const learningContext = [...historyContext, ...stockContext];
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: { mimeType: 'image/jpeg', data: base64 }

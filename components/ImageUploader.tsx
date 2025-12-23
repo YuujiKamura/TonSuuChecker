@@ -88,7 +88,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected, onCamer
           onChange={handleFileChange}
           accept="image/*"
           className="hidden"
-          multiple
+          
         />
 
         <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700">

@@ -3,12 +3,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
 import CameraCapture from './components/CameraCapture';
+import CaptureChoice from './components/CaptureChoice';
+import StockList from './components/StockList';
+import SyncSettings from './components/SyncSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
+import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems } from './services/stockService';
 import { getTodayCost, formatCost } from './services/costTracker';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey } from './services/geminiService';
-import { EstimationResult, AnalysisHistory } from './types';
-import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign } from 'lucide-react';
+import { EstimationResult, AnalysisHistory, StockItem } from './types';
+import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -42,6 +46,12 @@ const App: React.FC = () => {
   const [showCostDashboard, setShowCostDashboard] = useState(false);
   const [todaysCost, setTodaysCost] = useState(0);
   
+  // ストック・選択関連
+  const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
+  const [showStockList, setShowStockList] = useState(false);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+  
   const requestCounter = useRef(0);
   const activeRequestId = useRef(0);
 
@@ -49,6 +59,7 @@ const App: React.FC = () => {
   useEffect(() => {
     setHasApiKey(!!getApiKey());
     setTodaysCost(getTodayCost());
+    setStockItems(getStockItems());
   }, []);
 
   // コスト更新（解析完了後）
@@ -153,7 +164,8 @@ const App: React.FC = () => {
           }
         },
         abortSignal,
-        isAuto ? 'gemini-flash-lite-latest' : selectedModel 
+        isAuto ? 'gemini-flash-lite-latest' : selectedModel,
+        getTaggedItems()
       );
 
       if (activeRequestId.current !== requestId) return;
@@ -191,7 +203,7 @@ const App: React.FC = () => {
         setCurrentId(newId);
         setRawInferences(results);
         setCurrentImageUrls(urls);
-        setMode('manual');
+        
 
         const newHistoryItem: AnalysisHistory = {
           id: newId,
@@ -233,6 +245,13 @@ const App: React.FC = () => {
     setIsBackgroundScanning(false);
     setIsTargetLocked(false);
     setMonitorGuidance(null);
+    // 全てのモーダル・サブ画面を閉じる
+    setShowCamera(false);
+    setPendingCapture(null);
+    setShowApiKeyModal(false);
+    setShowCostDashboard(false);
+    setShowStockList(false);
+    setShowSyncSettings(false);
   };
 
   return (
@@ -247,11 +266,36 @@ const App: React.FC = () => {
           <CameraCapture
             onCapture={(base64, url) => {
               setShowCamera(false);
-              setCurrentImageUrls([url]);
-              startAnalysis([base64], [url]);
+              setPendingCapture({ base64, url });
             }}
             onClose={() => setShowCamera(false)}
             isAnalyzing={loading}
+          />
+        )}
+
+        {/* 撮影後の選択ダイアログ */}
+        {pendingCapture && (
+          <CaptureChoice
+            imageUrl={pendingCapture.url}
+            onAnalyze={() => {
+              const { base64, url } = pendingCapture;
+              setPendingCapture(null);
+              setCurrentImageUrls([url]);
+              startAnalysis([base64], [url]);
+            }}
+            onStock={() => {
+              const dataUrl = 'data:image/jpeg;base64,' + pendingCapture.base64;
+              const newItem: StockItem = {
+                id: crypto.randomUUID(),
+                timestamp: Date.now(),
+                base64Images: [pendingCapture.base64],
+                imageUrls: [dataUrl],
+              };
+              saveStockItem(newItem);
+              setStockItems(getStockItems());
+              setPendingCapture(null);
+            }}
+            onCancel={() => setPendingCapture(null)}
           />
         )}
         
@@ -270,6 +314,19 @@ const App: React.FC = () => {
                 className="flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
               >
                 {formatCost(todaysCost)}
+              </button>
+              <button
+                onClick={() => setShowStockList(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
+              >
+                <Archive size={16} />
+                ストック ({stockItems.length})
+              </button>
+              <button
+                onClick={() => setShowSyncSettings(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
+              >
+                <Cloud size={16} />
               </button>
               {hasApiKey && (
                 <button
@@ -301,10 +358,10 @@ const App: React.FC = () => {
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
                 <ImageUploader 
                   onImagesSelected={(imgs) => {
-                    if (loading) return;
-                    const urls = imgs.map(i => URL.createObjectURL(i.file));
-                    setCurrentImageUrls(urls);
-                    startAnalysis(imgs.map(i => i.base64), urls);
+                    if (loading || imgs.length === 0) return;
+                    const img = imgs[0];
+                    const dataUrl = 'data:image/jpeg;base64,' + img.base64;
+                    setPendingCapture({ base64: img.base64, url: dataUrl });
                   }}
                   onCameraOpen={() => setShowCamera(true)}
                   isLoading={loading} 
@@ -470,6 +527,31 @@ const App: React.FC = () => {
         onClose={() => { setShowCostDashboard(false); refreshCost(); }} 
       />
 
+      {/* ストック一覧 */}
+      {showStockList && (
+        <StockList
+          items={stockItems}
+          onTag={(id, tag) => {
+            updateStockItem(id, { tag });
+            setStockItems(getStockItems());
+          }}
+          onUpdate={(id, updates) => {
+            updateStockItem(id, updates);
+            setStockItems(getStockItems());
+          }}
+          onDelete={(id) => {
+            deleteStockItem(id);
+            setStockItems(getStockItems());
+          }}
+          onAnalyze={(item) => {
+            setShowStockList(false);
+            setCurrentImageUrls(item.imageUrls);
+            startAnalysis(item.base64Images, item.imageUrls);
+          }}
+          onClose={() => setShowStockList(false)}
+        />
+      )}
+
       {/* APIキー設定モーダル */}
       {showApiKeyModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -523,6 +605,11 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      <SyncSettings 
+        isOpen={showSyncSettings} 
+        onClose={() => setShowSyncSettings(false)} 
+      />
 
       <footer className="bg-slate-950 border-t border-slate-900 p-4 text-center z-50">
         <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.3em]">

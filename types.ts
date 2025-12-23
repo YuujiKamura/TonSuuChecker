@@ -1,6 +1,6 @@
 
 export interface EstimationResult {
-  isTargetDetected: boolean; // トラックおよび荷姿が検出されたか
+  isTargetDetected: boolean;
   truckType: string;
   licensePlate?: string;
   licenseNumber?: string;
@@ -24,4 +24,14 @@ export interface AnalysisHistory {
   result: EstimationResult;
   actualTonnage?: number;
   description?: string;
+}
+
+export interface StockItem {
+  id: string;
+  timestamp: number;
+  base64Images: string[];
+  imageUrls: string[];
+  tag?: 'OK' | 'NG';
+  actualTonnage?: number;
+  memo?: string;
 }
