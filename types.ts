@@ -33,5 +33,6 @@ export interface StockItem {
   imageUrls: string[];
   tag?: 'OK' | 'NG';
   actualTonnage?: number;
+  maxCapacity?: number;  // 最大積載量
   memo?: string;
 }
