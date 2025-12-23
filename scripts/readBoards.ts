@@ -1,12 +1,23 @@
 // 黒板読み取りバッチスクリプト
+// 使い方: GEMINI_API_KEY="..." npx tsx scripts/readBoards.ts <フォルダパス>
 import { GoogleGenAI } from "@google/genai";
 import * as fs from 'fs';
 import * as path from 'path';
 
-const FOLDER_PATH = 'H:\\マイドライブ\\〇東区市道（2工区）舗装補修工事（水防等含）（単価契約）\\６工事写真\\0530小山工区';
 const BATCH_SIZE = 10;
 
 async function main() {
+  const folderPath = process.argv[2];
+  if (!folderPath) {
+    console.error('使い方: npx tsx scripts/readBoards.ts <フォルダパス>');
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(folderPath)) {
+    console.error(`フォルダが見つかりません: ${folderPath}`);
+    process.exit(1);
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error('GEMINI_API_KEY環境変数を設定してください');
@@ -16,9 +27,9 @@ async function main() {
   const ai = new GoogleGenAI({ apiKey });
 
   // JPGファイルを取得
-  const files = fs.readdirSync(FOLDER_PATH)
+  const files = fs.readdirSync(folderPath)
     .filter(f => f.toLowerCase().endsWith('.jpg'))
-    .map(f => path.join(FOLDER_PATH, f));
+    .map(f => path.join(folderPath, f));
 
   console.log(`${files.length}枚の画像を処理します`);
 
@@ -86,7 +97,7 @@ async function main() {
   }
 
   // 結果を保存
-  const outputPath = path.join(FOLDER_PATH, 'board_readings.json');
+  const outputPath = path.join(folderPath, 'board_readings.json');
   fs.writeFileSync(outputPath, JSON.stringify(results, null, 2), 'utf-8');
   console.log(`\n結果を保存: ${outputPath}`);
 
