@@ -26,6 +26,13 @@ export interface AnalysisHistory {
   description?: string;
 }
 
+export interface ExtractedFeature {
+  parameterName: string;
+  value: number | string;
+  unit?: string;
+  description: string;
+}
+
 export interface StockItem {
   id: string;
   timestamp: number;
@@ -35,4 +42,7 @@ export interface StockItem {
   actualTonnage?: number;
   maxCapacity?: number;  // 最大積載量
   memo?: string;
+  // AI抽出特徴
+  extractedFeatures?: ExtractedFeature[];
+  featureRawResponse?: string;  // AIの生レスポンス（デバッグ用）
 }

@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
-import { EstimationResult, AnalysisHistory, StockItem } from "../types";
+import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
 
 const getMode = (arr: any[]) => {
@@ -133,15 +133,20 @@ export const analyzeGaraImageEnsemble = async (
       text: `学習: ${h.result.licenseNumber} -> 実測${h.actualTonnage}t`
     }));
 
-  // タグ付きストックからの学習（OK/NG判定）
-  const stockContext = taggedStock
-    .filter(s => s.tag !== undefined)
-    .slice(0, 5)
-    .map(s => ({
-      text: `判定例: この荷姿は${s.tag === 'OK' ? '適正積載（OK）' : '過積載（NG）'}と判定された`
-    }));
+  // 特徴抽出済みストックからの学習（パラメータベース）
+  const featureContext = taggedStock
+    .filter(s => s.extractedFeatures && s.extractedFeatures.length > 0 && s.actualTonnage)
+    .slice(0, 3)
+    .map(s => {
+      const featureStr = s.extractedFeatures!
+        .map(f => `${f.parameterName}=${f.value}${f.unit || ''}`)
+        .join(', ');
+      return {
+        text: `【参考データ】実測${s.actualTonnage}t（${s.tag === 'OK' ? '適正' : '過積載'}）の特徴: ${featureStr}`
+      };
+    });
 
-  const learningContext = [...historyContext, ...stockContext];
+  const learningContext = [...historyContext, ...featureContext];
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: { mimeType: 'image/jpeg', data: base64 }
@@ -168,4 +173,68 @@ export const analyzeGaraImageEnsemble = async (
   }
 
   return results;
+};
+
+// 特徴抽出：正解付き画像から100kg精度推定に有効なパラメータを抽出
+export const extractFeatures = async (
+  base64Image: string,
+  actualTonnage: number,
+  tag: 'OK' | 'NG',
+  maxCapacity?: number
+): Promise<{ features: ExtractedFeature[]; rawResponse: string }> => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error('APIキーが設定されていません');
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const prompt = `
+あなたは積載量推定の専門家です。
+この画像は実測 ${actualTonnage * 1000}kg で、${tag === 'OK' ? '適正積載' : '過積載'}と判定されました。
+${maxCapacity ? `最大積載量は ${maxCapacity * 1000}kg です。` : ''}
+
+【タスク】
+100kg単位の精度で積載量を推定するために有効な視覚的パラメータを抽出してください。
+将来、別の画像を見たときに、これらのパラメータを参照して精度よく推定できるようにしたい。
+
+【出力形式】JSON配列
+[
+  {
+    "parameterName": "パラメータ名（英語推奨）",
+    "value": 数値または文字列,
+    "unit": "単位（あれば）",
+    "description": "このパラメータの意味と、なぜ重量推定に有効か"
+  }
+]
+
+【注意】
+- 画像から直接測定・推定できるパラメータのみ
+- 曖昧な表現ではなく、可能な限り数値化
+- 5〜10個程度のパラメータを抽出
+`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: {
+      parts: [
+        { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+        { text: prompt }
+      ],
+    },
+    config: {
+      responseMimeType: "application/json",
+      temperature: 0.2,
+    }
+  });
+
+  const rawResponse = response.text || '[]';
+  saveCostEntry('gemini-2.0-flash', 1);
+
+  try {
+    const features = JSON.parse(rawResponse) as ExtractedFeature[];
+    return { features, rawResponse };
+  } catch {
+    return { features: [], rawResponse };
+  }
 };

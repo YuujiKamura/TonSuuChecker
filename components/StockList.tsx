@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StockItem } from '../types';
-import { Check, X, Trash2, Brain, ArrowLeft, RotateCcw } from 'lucide-react';
+import { Check, X, Trash2, Brain, ArrowLeft, RotateCcw, Sparkles, Loader2 } from 'lucide-react';
+import { extractFeatures } from '../services/geminiService';
 
 interface StockListProps {
   items: StockItem[];
@@ -16,6 +17,29 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
   const [editTonnage, setEditTonnage] = useState('');
   const [editMaxCapacity, setEditMaxCapacity] = useState('');
   const [editMemo, setEditMemo] = useState('');
+  const [extractingId, setExtractingId] = useState<string | null>(null);
+  const [showFeatures, setShowFeatures] = useState<string | null>(null);
+
+  const handleExtractFeatures = async (item: StockItem) => {
+    if (!item.actualTonnage || !item.tag) return;
+    setExtractingId(item.id);
+    try {
+      const { features, rawResponse } = await extractFeatures(
+        item.base64Images[0],
+        item.actualTonnage,
+        item.tag,
+        item.maxCapacity
+      );
+      onUpdate(item.id, {
+        extractedFeatures: features,
+        featureRawResponse: rawResponse
+      });
+    } catch (err) {
+      console.error('特徴抽出エラー:', err);
+    } finally {
+      setExtractingId(null);
+    }
+  };
 
   const untaggedItems = items.filter(item => !item.tag);
   const taggedItems = items.filter(item => item.tag);
@@ -191,7 +215,35 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
                 </button>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {/* 特徴抽出ボタン（タグ+実測値がある場合） */}
+                {isTagged && item.actualTonnage && (
+                  <button
+                    onClick={() => handleExtractFeatures(item)}
+                    disabled={extractingId === item.id}
+                    className={`p-2 rounded-xl border transition-all active:scale-95 ${
+                      item.extractedFeatures
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20'
+                    }`}
+                    title={item.extractedFeatures ? '特徴抽出済み' : '特徴を抽出'}
+                  >
+                    {extractingId === item.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={16} />
+                    )}
+                  </button>
+                )}
+                {/* 抽出結果表示トグル */}
+                {item.extractedFeatures && (
+                  <button
+                    onClick={() => setShowFeatures(showFeatures === item.id ? null : item.id)}
+                    className="p-2 rounded-xl bg-slate-700 border border-slate-600 text-slate-400 hover:bg-slate-600 transition-all active:scale-95 text-xs"
+                  >
+                    {showFeatures === item.id ? '閉' : '詳'}
+                  </button>
+                )}
                 {isTagged && (
                   <button
                     onClick={() => onAnalyze(item)}
@@ -210,6 +262,22 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
                 </button>
               </div>
             </div>
+            {/* 抽出結果表示 */}
+            {showFeatures === item.id && item.extractedFeatures && (
+              <div className="mt-3 p-3 bg-slate-900 rounded-xl border border-slate-700">
+                <p className="text-xs font-bold text-emerald-400 mb-2">抽出されたパラメータ:</p>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {item.extractedFeatures.map((f, idx) => (
+                    <div key={idx} className="text-xs">
+                      <span className="text-yellow-400 font-mono">{f.parameterName}</span>
+                      <span className="text-slate-500">: </span>
+                      <span className="text-white">{f.value}{f.unit ? ` ${f.unit}` : ''}</span>
+                      <p className="text-slate-500 text-[10px] ml-2">{f.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
