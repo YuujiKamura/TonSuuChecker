@@ -29,6 +29,28 @@ export const clearGasUrl = (): void => {
   localStorage.removeItem(GAS_URL_KEY);
 };
 
+// URLパラメータからGAS URLを読み込んで自動接続
+export const initFromUrlParams = (): boolean => {
+  const params = new URLSearchParams(window.location.search);
+  const gasUrl = params.get('gas');
+  if (gasUrl) {
+    setGasUrl(gasUrl);
+    // URLからパラメータを削除（履歴を汚さない）
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, '', cleanUrl);
+    return true;
+  }
+  return false;
+};
+
+// 共有URL生成
+export const generateShareUrl = (): string | null => {
+  const gasUrl = getGasUrl();
+  if (!gasUrl) return null;
+  const baseUrl = window.location.origin + window.location.pathname;
+  return `${baseUrl}?gas=${encodeURIComponent(gasUrl)}`;
+};
+
 // シートからデータ取得
 export const fetchFromSheet = async (): Promise<SyncData | null> => {
   const gasUrl = getGasUrl();

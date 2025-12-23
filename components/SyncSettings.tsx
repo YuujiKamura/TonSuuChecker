@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Cloud, CloudOff, RefreshCw, Copy, ExternalLink } from 'lucide-react';
-import { getGasUrl, setGasUrl, clearGasUrl, fetchFromSheet, syncToSheet, extractMetadata, TaggedRecord } from '../services/sheetSync';
+import { getGasUrl, setGasUrl, clearGasUrl, fetchFromSheet, syncToSheet, extractMetadata, generateShareUrl, TaggedRecord } from '../services/sheetSync';
 import { getStockItems } from '../services/stockService';
 
 interface SyncSettingsProps {
@@ -29,6 +29,7 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
   const [message, setMessage] = useState('');
   const [showAdminGuide, setShowAdminGuide] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareUrlCopied, setShareUrlCopied] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -89,6 +90,15 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyShareUrl = () => {
+    const url = generateShareUrl();
+    if (url) {
+      navigator.clipboard.writeText(url);
+      setShareUrlCopied(true);
+      setTimeout(() => setShareUrlCopied(false), 2000);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -137,29 +147,43 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
           </button>
 
           {isConnected && (
-            <div className="flex gap-3 pt-2">
+            <div className="space-y-3 pt-2">
+              <div className="flex gap-3">
+                <button
+                  onClick={handleFetch}
+                  disabled={syncing}
+                  className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all"
+                >
+                  <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
+                  取得
+                </button>
+                <button
+                  onClick={handlePush}
+                  disabled={syncing}
+                  className="flex-1 flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all"
+                >
+                  <Cloud size={18} />
+                  送信
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 rounded-xl transition-all"
+                >
+                  切断
+                </button>
+              </div>
+
+              {/* 共有URL生成ボタン */}
               <button
-                onClick={handleFetch}
-                disabled={syncing}
-                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all"
+                onClick={copyShareUrl}
+                className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all"
               >
-                <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
-                取得
+                <Copy size={18} />
+                {shareUrlCopied ? '共有URLをコピーしました！' : '共有URLを生成してコピー'}
               </button>
-              <button
-                onClick={handlePush}
-                disabled={syncing}
-                className="flex-1 flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all"
-              >
-                <Cloud size={18} />
-                送信
-              </button>
-              <button
-                onClick={handleDisconnect}
-                className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 rounded-xl transition-all"
-              >
-                切断
-              </button>
+              <p className="text-xs text-slate-500 text-center">
+                このURLを他のメンバーに共有すると、開くだけで自動接続されます
+              </p>
             </div>
           )}
 

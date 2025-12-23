@@ -10,6 +10,7 @@ import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems } from './services/stockService';
 import { getTodayCost, formatCost } from './services/costTracker';
+import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey } from './services/geminiService';
 import { EstimationResult, AnalysisHistory, StockItem } from './types';
 import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud } from 'lucide-react';
@@ -60,6 +61,8 @@ const App: React.FC = () => {
     setHasApiKey(!!getApiKey());
     setTodaysCost(getTodayCost());
     setStockItems(getStockItems());
+    // URLパラメータからGAS URLを読み込み
+    initFromUrlParams();
   }, []);
 
   // コスト更新（解析完了後）
