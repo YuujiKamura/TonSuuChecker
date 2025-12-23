@@ -1,13 +1,13 @@
-
 import React, { useRef } from 'react';
-import { Camera, Upload, Info, Zap } from 'lucide-react';
+import { Camera, FolderOpen, Info } from 'lucide-react';
 
 interface ImageUploaderProps {
   onImagesSelected: (images: { base64: string, file: File }[]) => void;
+  onCameraOpen: () => void;
   isLoading: boolean;
 }
 
-const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected, isLoading }) => {
+const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected, onCameraOpen, isLoading }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,28 +36,50 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected, isLoadi
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8">
-      <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-200">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-            <Camera className="text-blue-600" size={32} />
-            撮影して解析
-          </h2>
-          <div className="flex items-center gap-2 bg-yellow-400 text-slate-900 px-4 py-2 rounded-full font-black text-xs uppercase animate-pulse shadow-md">
-            <Zap size={14} fill="currentColor" /> Auto Start
-          </div>
-        </div>
+      <div className="bg-slate-900 rounded-[2.5rem] p-8 border border-slate-800">
+        <h2 className="text-xl font-black text-white text-center mb-8 uppercase tracking-widest">
+          画像を選択
+        </h2>
 
-        <div 
-          onClick={() => !isLoading && fileInputRef.current?.click()}
-          className={`aspect-[4/3] rounded-[2rem] border-4 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-blue-400 active:scale-[0.98] ${
-            isLoading ? 'opacity-50 cursor-not-allowed border-slate-200' : 'border-slate-300'
-          }`}
-        >
-          <div className="bg-blue-600 text-white p-6 rounded-full shadow-2xl mb-6">
-            <Upload size={48} />
-          </div>
-          <p className="text-xl font-bold text-slate-700">写真を撮る / ファイル選択</p>
-          <p className="text-sm text-slate-400 mt-2 font-medium">荷姿とナンバーが写るように撮影してください</p>
+        {/* 2つのボタンを横に並べる */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {/* カメラで撮影 */}
+          <button
+            onClick={() => !isLoading && onCameraOpen()}
+            disabled={isLoading}
+            className={"flex flex-col items-center justify-center gap-4 p-8 rounded-3xl border-2 border-dashed transition-all " + (
+              isLoading 
+                ? "opacity-50 cursor-not-allowed border-slate-700 bg-slate-800" 
+                : "border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 hover:border-blue-500 active:scale-[0.98] cursor-pointer"
+            )}
+          >
+            <div className="bg-blue-600 text-white p-5 rounded-full shadow-lg">
+              <Camera size={32} />
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-white">カメラで撮影</p>
+              <p className="text-xs text-slate-400 mt-1">その場で撮って解析</p>
+            </div>
+          </button>
+
+          {/* ファイルから選択 */}
+          <button
+            onClick={() => !isLoading && fileInputRef.current?.click()}
+            disabled={isLoading}
+            className={"flex flex-col items-center justify-center gap-4 p-8 rounded-3xl border-2 border-dashed transition-all " + (
+              isLoading 
+                ? "opacity-50 cursor-not-allowed border-slate-700 bg-slate-800" 
+                : "border-yellow-500/50 bg-yellow-500/10 hover:bg-yellow-500/20 hover:border-yellow-500 active:scale-[0.98] cursor-pointer"
+            )}
+          >
+            <div className="bg-yellow-600 text-white p-5 rounded-full shadow-lg">
+              <FolderOpen size={32} />
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-white">ファイルから選択</p>
+              <p className="text-xs text-slate-400 mt-1">保存済み画像を解析</p>
+            </div>
+          </button>
         </div>
 
         <input 
@@ -69,18 +91,13 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected, isLoadi
           multiple
         />
 
-        <div className="mt-8 bg-blue-50 rounded-2xl p-6 border border-blue-100">
-           <div className="flex items-start gap-4">
-             <div className="bg-blue-600 text-white p-2 rounded-lg shrink-0">
-               <Info size={20} />
-             </div>
-             <div>
-               <p className="text-base font-bold text-slate-800">使いかた</p>
-               <p className="text-sm text-slate-600 font-medium leading-relaxed mt-1">
-                 画像を選ぶとAIが自動的に動き出します。複数枚選ぶと、より立体的な推論が可能になります。
-               </p>
-             </div>
-           </div>
+        <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+          <div className="flex items-start gap-3">
+            <Info size={18} className="text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-slate-400">
+              荷姿とナンバーが写るように撮影してください。複数枚選択可能です。
+            </p>
+          </div>
         </div>
       </div>
     </div>

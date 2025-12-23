@@ -2,11 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
-import MonitorView from './components/MonitorView';
+import CameraCapture from './components/CameraCapture';
 import AnalysisResult from './components/AnalysisResult';
-import { analyzeGaraImageEnsemble, mergeResults } from './services/geminiService';
+import CostDashboard from './components/CostDashboard';
+import { getTodayCost, formatCost } from './services/costTracker';
+import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey } from './services/geminiService';
 import { EstimationResult, AnalysisHistory } from './types';
-import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff } from 'lucide-react';
+import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -16,13 +18,13 @@ interface LogEntry {
 }
 
 const App: React.FC = () => {
-  const [mode, setMode] = useState<'manual' | 'monitor'>('manual');
+  const [showCamera, setShowCamera] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isBackgroundScanning, setIsBackgroundScanning] = useState(false);
   const [isTargetLocked, setIsTargetLocked] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [monitorGuidance, setMonitorGuidance] = useState<string | null>(null);
-  const [ensembleTarget, setEnsembleTarget] = useState(2);
+  const [ensembleTarget, setEnsembleTarget] = useState(1);
   const [selectedModel, setSelectedModel] = useState<'gemini-3-flash-preview' | 'gemini-3-pro-preview'>('gemini-3-flash-preview');
   const [currentResult, setCurrentResult] = useState<EstimationResult | null>(null);
   const [rawInferences, setRawInferences] = useState<EstimationResult[]>([]);
@@ -33,8 +35,26 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analysisStep, setAnalysisStep] = useState(0);
   
+  // APIキー関連
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showCostDashboard, setShowCostDashboard] = useState(false);
+  const [todaysCost, setTodaysCost] = useState(0);
+  
   const requestCounter = useRef(0);
   const activeRequestId = useRef(0);
+
+  // APIキーの状態を初期化時にチェック
+  useEffect(() => {
+    setHasApiKey(!!getApiKey());
+    setTodaysCost(getTodayCost());
+  }, []);
+
+  // コスト更新（解析完了後）
+  const refreshCost = () => {
+    setTodaysCost(getTodayCost());
+  };
 
   const steps = [
     "画像を読み込み中...",
@@ -80,7 +100,27 @@ const App: React.FC = () => {
     setLogs(prev => [newLog, ...prev.slice(0, 49)]);
   };
 
+  const handleSaveApiKey = () => {
+    if (apiKeyInput.trim()) {
+      setApiKey(apiKeyInput.trim());
+      setHasApiKey(true);
+      setShowApiKeyModal(false);
+      setApiKeyInput('');
+    }
+  };
+
+  const handleClearApiKey = () => {
+    clearApiKey();
+    setHasApiKey(false);
+  };
+
   const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false) => {
+    if (!hasApiKey) {
+      setError('APIキーが設定されていません。設定してください。');
+      setShowApiKeyModal(true);
+      return;
+    }
+
     const requestId = ++requestCounter.current;
     activeRequestId.current = requestId;
 
@@ -161,6 +201,7 @@ const App: React.FC = () => {
         };
 
         setHistory(prev => [newHistoryItem, ...prev.slice(0, 99)]);
+        refreshCost();
       }
     } catch (err: any) {
       if (activeRequestId.current !== requestId) return;
@@ -197,22 +238,48 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-200">
       <Header 
-        mode={mode} 
-        setMode={(m) => { resetAnalysis(); setMode(m); }} 
         onReset={resetAnalysis} 
       />
       
       <main className="flex-grow relative overflow-x-hidden">
-        {mode === 'monitor' ? (
-          <MonitorView 
-            onDetected={(base64, url) => startAnalysis([base64], [url], true)} 
-            isAnalyzing={isBackgroundScanning}
-            isLocked={isTargetLocked}
-            guidance={monitorGuidance}
-            isRateLimited={isRateLimited}
+        {/* カメラモーダル */}
+        {showCamera && (
+          <CameraCapture
+            onCapture={(base64, url) => {
+              setShowCamera(false);
+              setCurrentImageUrls([url]);
+              startAnalysis([base64], [url]);
+            }}
+            onClose={() => setShowCamera(false)}
+            isAnalyzing={loading}
           />
-        ) : (
-          <div className="max-w-4xl mx-auto w-full px-4 pt-4">
+        )}
+        
+        <div className="max-w-4xl mx-auto w-full px-4 pt-4">
+            {/* APIキー状態表示 */}
+            <div className="mb-4 flex items-center gap-3">
+              <button
+                onClick={() => setShowApiKeyModal(true)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold transition-all ${hasApiKey ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 animate-pulse'}`}
+              >
+                <Key size={16} />
+                {hasApiKey ? 'APIキー設定済み' : 'APIキー未設定'}
+              </button>
+              <button
+                onClick={() => setShowCostDashboard(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
+              >
+                {formatCost(todaysCost)}
+              </button>
+              {hasApiKey && (
+                <button
+                  onClick={handleClearApiKey}
+                  className="text-xs text-slate-500 hover:text-red-400 transition-colors ml-auto"
+                >
+                  キーを削除
+                </button>
+              )}
+            </div>
             {isRateLimited && (
               <div className="mb-4 bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex items-center gap-4 animate-pulse">
                 <ZapOff className="text-amber-500 shrink-0" size={24} />
@@ -238,7 +305,8 @@ const App: React.FC = () => {
                     const urls = imgs.map(i => URL.createObjectURL(i.file));
                     setCurrentImageUrls(urls);
                     startAnalysis(imgs.map(i => i.base64), urls);
-                  }} 
+                  }}
+                  onCameraOpen={() => setShowCamera(true)}
                   isLoading={loading} 
                 />
                 
@@ -355,9 +423,8 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-        )}
 
-        {history.length > 0 && !loading && mode === 'manual' && !currentResult && (
+        {history.length > 0 && !loading && !currentResult && !showCamera && (
           <div className="fixed bottom-12 left-0 right-0 p-6 pointer-events-none z-40">
             <div className="max-w-lg mx-auto space-y-3 pointer-events-auto">
               <h3 className="text-xs font-black text-slate-500 uppercase flex items-center gap-2 mb-2 bg-slate-950/90 backdrop-blur-xl w-fit px-4 py-2 rounded-full border border-slate-800">
@@ -368,13 +435,13 @@ const App: React.FC = () => {
                   <div 
                     key={item.id} 
                     onClick={() => {
-                      if (mode === 'manual' && !loading) {
+                      if (!loading && !showCamera) {
                         setCurrentResult(item.result);
                         setCurrentId(item.id);
                         setCurrentImageUrls(item.imageUrls);
                       }
                     }}
-                    className={`bg-slate-900/95 backdrop-blur-2xl border border-slate-800 p-3 rounded-2xl flex items-center gap-4 shadow-2xl transition-all ${mode === 'manual' && !loading ? 'cursor-pointer hover:border-blue-500 active:scale-[0.98]' : ''}`}
+                    className={`bg-slate-900/95 backdrop-blur-2xl border border-slate-800 p-3 rounded-2xl flex items-center gap-4 shadow-2xl transition-all ${!loading && !showCamera ? 'cursor-pointer hover:border-blue-500 active:scale-[0.98]' : ''}`}
                   >
                     <img src={item.imageUrls[0]} className="w-14 h-14 rounded-xl object-cover bg-slate-800 border border-white/5" />
                     <div className="flex-grow min-w-0">
@@ -395,6 +462,67 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
+
+
+      {/* コストダッシュボード */}
+      <CostDashboard 
+        isOpen={showCostDashboard} 
+        onClose={() => { setShowCostDashboard(false); refreshCost(); }} 
+      />
+
+      {/* APIキー設定モーダル */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black text-white flex items-center gap-3">
+                <Key className="text-yellow-500" size={24} />
+                Gemini APIキー設定
+              </h2>
+              <button onClick={() => setShowApiKeyModal(false)} className="text-slate-500 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <p className="text-sm text-slate-400 mb-4">
+              Google AI StudioでAPIキーを取得してください。
+            </p>
+            
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder="AIza..."
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 mb-4"
+            />
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleSaveApiKey}
+                disabled={!apiKeyInput.trim()}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-3 rounded-xl transition-all"
+              >
+                保存
+              </button>
+              <button
+                onClick={() => setShowApiKeyModal(false)}
+                className="px-6 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl transition-all"
+              >
+                キャンセル
+              </button>
+            </div>
+            
+            <a 
+              href="https://aistudio.google.com/app/apikey" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="block text-center text-sm text-blue-400 hover:text-blue-300 mt-4"
+            >
+              Google AI Studioでキーを取得
+            </a>
+          </div>
+        </div>
+      )}
 
       <footer className="bg-slate-950 border-t border-slate-900 p-4 text-center z-50">
         <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.3em]">

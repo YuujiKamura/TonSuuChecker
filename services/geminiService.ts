@@ -1,5 +1,5 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
+import { saveCostEntry } from './costTracker';
 import { EstimationResult, AnalysisHistory } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
 
@@ -14,13 +14,11 @@ const getMode = (arr: any[]) => {
 };
 
 async function runSingleInference(
-  ai: any, 
-  imageParts: any[], 
-  learningContext: any[], 
+  ai: any,
+  imageParts: any[],
+  learningContext: any[],
   modelName: string
 ): Promise<EstimationResult> {
-  const isFlash = modelName.includes('flash');
-  
   const response = await ai.models.generateContent({
     model: modelName,
     contents: {
@@ -29,7 +27,7 @@ async function runSingleInference(
     config: {
       systemInstruction: SYSTEM_PROMPT,
       responseMimeType: "application/json",
-      temperature: 0.1, // クォータ節約と安定性のため、極めて低い温度に設定
+      temperature: 0.1,
       topP: 0.95,
       responseSchema: {
         type: Type.OBJECT,
@@ -79,12 +77,12 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
 
   const avgTonnage = validResults.reduce((sum, r) => sum + r.estimatedTonnage, 0) / resultCount;
   const avgVolume = validResults.reduce((sum, r) => sum + r.estimatedVolumeM3, 0) / resultCount;
-  
+
   const finalTruckType = getMode(validResults.map(r => r.truckType));
   const finalLicenseNumber = getMode(validResults.map(r => r.licenseNumber));
   const finalLicensePlate = getMode(validResults.map(r => r.licensePlate));
 
-  const closestToAvg = validResults.reduce((prev, curr) => 
+  const closestToAvg = validResults.reduce((prev, curr) =>
     Math.abs(curr.estimatedTonnage - avgTonnage) < Math.abs(prev.estimatedTonnage - avgTonnage) ? curr : prev
   );
 
@@ -101,15 +99,31 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
   };
 }
 
+export const getApiKey = (): string | null => {
+  return localStorage.getItem('gemini_api_key');
+};
+
+export const setApiKey = (key: string): void => {
+  localStorage.setItem('gemini_api_key', key);
+};
+
+export const clearApiKey = (): void => {
+  localStorage.removeItem('gemini_api_key');
+};
+
 export const analyzeGaraImageEnsemble = async (
-  base64Images: string[], 
+  base64Images: string[],
   targetCount: number,
   learningData: AnalysisHistory[] = [],
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview'
 ): Promise<EstimationResult[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error('APIキーが設定されていません');
+  }
+  const ai = new GoogleGenAI({ apiKey });
   const learningContext = learningData
     .filter(h => h.actualTonnage !== undefined)
     .slice(0, 3)
@@ -128,12 +142,13 @@ export const analyzeGaraImageEnsemble = async (
 
     try {
       const res = await runSingleInference(ai, imageParts, learningContext, modelName);
-      
+
       if (i === 0 && !res.isTargetDetected) {
         return [res];
       }
 
       results.push(res);
+      saveCostEntry(modelName, imageParts.length);
       onProgress(results.length, res);
     } catch (err) {
       console.error(`推論エラー #${i + 1}:`, err);
