@@ -268,10 +268,11 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
                 <p className="text-xs font-bold text-emerald-400 mb-2">抽出されたパラメータ:</p>
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {item.extractedFeatures.map((f, idx) => (
-                    <div key={idx} className="text-xs">
+                    <div key={idx} className="text-xs mb-2">
                       <span className="text-yellow-400 font-mono">{f.parameterName}</span>
                       <span className="text-slate-500">: </span>
-                      <span className="text-white">{f.value}{f.unit ? ` ${f.unit}` : ''}</span>
+                      <span className="text-white font-bold">{f.value}{f.unit ? ` ${f.unit}` : ''}</span>
+                      {f.reference && <span className="text-cyan-400 text-[10px] ml-2">({f.reference})</span>}
                       <p className="text-slate-500 text-[10px] ml-2">{f.description}</p>
                     </div>
                   ))}

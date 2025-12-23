@@ -31,6 +31,7 @@ export interface ExtractedFeature {
   value: number | string;
   unit?: string;
   description: string;
+  reference?: string;  // 基準（ナンバープレート幅基準など）
 }
 
 export interface StockItem {
