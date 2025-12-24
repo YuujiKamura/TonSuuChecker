@@ -82,20 +82,19 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected, onCamer
           </button>
         </div>
 
-        <input 
-          type="file" 
+        <input
+          type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
           accept="image/*"
           className="hidden"
-          
         />
 
         <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
           <div className="flex items-start gap-3">
             <Info size={18} className="text-blue-400 shrink-0 mt-0.5" />
             <p className="text-sm text-slate-400">
-              荷姿とナンバーが写るように撮影してください。複数枚選択可能です。
+              荷姿とナンバーが写るように撮影してください
             </p>
           </div>
         </div>

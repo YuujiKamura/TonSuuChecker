@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Cloud, CloudOff, RefreshCw, Copy, ExternalLink } from 'lucide-react';
-import { getGasUrl, setGasUrl, clearGasUrl, fetchFromSheet, syncToSheet, extractMetadata, generateShareUrl, TaggedRecord } from '../services/sheetSync';
+import { X, Cloud, CloudOff, RefreshCw, Copy, ExternalLink, Image } from 'lucide-react';
+import { getGasUrl, setGasUrl, clearGasUrl, fetchFromSheet, generateShareUrl, TaggedRecord, createSyncRecord, syncRecordToSheet } from '../services/sheetSync';
 import { getStockItems } from '../services/stockService';
+import { StockItem } from '../types';
 
 interface SyncSettingsProps {
   isOpen: boolean;
@@ -9,16 +10,94 @@ interface SyncSettingsProps {
   onDataFetched?: (items: TaggedRecord[]) => void;
 }
 
-const GAS_CODE = `function doGet(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getRange('A1').getValue();
-  return ContentService.createTextOutput(data || '{"items":[]}').setMimeType(ContentService.MimeType.JSON);
-}
+// 新しいGASコードはgas/TonCheckerSync.gsを参照
+const GAS_CODE = `// トン数チェッカー スプレッドシート同期 GAS
+// 詳細: gas/TonCheckerSync.gs
+
+const CONFIG = {
+  SHEET_NAME: 'データ',
+  IMAGE_FOLDER_NAME: 'TonChecker_Images',
+  HEADERS: ['日時','ID','ナンバー','車番','メモ','実測(t)','最大積載(t)','AI推定(t)','AI推定最大(t)','体積(m³)','車両タイプ','積載物','画像','画像URL','ユーザー']
+};
 
 function doPost(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  sheet.getRange('A1').setValue(e.parameter.data);
-  return ContentService.createTextOutput('{"success":true}').setMimeType(ContentService.MimeType.JSON);
+  const data = JSON.parse(e.postData.contents);
+  if (data.action === 'addRecord') {
+    const result = addRecord(data.record);
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput(JSON.stringify({ error: 'Unknown action' })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  const data = getAllRecords();
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function addRecord(record) {
+  const sheet = getOrCreateSheet();
+  let imageUrl = '';
+  if (record.imageBase64) {
+    imageUrl = saveImageToDrive(record.imageBase64, record.id);
+  }
+  const date = new Date(record.timestamp);
+  const dateStr = Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+  const rowData = [dateStr, record.id, record.licensePlate||'', record.licenseNumber||'', record.memo||'', record.actualTonnage||'', record.maxCapacity||'', record.estimatedTonnage||'', record.estimatedMaxCapacity||'', record.estimatedVolumeM3||'', record.truckType||'', record.materialType||'', imageUrl ? \`=IMAGE("\${imageUrl}")\` : '', imageUrl, record.userName||''];
+  const existingRow = findRowById(sheet, record.id);
+  if (existingRow > 0) {
+    sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
+  sheet.setRowHeight(existingRow > 0 ? existingRow : sheet.getLastRow(), 80);
+  return { success: true, imageUrl, row: existingRow > 0 ? existingRow : sheet.getLastRow() };
+}
+
+function saveImageToDrive(base64Data, id) {
+  const folder = getOrCreateFolder();
+  const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), 'image/jpeg', id+'.jpg');
+  const existingFiles = folder.getFilesByName(id+'.jpg');
+  while (existingFiles.hasNext()) existingFiles.next().setTrashed(true);
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return 'https://drive.google.com/uc?id='+file.getId();
+}
+
+function getOrCreateSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEET_NAME);
+    sheet.getRange(1, 1, 1, CONFIG.HEADERS.length).setValues([CONFIG.HEADERS]);
+    sheet.getRange(1, 1, 1, CONFIG.HEADERS.length).setBackground('#4a5568').setFontColor('#ffffff').setFontWeight('bold');
+    sheet.setColumnWidth(1, 140); sheet.setColumnWidth(13, 120); sheet.setColumnWidth(14, 200);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function getOrCreateFolder() {
+  const folders = DriveApp.getFoldersByName(CONFIG.IMAGE_FOLDER_NAME);
+  return folders.hasNext() ? folders.next() : DriveApp.createFolder(CONFIG.IMAGE_FOLDER_NAME);
+}
+
+function findRowById(sheet, id) {
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) if (data[i][1] === id) return i + 1;
+  return -1;
+}
+
+function getAllRecords() {
+  const sheet = getOrCreateSheet();
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return { records: [] };
+  const headers = data[0], records = [];
+  for (let i = 1; i < data.length; i++) {
+    const record = {};
+    headers.forEach((h, j) => record[h] = data[i][j]);
+    records.push(record);
+  }
+  return { version: '2.0', syncDate: new Date().toISOString(), records };
 }`;
 
 const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetched }) => {
@@ -75,13 +154,36 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
 
   const handlePush = async () => {
     setSyncing(true);
-    setMessage('送信中...');
-    const stockItems = getStockItems();
-    const metadata = extractMetadata(stockItems);
-    const success = await syncToSheet(metadata);
-    setMessage(success ? `${metadata.length}件を送信` : '送信エラー');
+    const stockItems = getStockItems() as StockItem[];
+
+    if (stockItems.length === 0) {
+      setMessage('送信するデータがありません');
+      setSyncing(false);
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < stockItems.length; i++) {
+      setMessage(`送信中... (${i + 1}/${stockItems.length})`);
+      const record = createSyncRecord(stockItems[i], true); // 画像含む
+      const result = await syncRecordToSheet(record);
+      if (result.success) {
+        successCount++;
+      } else {
+        errorCount++;
+      }
+    }
+
+    if (errorCount > 0) {
+      setMessage(`${successCount}件成功, ${errorCount}件失敗`);
+    } else {
+      setMessage(`${successCount}件を送信完了（画像含む）`);
+    }
     setSyncing(false);
-    setTimeout(() => setMessage(''), 3000);
+    setTimeout(() => setMessage(''), 5000);
   };
 
   const copyGasCode = () => {
@@ -162,7 +264,7 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
                   disabled={syncing}
                   className="flex-1 flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all"
                 >
-                  <Cloud size={18} />
+                  <Image size={18} />
                   送信
                 </button>
                 <button
@@ -226,17 +328,13 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
                 </ol>
               </div>
 
-              <div className="relative">
-                <pre className="p-3 bg-slate-950 rounded-xl text-xs text-green-400 overflow-x-auto whitespace-pre-wrap">
-                  {GAS_CODE}
-                </pre>
-                <button
-                  onClick={copyGasCode}
-                  className="absolute top-2 right-2 p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-all"
-                >
-                  {copied ? '✓' : <Copy size={16} />}
-                </button>
-              </div>
+              <button
+                onClick={copyGasCode}
+                className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all"
+              >
+                <Copy size={18} />
+                {copied ? 'コピーしました！' : 'GASコードをコピー'}
+              </button>
             </div>
           )}
         </div>

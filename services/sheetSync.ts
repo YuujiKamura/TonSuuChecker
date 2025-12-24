@@ -1,5 +1,30 @@
-// スプレッドシート同期サービス（メタデータのみ）
+// スプレッドシート同期サービス（画像・実測データ含む）
 
+import { StockItem, getJudgmentStatus } from '../types';
+
+export interface SyncRecord {
+  id: string;
+  timestamp: number;
+  licensePlate?: string;
+  licenseNumber?: string;
+  memo?: string;
+  // 判定データ
+  actualTonnage?: number;       // 実測値
+  maxCapacity?: number;         // ユーザー指定の最大積載量
+  // AI推定データ
+  estimatedTonnage?: number;    // AI推定重量
+  estimatedMaxCapacity?: number; // AI推定最大積載量
+  estimatedVolumeM3?: number;   // AI推定体積
+  truckType?: string;           // 車両タイプ
+  materialType?: string;        // 積載物
+  // 画像
+  imageBase64?: string;         // 送信時のみ使用
+  imageUrl?: string;            // Drive保存後のURL
+  // メタ
+  userName?: string;
+}
+
+// 後方互換性のため残す
 export interface TaggedRecord {
   id: string;
   timestamp: number;
@@ -93,7 +118,7 @@ export const syncToSheet = async (items: TaggedRecord[]): Promise<boolean> => {
   }
 };
 
-// ローカルのタグ付きストックからメタデータを抽出
+// ローカルのタグ付きストックからメタデータを抽出（後方互換）
 export const extractMetadata = (stockItems: Array<{
   id: string;
   timestamp: number;
@@ -109,4 +134,57 @@ export const extractMetadata = (stockItems: Array<{
       memo: item.memo,
       userName: localStorage.getItem('tonchecker_username') || undefined
     }));
+};
+
+// StockItemから同期用レコードを作成（画像含む）
+export const createSyncRecord = (item: StockItem, includeImage: boolean = true): SyncRecord => {
+  const latestResult = item.estimations?.[0] || item.result;
+
+  return {
+    id: item.id,
+    timestamp: item.timestamp,
+    licensePlate: latestResult?.licensePlate,
+    licenseNumber: latestResult?.licenseNumber,
+    memo: item.memo,
+    // 判定データ
+    actualTonnage: item.actualTonnage,
+    maxCapacity: item.maxCapacity,
+    // AI推定
+    estimatedTonnage: latestResult?.estimatedTonnage,
+    estimatedMaxCapacity: latestResult?.estimatedMaxCapacity,
+    estimatedVolumeM3: latestResult?.estimatedVolumeM3,
+    truckType: latestResult?.truckType,
+    materialType: latestResult?.materialType,
+    // 画像（base64、送信時のみ）
+    imageBase64: includeImage ? item.base64Images[0] : undefined,
+    // メタ
+    userName: localStorage.getItem('tonchecker_username') || undefined
+  };
+};
+
+// 単一レコードを送信（画像付き）
+export const syncRecordToSheet = async (record: SyncRecord): Promise<{ success: boolean; imageUrl?: string }> => {
+  const gasUrl = getGasUrl();
+  if (!gasUrl) return { success: false };
+
+  try {
+    const response = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'addRecord', record }),
+      mode: 'cors'  // CORSが必要
+    });
+
+    // GASがJSONを返す場合
+    try {
+      const result = await response.json();
+      return { success: true, imageUrl: result.imageUrl };
+    } catch {
+      // no-corsの場合はレスポンスが読めない
+      return { success: true };
+    }
+  } catch (err) {
+    console.error('レコード同期エラー:', err);
+    return { success: false };
+  }
 };
