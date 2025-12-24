@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { StockItem, getJudgmentStatus, isJudged, JudgmentStatus } from '../types';
 import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye, FileSpreadsheet, Plus, Camera, ImagePlus } from 'lucide-react';
 import { extractFeatures } from '../services/geminiService';
-import { exportWasteReportFromStock } from '../services/excelExporter';
+import { exportWasteReportFromStock, countExportableEntries } from '../services/excelExporter';
 
 interface StockListProps {
   items: StockItem[];
@@ -493,7 +493,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
           <FileSpreadsheet size={18} />
           <span className="hidden sm:inline">Excel</span>
           <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
-            {items.filter(i => i.actualTonnage).length}
+            {countExportableEntries(items)}
           </span>
         </button>
       </div>
@@ -677,7 +677,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
               産廃集計表を出力
             </h3>
             <p className="text-sm text-slate-400 mb-6">
-              実測トン数が入力された {items.filter(i => i.actualTonnage).length} 件のデータをExcelに出力します
+              伝票番号または実測値がある {countExportableEntries(items)} 件のデータをExcelに出力します
             </p>
 
             <div className="space-y-4 mb-6">

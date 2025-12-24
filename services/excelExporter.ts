@@ -38,13 +38,15 @@ export interface ExportConfig {
 }
 
 // StockItemをWasteEntryに変換するヘルパー
+// マニフェスト番号または実測値があるものを対象とする
 export const stockItemToWasteEntry = (
   item: StockItem,
   wasteType: string = 'アスファルト殻',
   destination: string = '',
   unit: string = 'ｔ'
 ): WasteEntry | null => {
-  if (!item.actualTonnage) {
+  // マニフェスト番号も実測値もないものは除外
+  if (!item.manifestNumber && !item.actualTonnage) {
     return null;
   }
   return {
@@ -52,7 +54,7 @@ export const stockItemToWasteEntry = (
     wasteType,
     deliveryDate: new Date(item.timestamp),
     unit,
-    amount: item.actualTonnage,
+    amount: item.actualTonnage || 0,  // 実測値がなければ0（空欄扱い）
     destination,
     remarks: item.memo
   };
@@ -273,10 +275,12 @@ const createWorksheet = (
     cellF.font = dataFont;
     cellF.alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // 搬出量
+    // 搬出量（実測値がある場合のみ）
     const cellG = row.getCell('G');
-    cellG.value = entry.amount;
-    cellG.numFmt = '#,##0.00';
+    cellG.value = entry.amount > 0 ? entry.amount : '';
+    if (entry.amount > 0) {
+      cellG.numFmt = '#,##0.00';
+    }
     cellG.font = dataFont;
     cellG.alignment = { horizontal: 'right', vertical: 'middle' };
 
@@ -286,7 +290,9 @@ const createWorksheet = (
     cellH.font = dataFont;
     cellH.alignment = dataAlignment;
 
-    totalAmount += entry.amount;
+    if (entry.amount > 0) {
+      totalAmount += entry.amount;
+    }
     rowIndex++;
   });
 
@@ -382,9 +388,9 @@ export const generateWasteReport = async (
   destination: string = '',
   unit: string = 'ｔ'
 ): Promise<ExcelJS.Workbook> => {
-  // StockItemをWasteEntryに変換（actualTonnageがあるもののみ）
+  // StockItemをWasteEntryに変換（manifestNumberまたはactualTonnageがあるもの）
   const entries = items
-    .filter(item => item.actualTonnage)
+    .filter(item => item.manifestNumber || item.actualTonnage)
     .map(item => stockItemToWasteEntry(item, wasteType, destination, unit)!)
     .sort((a, b) => a.deliveryDate.getTime() - b.deliveryDate.getTime());
 
@@ -458,8 +464,8 @@ export const exportWasteReportFromStock = async (
 };
 
 /**
- * マニフェスト番号が入力されているアイテムの件数を取得
+ * Excel出力対象のアイテム件数を取得（伝票番号または実測値があるもの）
  */
-export const countManifestEntries = (items: StockItem[]): number => {
-  return items.filter(item => item.manifestNumber && item.actualTonnage).length;
+export const countExportableEntries = (items: StockItem[]): number => {
+  return items.filter(item => item.manifestNumber || item.actualTonnage).length;
 };
