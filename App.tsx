@@ -155,12 +155,23 @@ const App: React.FC = () => {
     if (stockItemId) {
       setCurrentId(stockItemId);
     }
-    setCurrentImageUrls(urls);
-    setCurrentBase64Images(base64s);
     setMaxCapacity(initialMaxCapacity);
-    // CaptureChoiceを表示するためのpendingCaptureを設定
+
+    // base64がない場合はimageUrlsから抽出（履歴移行データ対応）
+    let firstBase64 = base64s[0];
     const firstUrl = urls[0];
-    const firstBase64 = base64s[0];
+
+    if (!firstBase64 && firstUrl && firstUrl.startsWith('data:')) {
+      firstBase64 = firstUrl.split(',')[1] || '';
+    }
+
+    if (!firstBase64) {
+      setError('画像データがありません。再撮影してください。');
+      return;
+    }
+
+    setCurrentImageUrls([firstUrl]);
+    setCurrentBase64Images([firstBase64]);
     setPendingCapture({ base64: firstBase64, url: firstUrl });
   };
 
