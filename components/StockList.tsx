@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { StockItem, getJudgmentStatus, isJudged, JudgmentStatus } from '../types';
+import { StockItem } from '../types';
 import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye, FileSpreadsheet, Plus, Camera, ImagePlus, FolderOpen } from 'lucide-react';
 import { extractFeatures } from '../services/geminiService';
 import { exportWasteReportFromStock, countExportableEntries } from '../services/excelExporter';
@@ -72,14 +72,13 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
   };
 
   const handleExtractFeatures = async (item: StockItem) => {
-    const status = getJudgmentStatus(item);
-    if (!item.actualTonnage || status === 'unknown') return;
+    if (!item.actualTonnage || !item.base64Images[0]) return;
     setExtractingId(item.id);
     try {
       const { features, rawResponse } = await extractFeatures(
         item.base64Images[0],
         item.actualTonnage,
-        status as 'OK' | 'NG',
+        undefined,  // 判定ステータスは使用しない
         item.maxCapacity,
         item.memo  // 車両名（メモに入力されている場合）
       );
@@ -94,9 +93,8 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
     }
   };
 
-  const unjudgedItems = items.filter(item => !isJudged(item));
-  const judgedItems = items.filter(item => isJudged(item));
   const analyzedItems = items.filter(item => (item.estimations && item.estimations.length > 0) || item.result);
+  const unanalyzedItems = items.filter(item => !((item.estimations && item.estimations.length > 0) || item.result));
 
   const startEdit = (item: StockItem) => {
     setEditingId(item.id);
@@ -197,8 +195,6 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
   };
 
   const renderItem = (item: StockItem) => {
-    const judgmentStatus = getJudgmentStatus(item);
-    const itemIsJudged = isJudged(item);
     const isEditing = editingId === item.id;
     const hasAnalysis = (item.estimations && item.estimations.length > 0) || item.result;
 
@@ -208,9 +204,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
         className={`bg-slate-800 border rounded-2xl p-4 ${
           hasAnalysis
             ? 'border-cyan-500/30 bg-slate-800/80'
-            : itemIsJudged
-              ? 'border-slate-700/50 bg-slate-800/50'
-              : 'border-slate-700'
+            : 'border-slate-700'
         } ${isEditing ? 'border-blue-500/50' : ''}`}
       >
         {/* 編集モード：大きい画像とフォーム */}
@@ -279,11 +273,6 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
             </div>
             <div className="space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
-                {judgmentStatus !== 'unknown' && (
-                  <span className={`text-xs font-black px-2 py-0.5 rounded-full ${judgmentStatus === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {judgmentStatus === 'OK' ? '適正' : '過積載'}
-                  </span>
-                )}
                 <span className="text-xs text-slate-500">
                   {new Date(item.timestamp).toLocaleString()}
                 </span>
@@ -350,13 +339,13 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
             {item.imageUrls[0] ? (
               <img
                 src={item.imageUrls[0]}
-                className={`w-20 h-20 rounded-xl object-cover bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 ${itemIsJudged ? 'opacity-80' : ''}`}
+                className="w-20 h-20 rounded-xl object-cover bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95"
                 alt="Stock"
                 onClick={() => startEdit(item)}
               />
             ) : (
               <div
-                className={`w-20 h-20 rounded-xl bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 flex items-center justify-center ${itemIsJudged ? 'opacity-80' : ''}`}
+                className="w-20 h-20 rounded-xl bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 flex items-center justify-center"
                 onClick={() => startEdit(item)}
               >
                 <Camera size={24} className="text-slate-600" />
@@ -366,11 +355,6 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
             <div className="flex-grow min-w-0">
               {/* 日時とタグ */}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                {judgmentStatus !== 'unknown' && (
-                  <span className={`text-xs font-black px-2 py-0.5 rounded-full ${judgmentStatus === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {judgmentStatus === 'OK' ? '適正' : '過積載'}
-                  </span>
-                )}
                 {(() => {
                   const latestEstimation = item.estimations && item.estimations.length > 0 
                     ? item.estimations[0] 
@@ -408,16 +392,9 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
 
             {/* アクションボタン */}
             <div className="flex flex-col gap-2 shrink-0">
-              {/* 未判定の場合はヒントを表示 */}
-              {!itemIsJudged && (
-                <span className="text-[9px] text-slate-500 text-center">
-                  画像をタップして<br/>実測・最大積載量を入力
-                </span>
-              )}
-
               <div className="flex gap-2 flex-wrap">
-                {/* 特徴抽出ボタン（判定済み+実測値がある場合） */}
-                {itemIsJudged && item.actualTonnage && (
+                {/* 特徴抽出ボタン（実測値がある場合） */}
+                {item.actualTonnage && item.base64Images[0] && (
                   <button
                     onClick={() => handleExtractFeatures(item)}
                     disabled={extractingId === item.id}
@@ -508,7 +485,6 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
         </button>
         <div onClick={onClose} className="cursor-pointer flex-grow min-w-0">
           <h2 className="text-lg font-black text-white">ストック一覧</h2>
-          <p className="text-xs text-slate-500 hidden sm:block">計量後にOK/NGを付けて学習データに</p>
         </div>
         {/* 新規追加ボタン */}
         <button
@@ -546,41 +522,20 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
                 <h3 className="text-sm font-bold text-cyan-400 mb-3">
                   📊 解析済み（{analyzedItems.length}件）
                 </h3>
-                <p className="text-xs text-slate-500 mb-4">
-                  解析結果を確認するには目のアイコンをタップ
-                </p>
                 <div className="space-y-3">
                   {analyzedItems.map(item => renderItem(item))}
                 </div>
               </div>
             )}
 
-            {/* 未判定（解析されていないもののみ） */}
-            {unjudgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
+            {/* 未解析 */}
+            {unanalyzedItems.length > 0 && (
               <div>
-                <h3 className="text-sm font-bold text-amber-500 mb-3">
-                  ⏳ 判定待ち（{unjudgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
+                <h3 className="text-sm font-bold text-slate-400 mb-3">
+                  📷 未解析（{unanalyzedItems.length}件）
                 </h3>
-                <p className="text-xs text-slate-500 mb-4">
-                  実測値と最大積載量を入力すると自動判定されます
-                </p>
                 <div className="space-y-3">
-                  {unjudgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item))}
-                </div>
-              </div>
-            )}
-
-            {/* 判定済み（解析されていないもののみ） */}
-            {judgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
-              <div>
-                <h3 className="text-sm font-bold text-green-500 mb-3">
-                  ✓ 判定済み（{judgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
-                </h3>
-                <p className="text-xs text-slate-500 mb-4">
-                  このデータはAI解析の参考として使われます
-                </p>
-                <div className="space-y-3">
-                  {judgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item))}
+                  {unanalyzedItems.map(item => renderItem(item))}
                 </div>
               </div>
             )}
