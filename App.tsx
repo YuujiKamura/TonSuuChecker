@@ -29,8 +29,14 @@ const App: React.FC = () => {
   const [isTargetLocked, setIsTargetLocked] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [monitorGuidance, setMonitorGuidance] = useState<string | null>(null);
-  const [ensembleTarget, setEnsembleTarget] = useState(1);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3-flash-preview' | 'gemini-3-pro-preview'>('gemini-3-flash-preview');
+  const [ensembleTarget, setEnsembleTarget] = useState(() => {
+    const saved = localStorage.getItem('tonchecker_ensemble_target');
+    return saved ? parseInt(saved) : 1;
+  });
+  const [selectedModel, setSelectedModel] = useState<'gemini-3-flash-preview' | 'gemini-3-pro-preview'>(() => {
+    const saved = localStorage.getItem('tonchecker_model');
+    return (saved as 'gemini-3-flash-preview' | 'gemini-3-pro-preview') || 'gemini-3-flash-preview';
+  });
   const [currentResult, setCurrentResult] = useState<EstimationResult | null>(null);
   const [rawInferences, setRawInferences] = useState<EstimationResult[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -480,14 +486,14 @@ const App: React.FC = () => {
                     </h3>
                     <div className="grid grid-cols-2 gap-3">
                       <button 
-                        onClick={() => setSelectedModel('gemini-3-flash-preview')}
+                        onClick={() => { setSelectedModel('gemini-3-flash-preview'); localStorage.setItem('tonchecker_model', 'gemini-3-flash-preview'); }}
                         className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${selectedModel.includes('flash') ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'}`}
                       >
                         <Zap size={24} />
                         <span className="text-xs font-black uppercase tracking-widest">Flash</span>
                       </button>
                       <button 
-                        onClick={() => setSelectedModel('gemini-3-pro-preview')}
+                        onClick={() => { setSelectedModel('gemini-3-pro-preview'); localStorage.setItem('tonchecker_model', 'gemini-3-pro-preview'); }}
                         className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${selectedModel.includes('pro') ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'}`}
                       >
                         <BrainCircuit size={24} />
@@ -504,7 +510,7 @@ const App: React.FC = () => {
                     <input
                       type="range" min="1" max="5" step="1"
                       value={ensembleTarget}
-                      onChange={(e) => setEnsembleTarget(parseInt(e.target.value))}
+                      onChange={(e) => { const v = parseInt(e.target.value); setEnsembleTarget(v); localStorage.setItem('tonchecker_ensemble_target', v.toString()); }}
                       className="w-full accent-blue-500 h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer mb-4"
                     />
                     <div className="flex justify-between text-xs font-black text-slate-500 uppercase tracking-wider">
