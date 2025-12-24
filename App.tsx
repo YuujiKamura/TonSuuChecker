@@ -6,6 +6,7 @@ import CameraCapture from './components/CameraCapture';
 import CaptureChoice from './components/CaptureChoice';
 import StockList from './components/StockList';
 import Settings from './components/Settings';
+import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation } from './services/stockService';
@@ -13,7 +14,7 @@ import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage } from './types';
-import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon } from 'lucide-react';
+import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -57,6 +58,7 @@ const App: React.FC = () => {
   const [showStockList, setShowStockList] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showReferenceSettings, setShowReferenceSettings] = useState(false);
 
   // 最大積載量
   const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
@@ -326,12 +328,16 @@ const App: React.FC = () => {
     setShowSettings(false);
     setShowCostDashboard(false);
     setShowStockList(false);
+    setShowReferenceSettings(false);
   };
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-200">
-      <Header 
-        onReset={resetAnalysis} 
+      <Header
+        onReset={resetAnalysis}
+        costDisplay={formatCost(todaysCost)}
+        isFreeTier={isGoogleAIStudio}
+        onCostClick={() => setShowCostDashboard(true)}
       />
       
       <main className="flex-grow relative overflow-x-hidden overflow-y-auto">
@@ -392,16 +398,12 @@ const App: React.FC = () => {
                 <span className="bg-slate-700 px-2 py-0.5 rounded-full text-xs">{stockItems.length}</span>
               </button>
               <button
-                onClick={() => setShowCostDashboard(true)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold transition-all ${
-                  isGoogleAIStudio
-                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
-                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                }`}
-                title={isGoogleAIStudio ? '無料枠を使用中' : ''}
+                onClick={() => setShowReferenceSettings(true)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
+                title="車両登録"
               >
-                {isGoogleAIStudio && <span className="text-xs">🆓</span>}
-                {formatCost(todaysCost)}
+                <Truck size={16} />
+                <span className="hidden sm:inline">車両</span>
               </button>
               <button
                 onClick={() => setShowSettings(true)}
@@ -608,6 +610,12 @@ const App: React.FC = () => {
           setHasApiKey(hasKey);
           setIsGoogleAIStudio(isStudio);
         }}
+      />
+
+      {/* 車両登録モーダル */}
+      <ReferenceImageSettings
+        isOpen={showReferenceSettings}
+        onClose={() => setShowReferenceSettings(false)}
       />
 
       <footer className="bg-slate-950 border-t border-slate-900 p-4 text-center z-50">
