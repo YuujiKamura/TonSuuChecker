@@ -20,42 +20,34 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 overflow-y-auto">
-      <div className="min-h-full flex flex-col">
-        {/* 閉じるボタン（固定） */}
-        <div className="sticky top-0 z-10 p-4 flex justify-end">
+      <div className="min-h-full flex flex-col p-4">
+        {/* 閉じるボタン */}
+        <div className="flex justify-end mb-2">
           <button
             onClick={onCancel}
-            className="p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all"
+            className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
         {/* 画像エリア */}
-        <div className="flex-shrink-0 px-4 pb-4">
-          <div className="max-w-2xl mx-auto">
-            <img
-              src={imageUrl}
-              className="w-full max-h-[40vh] object-contain rounded-3xl border-4 border-slate-700 shadow-2xl"
-              alt="Captured"
-            />
-          </div>
+        <div className="flex-shrink-0 mb-4">
+          <img
+            src={imageUrl}
+            className="w-full max-h-[35vh] object-contain rounded-2xl border-2 border-slate-700"
+            alt="Captured"
+          />
         </div>
 
         {/* 選択肢エリア */}
-        <div className="flex-1 p-6 pb-12 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800">
-        <p className="text-center text-slate-400 text-sm mb-4">この画像をどうしますか？</p>
-        
-        {/* 最大積載量入力 */}
-        <div className="mb-6 max-w-md mx-auto">
-          <div className="bg-slate-900/50 rounded-2xl p-4 border border-slate-700">
-            <div className="flex items-center gap-2 mb-3">
-              <Scale size={16} className="text-green-500" />
-              <span className="text-xs font-bold text-slate-400 uppercase">最大積載量（任意）</span>
+        <div className="flex-1 space-y-4">
+          {/* 最大積載量入力 */}
+          <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-700">
+            <div className="flex items-center gap-2 mb-2">
+              <Scale size={14} className="text-green-500" />
+              <span className="text-xs font-bold text-slate-400">最大積載量（任意）</span>
             </div>
-            <p className="text-xs text-slate-500 mb-3">
-              車両の最大積載量がわかる場合は入力してください。推定精度が向上します。
-            </p>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -64,52 +56,39 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
                 placeholder="例: 7.5"
                 value={customCapacity}
                 onChange={(e) => setCustomCapacity(e.target.value)}
-                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white text-center font-bold focus:outline-none focus:border-green-500"
+                className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-center text-sm font-bold focus:outline-none focus:border-green-500"
               />
               <span className="text-slate-400 text-sm font-bold">t</span>
               {customCapacity && (
                 <button
                   onClick={() => setCustomCapacity('')}
-                  className="px-3 py-3 bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-red-400 rounded-lg transition-all text-xs font-bold"
+                  className="px-2 py-2 bg-slate-700 hover:bg-slate-600 text-slate-400 rounded-lg text-xs"
                 >
-                  クリア
+                  ✕
                 </button>
               )}
             </div>
-            {customCapacity && !isNaN(parseFloat(customCapacity)) && (
-              <div className="mt-2">
-                <span className="text-green-400 text-xs font-bold">
-                  最大積載量: {parseFloat(customCapacity)}t で解析します
-                </span>
-              </div>
+          </div>
+
+          {/* アクションボタン */}
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={handleAnalyze}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all active:scale-95"
+            >
+              <Brain size={28} />
+              <span className="text-sm">AI解析</span>
+            </button>
+            {source === 'capture' && onStock && (
+              <button
+                onClick={onStock}
+                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold transition-all active:scale-95 border border-slate-600"
+              >
+                <Archive size={28} />
+                <span className="text-sm">ストック</span>
+              </button>
             )}
           </div>
-        </div>
-
-        <div className={`flex flex-col sm:flex-row gap-3 sm:gap-4 max-w-md mx-auto ${source === 'stock' ? 'sm:justify-center' : ''}`}>
-          <button
-            onClick={handleAnalyze}
-            className="flex-1 flex items-center sm:flex-col gap-4 sm:gap-3 p-4 sm:p-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all active:scale-95 shadow-lg"
-          >
-            <Brain size={28} className="shrink-0" />
-            <div className="flex flex-col sm:items-center">
-              <span className="text-lg">AI解析</span>
-              <span className="text-xs text-blue-200">今すぐ推定</span>
-            </div>
-          </button>
-          {source === 'capture' && onStock && (
-            <button
-              onClick={onStock}
-              className="flex-1 flex items-center sm:flex-col gap-4 sm:gap-3 p-4 sm:p-6 rounded-2xl bg-slate-700 hover:bg-slate-600 text-white font-bold transition-all active:scale-95 shadow-lg border border-slate-600"
-            >
-              <Archive size={28} className="shrink-0" />
-              <div className="flex flex-col sm:items-center">
-                <span className="text-lg">ストック</span>
-                <span className="text-xs text-slate-400">後でタグ付け</span>
-              </div>
-            </button>
-          )}
-        </div>
         </div>
       </div>
     </div>
