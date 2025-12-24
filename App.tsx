@@ -362,7 +362,7 @@ const App: React.FC = () => {
         onReset={resetAnalysis} 
       />
       
-      <main className="flex-grow relative overflow-x-hidden">
+      <main className="flex-grow relative overflow-x-hidden overflow-y-auto">
         {/* カメラモーダル */}
         {showCamera && (
           <CameraCapture
