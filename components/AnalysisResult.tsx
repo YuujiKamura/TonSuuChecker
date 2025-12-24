@@ -2,21 +2,55 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { EstimationResult } from '../types';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
-import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check, MessageCircle, Send, Loader2, Bot, User } from 'lucide-react';
+import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check, MessageCircle, Send, Loader2, Bot, User, Copy, CheckCheck, Trash2 } from 'lucide-react';
 import { askFollowUp, ChatMessage } from '../services/geminiService';
 
 interface AnalysisResultProps {
   result: EstimationResult;
   imageUrls: string[];
   base64Images: string[];
+  analysisId: string;
   actualTonnage?: number;
   onSaveActualTonnage: (value: number) => void;
   onUpdateLicensePlate: (plate: string, number: string) => void;
 }
 
+// 会話履歴の保存・読み込み
+const CHAT_STORAGE_KEY = 'garaton_chat_history';
+
+const saveChatHistory = (analysisId: string, messages: ChatMessage[]) => {
+  try {
+    const allChats = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '{}');
+    allChats[analysisId] = messages;
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(allChats));
+  } catch (e) {
+    console.error('Failed to save chat history', e);
+  }
+};
+
+const loadChatHistory = (analysisId: string): ChatMessage[] => {
+  try {
+    const allChats = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '{}');
+    return allChats[analysisId] || [];
+  } catch (e) {
+    console.error('Failed to load chat history', e);
+    return [];
+  }
+};
+
+const clearChatHistory = (analysisId: string) => {
+  try {
+    const allChats = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '{}');
+    delete allChats[analysisId];
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(allChats));
+  } catch (e) {
+    console.error('Failed to clear chat history', e);
+  }
+};
+
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'];
 
-const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, actualTonnage, onSaveActualTonnage, onUpdateLicensePlate }) => {
+const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, analysisId, actualTonnage, onSaveActualTonnage, onUpdateLicensePlate }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
   const [isEditingPlate, setIsEditingPlate] = useState(false);
@@ -28,7 +62,27 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
   const [questionInput, setQuestionInput] = useState('');
   const [isAsking, setIsAsking] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // 解析IDが変わったら会話履歴を読み込む
+  useEffect(() => {
+    if (analysisId) {
+      const saved = loadChatHistory(analysisId);
+      setChatMessages(saved);
+      if (saved.length > 0) {
+        setShowChat(true);
+      }
+    }
+  }, [analysisId]);
+
+  // 会話が更新されたら自動保存
+  useEffect(() => {
+    if (analysisId && chatMessages.length > 0) {
+      saveChatHistory(analysisId, chatMessages);
+    }
+  }, [chatMessages, analysisId]);
 
   // チャットが更新されたら自動スクロール
   useEffect(() => {
@@ -36,6 +90,51 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatMessages]);
+
+  // 個別メッセージをコピー
+  const copyMessage = async (content: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (e) {
+      console.error('Failed to copy', e);
+    }
+  };
+
+  // 全会話をコピー
+  const copyAllChat = async () => {
+    const text = chatMessages.map(m =>
+      `${m.role === 'user' ? '質問' : 'AI'}: ${m.content}`
+    ).join('\n\n');
+
+    const header = `【解析結果サマリー】
+推定重量: ${result.estimatedTonnage}t
+車両: ${result.truckType}
+材質: ${result.materialType}
+ナンバー: ${result.licenseNumber || '不明'}
+
+【会話記録】
+`;
+
+    try {
+      await navigator.clipboard.writeText(header + text);
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy all', e);
+    }
+  };
+
+  // 会話履歴をクリア
+  const handleClearChat = () => {
+    if (confirm('会話履歴を削除しますか？')) {
+      setChatMessages([]);
+      if (analysisId) {
+        clearChatHistory(analysisId);
+      }
+    }
+  };
 
   const handleAskQuestion = async () => {
     if (!questionInput.trim() || isAsking) return;
@@ -272,6 +371,31 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
 
         {showChat && (
           <div className="border-t border-slate-800">
+            {/* ツールバー */}
+            {chatMessages.length > 0 && (
+              <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-800/50">
+                <span className="text-xs text-slate-400 font-bold">
+                  {chatMessages.length}件の会話
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={copyAllChat}
+                    className="flex items-center gap-2 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {copiedAll ? <CheckCheck size={14} className="text-green-400" /> : <Copy size={14} />}
+                    {copiedAll ? 'コピー完了' : '全てコピー'}
+                  </button>
+                  <button
+                    onClick={handleClearChat}
+                    className="flex items-center gap-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    クリア
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* 会話履歴 */}
             <div className="max-h-96 overflow-y-auto p-6 space-y-4">
               {chatMessages.length === 0 && (
@@ -297,7 +421,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
               {chatMessages.map((msg, index) => (
                 <div
                   key={index}
-                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} group`}
                 >
                   {msg.role === 'assistant' && (
                     <div className="bg-blue-500/20 p-2 rounded-xl h-fit">
@@ -305,13 +429,23 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] p-4 rounded-2xl ${
+                    className={`max-w-[80%] p-4 rounded-2xl relative ${
                       msg.role === 'user'
                         ? 'bg-blue-600 text-white'
                         : 'bg-slate-800 text-slate-200'
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    <button
+                      onClick={() => copyMessage(msg.content, index)}
+                      className={`absolute -bottom-2 -right-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${
+                        copiedIndex === index
+                          ? 'bg-green-500 text-white'
+                          : 'bg-slate-600 hover:bg-slate-500 text-slate-300'
+                      }`}
+                    >
+                      {copiedIndex === index ? <CheckCheck size={12} /> : <Copy size={12} />}
+                    </button>
                   </div>
                   {msg.role === 'user' && (
                     <div className="bg-slate-700 p-2 rounded-xl h-fit">

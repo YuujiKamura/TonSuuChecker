@@ -480,6 +480,7 @@ const App: React.FC = () => {
                   result={currentResult}
                   imageUrls={currentImageUrls}
                   base64Images={currentBase64Images}
+                  analysisId={currentId || ''}
                   actualTonnage={history.find(h => h.id === currentId)?.actualTonnage}
                   onSaveActualTonnage={(v) => setHistory(prev => prev.map(h => h.id === currentId ? {...h, actualTonnage: v} : h))}
                   onUpdateLicensePlate={(p, n) => setHistory(prev => prev.map(h => h.id === currentId ? {...h, result: {...h.result, licensePlate: p, licenseNumber: n}} : h))}
