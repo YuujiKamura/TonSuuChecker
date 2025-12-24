@@ -400,32 +400,35 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
           <div className="border-t border-slate-800">
             {/* ツールバー */}
             {chatMessages.length > 0 && (
-              <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-800/50">
+              <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-800 bg-slate-800/50">
                 <span className="text-xs text-slate-400 font-bold">
-                  {chatMessages.length}件の会話
+                  {chatMessages.length}件
                 </span>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 sm:gap-2 flex-wrap justify-end">
                   <button
                     onClick={copyAllChat}
-                    className="flex items-center gap-2 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 sm:px-3 py-1.5 rounded-lg transition-colors"
+                    title="全てコピー"
                   >
                     {copiedAll ? <CheckCheck size={14} className="text-green-400" /> : <Copy size={14} />}
-                    {copiedAll ? 'コピー完了' : '全てコピー'}
+                    <span className="hidden sm:inline">{copiedAll ? 'コピー完了' : '全てコピー'}</span>
                   </button>
                   <button
                     onClick={handleClearChat}
-                    className="flex items-center gap-2 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-1.5 rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 px-2 sm:px-3 py-1.5 rounded-lg transition-colors"
+                    title="クリア"
                   >
                     <Trash2 size={14} />
-                    クリア
+                    <span className="hidden sm:inline">クリア</span>
                   </button>
                   {chatMessages.length > 0 && onReanalyzeWithFeedback && (
                     <button
                       onClick={() => onReanalyzeWithFeedback(chatMessages)}
-                      className="flex items-center gap-2 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 px-3 py-1.5 rounded-lg transition-colors"
+                      className="flex items-center gap-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 px-2 sm:px-3 py-1.5 rounded-lg transition-colors"
+                      title="指摘を反映して再解析"
                     >
                       <RefreshCcw size={14} />
-                      指摘を反映して再解析
+                      <span className="hidden sm:inline">再解析</span>
                     </button>
                   )}
                 </div>

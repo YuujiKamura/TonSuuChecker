@@ -194,18 +194,18 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                 placeholder="マニフェスト伝票番号"
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
               />
-              <div className="flex gap-2">
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
+                <button
+                  onClick={cancelEdit}
+                  className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-xl transition-all"
+                >
+                  閉じる
+                </button>
                 <button
                   onClick={() => saveEdit(item.id)}
                   className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-all"
                 >
                   保存
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-xl transition-all"
-                >
-                  キャンセル
                 </button>
               </div>
             </div>
@@ -524,7 +524,13 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-xl transition-all"
+              >
+                キャンセル
+              </button>
               <button
                 onClick={async () => {
                   await exportWasteReportFromStock(
@@ -545,13 +551,7 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                 className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
               >
                 <FileSpreadsheet size={18} />
-                Excelをダウンロード
-              </button>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-xl transition-all"
-              >
-                キャンセル
+                Excel出力
               </button>
             </div>
           </div>

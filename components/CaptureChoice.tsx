@@ -79,23 +79,27 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
           </div>
         </div>
 
-        <div className={`flex gap-4 max-w-md mx-auto ${source === 'stock' ? 'justify-center' : ''}`}>
+        <div className={`flex flex-col sm:flex-row gap-3 sm:gap-4 max-w-md mx-auto ${source === 'stock' ? 'sm:justify-center' : ''}`}>
           <button
             onClick={handleAnalyze}
-            className="flex-1 flex flex-col items-center gap-3 p-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all active:scale-95 shadow-lg"
+            className="flex-1 flex items-center sm:flex-col gap-4 sm:gap-3 p-4 sm:p-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all active:scale-95 shadow-lg"
           >
-            <Brain size={32} />
-            <span className="text-lg">AI解析</span>
-            <span className="text-xs text-blue-200">今すぐ推定</span>
+            <Brain size={28} className="shrink-0" />
+            <div className="flex flex-col sm:items-center">
+              <span className="text-lg">AI解析</span>
+              <span className="text-xs text-blue-200">今すぐ推定</span>
+            </div>
           </button>
           {source === 'capture' && onStock && (
             <button
               onClick={onStock}
-              className="flex-1 flex flex-col items-center gap-3 p-6 rounded-2xl bg-slate-700 hover:bg-slate-600 text-white font-bold transition-all active:scale-95 shadow-lg border border-slate-600"
+              className="flex-1 flex items-center sm:flex-col gap-4 sm:gap-3 p-4 sm:p-6 rounded-2xl bg-slate-700 hover:bg-slate-600 text-white font-bold transition-all active:scale-95 shadow-lg border border-slate-600"
             >
-              <Archive size={32} />
-              <span className="text-lg">ストック</span>
-              <span className="text-xs text-slate-400">後でタグ付け</span>
+              <Archive size={28} className="shrink-0" />
+              <div className="flex flex-col sm:items-center">
+                <span className="text-lg">ストック</span>
+                <span className="text-xs text-slate-400">後でタグ付け</span>
+              </div>
             </button>
           )}
         </div>
