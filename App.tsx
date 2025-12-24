@@ -394,16 +394,15 @@ const App: React.FC = () => {
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
               >
                 <Archive size={16} />
-                <span className="hidden sm:inline">ストック</span>
+                <span>ストック一覧</span>
                 <span className="bg-slate-700 px-2 py-0.5 rounded-full text-xs">{stockItems.length}</span>
               </button>
               <button
                 onClick={() => setShowReferenceSettings(true)}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
-                title="車両登録"
               >
                 <Truck size={16} />
-                <span className="hidden sm:inline">車両</span>
+                <span>車両登録</span>
               </button>
               <button
                 onClick={() => setShowSettings(true)}
