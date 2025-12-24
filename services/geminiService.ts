@@ -26,16 +26,30 @@ async function runSingleInference(
   maxCapacity?: number,
   runIndex: number = 0
 ): Promise<EstimationResult> {
-  const basePrompt = maxCapacity
-    ? `画像の内容を判定し、重量を推定してください。\n【重要】この車両の最大積載量は${maxCapacity}トンです。`
-    : "画像の内容を判定し、重量を推定してください。";
+  const maxCapacityInstruction = maxCapacity
+    ? `【重要】この車両の最大積載量は${maxCapacity}トンです。estimatedMaxCapacityには${maxCapacity}を設定してください。`
+    : `【最大積載量の推定】
+ユーザーから最大積載量が提供されていません。以下の視覚的特徴から推定してください：
+- キャビン（運転席）に対する荷台の大きさの比率
+- 地面からの車高（タイヤサイズ、シャーシの高さ）
+- 荷台の深さと幅
+- 車両全体のサイズ感
 
-  const promptText = `${basePrompt}
+【ダンプトラックの目安】
+- 2tダンプ: 小型、キャビンと荷台がほぼ同じ大きさ、車高低め
+- 4tダンプ: 中型、荷台がキャビンより少し大きい
+- 8tダンプ: 大型、荷台がキャビンの2倍程度、車高が高い
+- 10t/11tダンプ: 大型、荷台が非常に大きく深い、車高が非常に高い`;
+
+  const promptText = `画像の内容を判定し、重量を推定してください。
+
+${maxCapacityInstruction}
 
 【推論ルール】
 - 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること
 - 荷台の埋まり具合、積載物の山の高さ、材質の見た目を根拠として明記すること
 - reasoningには「なぜその体積・重量と判断したか」を具体的な視覚的根拠と共に記述すること
+- maxCapacityReasoningには「なぜその最大積載量と判断したか」をキャビン比率・車高などの視覚的根拠で記述すること
 - 推論ラン#${runIndex + 1}: 毎回独自の視点で分析すること
 
 すべての回答は日本語で行ってください。`;
@@ -60,6 +74,8 @@ async function runSingleInference(
           materialType: { type: Type.STRING },
           estimatedVolumeM3: { type: Type.NUMBER },
           estimatedTonnage: { type: Type.NUMBER },
+          estimatedMaxCapacity: { type: Type.NUMBER },
+          maxCapacityReasoning: { type: Type.STRING },
           confidenceScore: { type: Type.NUMBER },
           reasoning: { type: Type.STRING },
           materialBreakdown: {
@@ -75,7 +91,7 @@ async function runSingleInference(
             }
           }
         },
-        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "confidenceScore", "reasoning", "materialBreakdown"]
+        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "confidenceScore", "reasoning", "materialBreakdown"]
       }
     },
   });
@@ -103,6 +119,9 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
   const finalLicenseNumber = getMode(validResults.map(r => r.licenseNumber));
   const finalLicensePlate = getMode(validResults.map(r => r.licensePlate));
 
+  // 最大積載量は最頻値を採用
+  const finalMaxCapacity = getMode(validResults.map(r => r.estimatedMaxCapacity));
+
   const closestToAvg = validResults.reduce((prev, curr) =>
     Math.abs(curr.estimatedTonnage - avgTonnage) < Math.abs(prev.estimatedTonnage - avgTonnage) ? curr : prev
   );
@@ -115,6 +134,7 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
     licenseNumber: finalLicenseNumber,
     estimatedTonnage: Number(avgTonnage.toFixed(2)),
     estimatedVolumeM3: Number(avgVolume.toFixed(2)),
+    estimatedMaxCapacity: finalMaxCapacity ? Number(finalMaxCapacity) : closestToAvg.estimatedMaxCapacity,
     ensembleCount: count,
     reasoning: `【統合推論】有効サンプル:${resultCount}/${count}。${closestToAvg.reasoning}`
   };

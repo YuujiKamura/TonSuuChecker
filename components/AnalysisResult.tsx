@@ -203,26 +203,45 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
             <span className="text-3xl font-black text-slate-400 uppercase tracking-widest">Ton</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 mt-12 pt-10 border-t border-slate-800">
-            <div className="flex items-center gap-4">
-              <div className="bg-slate-800 p-4 rounded-2xl">
-                <Truck className="text-blue-400" size={32} />
+          <div className="grid grid-cols-3 gap-4 mt-12 pt-10 border-t border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-800 p-3 rounded-2xl">
+                <Truck className="text-blue-400" size={28} />
               </div>
               <div>
-                <p className="text-slate-500 text-xs uppercase font-black tracking-widest mb-1">Vehicle Type</p>
-                <p className="font-black text-xl leading-none">{result.truckType}</p>
+                <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Vehicle</p>
+                <p className="font-black text-lg leading-none">{result.truckType}</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="bg-slate-800 p-4 rounded-2xl">
-                <Layers className="text-green-400" size={32} />
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-800 p-3 rounded-2xl">
+                <Scale className="text-purple-400" size={28} />
               </div>
               <div>
-                <p className="text-slate-500 text-xs uppercase font-black tracking-widest mb-1">Volume</p>
-                <p className="font-black text-xl leading-none">{result.estimatedVolumeM3.toFixed(1)} m³</p>
+                <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Max Cap</p>
+                <p className="font-black text-lg leading-none">
+                  {result.estimatedMaxCapacity ? `${result.estimatedMaxCapacity}t` : '不明'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-800 p-3 rounded-2xl">
+                <Layers className="text-green-400" size={28} />
+              </div>
+              <div>
+                <p className="text-slate-500 text-[10px] uppercase font-black tracking-widest mb-1">Volume</p>
+                <p className="font-black text-lg leading-none">{result.estimatedVolumeM3.toFixed(1)} m³</p>
               </div>
             </div>
           </div>
+
+          {/* 最大積載量の推定根拠 */}
+          {result.maxCapacityReasoning && (
+            <div className="mt-6 p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
+              <p className="text-xs text-purple-400 font-bold mb-1">最大積載量の推定根拠</p>
+              <p className="text-sm text-slate-400">{result.maxCapacityReasoning}</p>
+            </div>
+          )}
         </div>
       </div>
 

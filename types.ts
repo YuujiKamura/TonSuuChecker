@@ -7,6 +7,8 @@ export interface EstimationResult {
   materialType: string;
   estimatedVolumeM3: number;
   estimatedTonnage: number;
+  estimatedMaxCapacity?: number;  // AIが見た目から推定した最大積載量(トン)
+  maxCapacityReasoning?: string;  // 最大積載量の推定根拠
   confidenceScore: number;
   reasoning: string;
   ensembleCount: number;
