@@ -67,6 +67,17 @@ const ReportView: React.FC<ReportViewProps> = ({
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
   };
 
+  // 廃棄物の種類の略称マップ（モバイル用）
+  const wasteTypeShortMap: Record<string, string> = {
+    'アスファルト殻': 'As殻',
+    'コンクリート無筋': 'Co無筋',
+    'コンクリート有筋': 'Co有筋',
+  };
+  const getShortWasteType = (type: string | undefined) => {
+    if (!type) return '-';
+    return wasteTypeShortMap[type] || type;
+  };
+
   return (
     <div className={`fixed inset-0 z-[100] flex flex-col ${isDark ? 'bg-slate-950' : 'bg-gray-100'}`}>
       {/* ヘッダー */}
@@ -125,12 +136,20 @@ const ReportView: React.FC<ReportViewProps> = ({
                   className={`border-b cursor-pointer ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-gray-200 hover:bg-gray-50'}`}
                 >
                   <td className={`p-2 text-center ${mutedColor}`}>{idx + 1}</td>
-                  <td className={`p-2 ${item.wasteType ? textColor : mutedColor}`}>{item.wasteType || '-'}</td>
+                  <td className={`p-2 whitespace-nowrap ${item.wasteType ? textColor : mutedColor}`}>
+                    <span className="hidden sm:inline">{item.wasteType || '-'}</span>
+                    <span className="sm:hidden">{getShortWasteType(item.wasteType)}</span>
+                  </td>
                   <td className={`p-2 ${textColor}`}>{formatDate(item.timestamp)}</td>
                   <td className={`p-2 font-mono ${item.manifestNumber ? textColor : mutedColor}`}>{item.manifestNumber || '-'}</td>
                   <td className={`p-2 text-right ${item.actualTonnage ? textColor : mutedColor}`}>{item.actualTonnage?.toFixed(2) || '-'}</td>
                   <td className={`p-2 ${textColor}`}>
-                    {item.maxCapacity && <span>最大積載量: {item.maxCapacity}t </span>}
+                    {item.maxCapacity && (
+                      <>
+                        <span className="hidden sm:inline">最大積載量: {item.maxCapacity}t </span>
+                        <span className="sm:hidden">最大: {item.maxCapacity}t </span>
+                      </>
+                    )}
                     {item.memo && <span>車番: {item.memo}</span>}
                   </td>
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
