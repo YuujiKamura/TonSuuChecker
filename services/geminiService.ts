@@ -24,7 +24,8 @@ async function runSingleInference(
   imageParts: any[],
   modelName: string,
   maxCapacity?: number,
-  runIndex: number = 0
+  runIndex: number = 0,
+  userFeedback?: ChatMessage[]
 ): Promise<EstimationResult> {
   // 参考画像を取得
   const referenceImages = getReferenceImages();
@@ -116,6 +117,11 @@ ${maxCapacityInstruction}
 - maxCapacityReasoningには「なぜその最大積載量と判断したか」をキャビン比率・車高などの視覚的根拠で記述すること
 - 推論ラン#${runIndex + 1}: 毎回独自の視点で分析すること
 ${refImagePrompt}
+${userFeedback && userFeedback.length > 0 ? `
+【ユーザーからの指摘・修正】
+以下は前回の解析結果に対するユーザーからのフィードバックです。これらの指摘を考慮して再解析してください。
+${userFeedback.map(msg => `${msg.role === 'user' ? 'ユーザー' : 'AI'}: ${msg.content}`).join('\n')}
+` : ''}
 すべての回答は日本語で行ってください。`;
 
   const response = await ai.models.generateContent({
@@ -269,7 +275,8 @@ export const analyzeGaraImageEnsemble = async (
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview',
   _taggedStock: StockItem[] = [],  // 未使用（純粋アンサンブルのため）
-  maxCapacity?: number
+  maxCapacity?: number,
+  userFeedback?: ChatMessage[]  // ユーザーからの指摘・修正
 ): Promise<EstimationResult[]> => {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -290,7 +297,7 @@ export const analyzeGaraImageEnsemble = async (
     if (abortSignal?.cancelled) break;
 
     try {
-      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i);
+      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback);
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];

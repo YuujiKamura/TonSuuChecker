@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
-import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check, MessageCircle, Send, Loader2, Bot, User, Copy, CheckCheck, Trash2 } from 'lucide-react';
+import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check, MessageCircle, Send, Loader2, Bot, User, Copy, CheckCheck, Trash2, RefreshCcw } from 'lucide-react';
 import { askFollowUp } from '../services/geminiService';
 
 interface AnalysisResultProps {
@@ -15,6 +15,7 @@ interface AnalysisResultProps {
   onSaveActualTonnage: (value: number) => void;
   onUpdateLicensePlate: (plate: string, number: string) => void;
   onUpdateChatHistory?: (messages: ChatMessage[]) => void;  // 会話履歴をストックに保存
+  onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;  // 指摘を反映して再解析
 }
 
 // 会話履歴の保存・読み込み
@@ -52,7 +53,7 @@ const clearChatHistory = (analysisId: string) => {
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'];
 
-const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory, onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory }) => {
+const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory, onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
   const [isEditingPlate, setIsEditingPlate] = useState(false);
@@ -418,6 +419,15 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
                     <Trash2 size={14} />
                     クリア
                   </button>
+                  {chatMessages.length > 0 && onReanalyzeWithFeedback && (
+                    <button
+                      onClick={() => onReanalyzeWithFeedback(chatMessages)}
+                      className="flex items-center gap-2 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <RefreshCcw size={14} />
+                      指摘を反映して再解析
+                    </button>
+                  )}
                 </div>
               </div>
             )}

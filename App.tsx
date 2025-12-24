@@ -13,7 +13,7 @@ import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTagg
 import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from './services/geminiService';
-import { EstimationResult, StockItem } from './types';
+import { EstimationResult, StockItem, ChatMessage } from './types';
 import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud, Scale, Truck } from 'lucide-react';
 
 interface LogEntry {
@@ -183,7 +183,7 @@ const App: React.FC = () => {
     setPendingCapture({ base64: firstBase64, url: firstUrl });
   };
 
-  const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false, capacityOverride?: number) => {
+  const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false, capacityOverride?: number, userFeedback?: ChatMessage[]) => {
     if (!hasApiKey) {
       setError('APIキーが設定されていません。設定してください。');
       setShowApiKeyModal(true);
@@ -225,7 +225,8 @@ const App: React.FC = () => {
         abortSignal,
         isAuto ? 'gemini-flash-lite-latest' : selectedModel,
         getTaggedItems(),
-        isAuto ? undefined : capacityOverride  // capacityOverrideを直接使用（stateのフォールバックはしない）
+        isAuto ? undefined : capacityOverride,  // capacityOverrideを直接使用（stateのフォールバックはしない）
+        userFeedback  // ユーザーからの指摘・修正
       );
 
       if (activeRequestId.current !== requestId) return;
@@ -627,6 +628,12 @@ const App: React.FC = () => {
                       updateStockItem(currentId, { chatHistory: messages });
                       setStockItems(getStockItems());
                     }
+                  }}
+                  onReanalyzeWithFeedback={async (chatHistory) => {
+                    if (!currentId || !currentBase64Images.length) return;
+                    const item = getStockItems().find(i => i.id === currentId);
+                    // 再解析を開始（指摘を含めて）
+                    startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, chatHistory);
                   }}
                 />
               </div>
