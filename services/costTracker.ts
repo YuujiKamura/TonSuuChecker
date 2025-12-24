@@ -75,9 +75,9 @@ export const getCostHistory = (): CostEntry[] => {
   return [];
 };
 
-export const saveCostEntry = (model: string, imageCount: number = 1): CostEntry => {
+export const saveCostEntry = (model: string, imageCount: number = 1, isFreeTier: boolean = false): CostEntry => {
   const history = getCostHistory();
-  const costPerCall = COST_PER_CALL[model] || COST_PER_CALL['default'];
+  const costPerCall = isFreeTier ? 0 : (COST_PER_CALL[model] || COST_PER_CALL['default']);
   
   const entry: CostEntry = {
     id: crypto.randomUUID(),

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { DollarSign, TrendingUp, Zap, Trash2, X } from 'lucide-react';
 import { getTotalCost, getTodayCost, getDailyCosts, getModelBreakdown, clearCostHistory, getCostHistory, formatCost, getCurrency } from '../services/costTracker';
+import { isGoogleAIStudioKey } from '../services/geminiService';
 
 interface CostDashboardProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ const CostDashboard: React.FC<CostDashboardProps> = ({ isOpen, onClose }) => {
   const [dailyCosts, setDailyCosts] = useState<{ date: string; totalCost: number; callCount: number }[]>([]);
   const [modelBreakdown, setModelBreakdown] = useState<{ model: string; cost: number; count: number }[]>([]);
   const [totalCalls, setTotalCalls] = useState(0);
+  const [isFreeTier, setIsFreeTier] = useState(false);
   const currency = getCurrency();
 
   const refreshData = () => {
@@ -22,6 +24,7 @@ const CostDashboard: React.FC<CostDashboardProps> = ({ isOpen, onClose }) => {
     setDailyCosts(getDailyCosts(7));
     setModelBreakdown(getModelBreakdown());
     setTotalCalls(getCostHistory().length);
+    setIsFreeTier(isGoogleAIStudioKey());
   };
 
   useEffect(() => {
@@ -56,10 +59,17 @@ const CostDashboard: React.FC<CostDashboardProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-black text-white flex items-center gap-3">
-            <DollarSign className="text-green-500" size={24} />
-            APIコスト履歴
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-black text-white flex items-center gap-3">
+              <DollarSign className="text-green-500" size={24} />
+              APIコスト履歴
+            </h2>
+            {isFreeTier && (
+              <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full text-xs font-bold text-green-400 flex items-center gap-1">
+                🆓 無料枠使用中
+              </span>
+            )}
+          </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white">
             <X size={24} />
           </button>
@@ -137,9 +147,16 @@ const CostDashboard: React.FC<CostDashboardProps> = ({ isOpen, onClose }) => {
 
         {/* アクション */}
         <div className="flex justify-between items-center">
-          <p className="text-xs text-slate-600">
-            ※コストは推定値です。実際の請求額とは異なる場合があります。
-          </p>
+          <div className="flex flex-col gap-1">
+            {isFreeTier && (
+              <p className="text-xs text-green-400 font-bold">
+                🆓 Google AI Studioの無料枠を使用中です。料金は発生しません。
+              </p>
+            )}
+            <p className="text-xs text-slate-600">
+              ※コストは推定値です。実際の請求額とは異なる場合があります。
+            </p>
+          </div>
           <button
             onClick={handleClear}
             className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors"

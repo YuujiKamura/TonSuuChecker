@@ -40,10 +40,13 @@ export interface StockItem {
   base64Images: string[];
   imageUrls: string[];
   tag?: 'OK' | 'NG';
-  actualTonnage?: number;
+  actualTonnage?: number;  // ユーザー入力（実測）
   maxCapacity?: number;  // 最大積載量
   memo?: string;
   // AI抽出特徴
   extractedFeatures?: ExtractedFeature[];
   featureRawResponse?: string;  // AIの生レスポンス（デバッグ用）
+  // 解析結果（履歴管理の統合）
+  result?: EstimationResult;  // 最新の推定結果（後方互換性）
+  estimations?: EstimationResult[];  // すべての推定結果の履歴（ランごとに追加）
 }

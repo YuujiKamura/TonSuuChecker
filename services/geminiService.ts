@@ -3,6 +3,11 @@ import { saveCostEntry } from './costTracker';
 import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
 
+// APIキーがGoogleAIStudioの無料枠かどうかをチェック
+const checkIsFreeTier = (): boolean => {
+  return localStorage.getItem('gemini_api_key_source') === 'google_ai_studio';
+};
+
 const getMode = (arr: any[]) => {
   const filtered = arr.filter(v => v !== null && v !== undefined && v !== '');
   if (filtered.length === 0) return arr[0];
@@ -21,8 +26,8 @@ async function runSingleInference(
   maxCapacity?: number
 ): Promise<EstimationResult> {
   const promptText = maxCapacity
-    ? `画像の内容を判定し、重量を推定してください。\n【重要】この車両の最大積載量は${maxCapacity}トンです。この情報を考慮して推定してください。`
-    : "画像の内容を判定し、重量を推定してください。";
+    ? `画像の内容を判定し、重量を推定してください。\n【重要】この車両の最大積載量は${maxCapacity}トンです。この情報を考慮して推定してください。\n\nすべての回答は日本語で行ってください。特にreasoningフィールドは必ず日本語で記述してください。`
+    : "画像の内容を判定し、重量を推定してください。\n\nすべての回答は日本語で行ってください。特にreasoningフィールドは必ず日本語で記述してください。";
 
   const response = await ai.models.generateContent({
     model: modelName,
@@ -108,12 +113,52 @@ export const getApiKey = (): string | null => {
   return localStorage.getItem('gemini_api_key');
 };
 
-export const setApiKey = (key: string): void => {
+export const setApiKey = (key: string, isGoogleAIStudio: boolean = false): void => {
   localStorage.setItem('gemini_api_key', key);
+  localStorage.setItem('gemini_api_key_source', isGoogleAIStudio ? 'google_ai_studio' : 'other');
 };
 
 export const clearApiKey = (): void => {
   localStorage.removeItem('gemini_api_key');
+  localStorage.removeItem('gemini_api_key_source');
+};
+
+export const isGoogleAIStudioKey = (): boolean => {
+  return localStorage.getItem('gemini_api_key_source') === 'google_ai_studio';
+};
+
+// 既存のAPIキーから自動判定を試みる（軽量なAPI呼び出しで判定）
+export const detectApiKeySource = async (): Promise<'google_ai_studio' | 'other' | 'unknown'> => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return 'unknown';
+  }
+
+  // 既にソースが設定されている場合はそれを返す
+  const existingSource = localStorage.getItem('gemini_api_key_source');
+  if (existingSource === 'google_ai_studio' || existingSource === 'other') {
+    return existingSource as 'google_ai_studio' | 'other';
+  }
+
+  // APIキーの形式チェック（AIzaで始まるか）
+  if (!apiKey.startsWith('AIza')) {
+    return 'unknown';
+  }
+
+  // 実際のAPI呼び出しで判定を試みる
+  // Google AI Studioの無料枠は通常、特定のエンドポイントやレート制限で判定可能
+  // ただし、確実な判定は難しいため、デフォルトでは'unknown'を返す
+  // ユーザーに確認を求める方が確実
+  
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    // 最小限のAPI呼び出しでキーが有効かチェック
+    // 実際の判定は難しいため、ここでは'unknown'を返す
+    // ユーザーに確認を求める方が確実
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
 };
 
 export const analyzeGaraImageEnsemble = async (
@@ -171,7 +216,7 @@ export const analyzeGaraImageEnsemble = async (
       }
 
       results.push(res);
-      saveCostEntry(modelName, imageParts.length);
+      saveCostEntry(modelName, imageParts.length, checkIsFreeTier());
       onProgress(results.length, res);
     } catch (err) {
       console.error(`推論エラー #${i + 1}:`, err);
@@ -200,6 +245,8 @@ export const extractFeatures = async (
 この画像は実測 ${actualTonnage * 1000}kg で、${tag === 'OK' ? '適正積載' : '過積載'}と判定されました。
 ${maxCapacity ? `最大積載量は ${maxCapacity * 1000}kg です。` : ''}
 
+【重要】すべての回答は日本語で行ってください。
+
 【基準サイズ】
 - 大型車ナンバープレート: 440mm x 220mm
 - 普通車ナンバープレート: 330mm x 165mm
@@ -215,8 +262,8 @@ ${maxCapacity ? `最大積載量は ${maxCapacity * 1000}kg です。` : ''}
     "parameterName": "パラメータ名（英語推奨）",
     "value": 数値または文字列,
     "unit": "単位（あれば）",
-    "description": "このパラメータの意味と、なぜ重量推定に有効か",
-    "reference": "何を基準にした値か（例: ナンバープレート幅基準）"
+    "description": "このパラメータの意味と、なぜ重量推定に有効か（日本語で記述）",
+    "reference": "何を基準にした値か（例: ナンバープレート幅基準）（日本語で記述）"
   }
 ]
 
@@ -230,6 +277,7 @@ ${maxCapacity ? `最大積載量は ${maxCapacity * 1000}kg です。` : ''}
 - 「約○cm」のような曖昧な絶対値は禁止
 - 必ず基準物との比率・相対値で表現
 - 5〜10個程度のパラメータを抽出
+- descriptionとreferenceは必ず日本語で記述してください
 `;
 
   const response = await ai.models.generateContent({
@@ -247,7 +295,7 @@ ${maxCapacity ? `最大積載量は ${maxCapacity * 1000}kg です。` : ''}
   });
 
   const rawResponse = response.text || '[]';
-  saveCostEntry('gemini-2.0-flash', 1);
+  saveCostEntry('gemini-2.0-flash', 1, checkIsFreeTier());
 
   try {
     const features = JSON.parse(rawResponse) as ExtractedFeature[];
@@ -320,7 +368,7 @@ export const askFollowUp = async (
   });
 
   const text = response.text || '回答を生成できませんでした。';
-  saveCostEntry(modelName, base64Images.length);
+  saveCostEntry(modelName, base64Images.length, checkIsFreeTier());
 
   return text;
 };

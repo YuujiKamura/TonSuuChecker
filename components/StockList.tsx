@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StockItem } from '../types';
-import { Check, X, Trash2, Brain, ArrowLeft, RotateCcw, Sparkles, Loader2 } from 'lucide-react';
+import { Check, X, Trash2, Brain, ArrowLeft, RotateCcw, Sparkles, Loader2, Eye } from 'lucide-react';
 import { extractFeatures } from '../services/geminiService';
 
 interface StockListProps {
@@ -9,10 +9,11 @@ interface StockListProps {
   onUpdate: (id: string, updates: Partial<StockItem>) => void;
   onDelete: (id: string) => void;
   onAnalyze: (item: StockItem) => void;
+  onViewResult: (item: StockItem) => void;  // 解析結果を表示
   onClose: () => void;
 }
 
-const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete, onAnalyze, onClose }) => {
+const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete, onAnalyze, onViewResult, onClose }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTonnage, setEditTonnage] = useState('');
   const [editMaxCapacity, setEditMaxCapacity] = useState('');
@@ -43,6 +44,7 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
 
   const untaggedItems = items.filter(item => !item.tag);
   const taggedItems = items.filter(item => item.tag);
+  const analyzedItems = items.filter(item => (item.estimations && item.estimations.length > 0) || item.result);
 
   const startEdit = (item: StockItem) => {
     setEditingId(item.id);
@@ -52,10 +54,20 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
   };
 
   const saveEdit = (id: string) => {
+    const actualTonnage = editTonnage ? parseFloat(editTonnage) : undefined;
+    const maxCapacity = editMaxCapacity ? parseFloat(editMaxCapacity) : undefined;
+    
+    // 実測と最大積載量が両方入力されていれば自動判定
+    let tag: 'OK' | 'NG' | undefined = undefined;
+    if (actualTonnage !== undefined && maxCapacity !== undefined) {
+      tag = actualTonnage <= maxCapacity ? 'OK' : 'NG';
+    }
+    
     onUpdate(id, {
-      actualTonnage: editTonnage ? parseFloat(editTonnage) : undefined,
-      maxCapacity: editMaxCapacity ? parseFloat(editMaxCapacity) : undefined,
-      memo: editMemo || undefined
+      actualTonnage,
+      maxCapacity,
+      memo: editMemo || undefined,
+      ...(tag !== undefined ? { tag } : {})
     });
     setEditingId(null);
   };
@@ -73,11 +85,18 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
 
   const renderItem = (item: StockItem, isTagged: boolean) => {
     const isEditing = editingId === item.id;
+    const hasAnalysis = (item.estimations && item.estimations.length > 0) || item.result;
 
     return (
       <div
         key={item.id}
-        className={`bg-slate-800 border rounded-2xl p-4 ${isTagged ? 'border-slate-700/50 bg-slate-800/50' : 'border-slate-700'} ${isEditing ? 'border-blue-500/50' : ''}`}
+        className={`bg-slate-800 border rounded-2xl p-4 ${
+          hasAnalysis 
+            ? 'border-cyan-500/30 bg-slate-800/80' 
+            : isTagged 
+              ? 'border-slate-700/50 bg-slate-800/50' 
+              : 'border-slate-700'
+        } ${isEditing ? 'border-blue-500/50' : ''}`}
       >
         {/* 編集モード：大きい画像とフォーム */}
         {isEditing ? (
@@ -164,9 +183,19 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
                     {item.tag === 'OK' ? '適正' : '過積載'}
                   </span>
                 )}
+                {(() => {
+                  const latestEstimation = item.estimations && item.estimations.length > 0 
+                    ? item.estimations[0] 
+                    : item.result;
+                  return latestEstimation?.estimatedTonnage && (
+                    <span className="text-xs font-bold text-cyan-400 bg-cyan-500/20 px-2 py-0.5 rounded-full" title={item.estimations && item.estimations.length > 1 ? `推定履歴: ${item.estimations.length}回` : ''}>
+                      推定{latestEstimation.estimatedTonnage.toFixed(1)}t{item.estimations && item.estimations.length > 1 ? ` (${item.estimations.length}回)` : ''}
+                    </span>
+                  );
+                })()}
                 {item.actualTonnage && (
                   <span className="text-xs font-bold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full">
-                    {item.actualTonnage}t
+                    実測{item.actualTonnage}t
                   </span>
                 )}
                 {item.maxCapacity && (
@@ -186,34 +215,42 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
 
             {/* アクションボタン */}
             <div className="flex flex-col gap-2 shrink-0">
-              {!isTagged ? (
-                // 未判定：OK/NGボタン
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onTag(item.id, 'OK')}
-                    className="flex flex-col items-center gap-1 p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-all active:scale-95"
-                  >
-                    <Check size={20} />
-                    <span className="text-[10px] font-bold">OK</span>
-                  </button>
-                  <button
-                    onClick={() => onTag(item.id, 'NG')}
-                    className="flex flex-col items-center gap-1 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all active:scale-95"
-                  >
-                    <X size={20} />
-                    <span className="text-[10px] font-bold">NG</span>
-                  </button>
+              {/* 実測と最大積載量が未入力の場合のみ手動判定ボタンを表示 */}
+              {!isTagged && !(item.actualTonnage && item.maxCapacity) ? (
+                // 未判定かつ自動判定不可：手動判定ボタン
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-slate-500 text-center">過積載？</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onTag(item.id, 'OK')}
+                      className="flex flex-col items-center gap-1 p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-all active:scale-95"
+                      title="適正積載（過積載ではない）"
+                    >
+                      <Check size={20} />
+                      <span className="text-[10px] font-bold">適正</span>
+                    </button>
+                    <button
+                      onClick={() => onTag(item.id, 'NG')}
+                      className="flex flex-col items-center gap-1 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all active:scale-95"
+                      title="過積載"
+                    >
+                      <X size={20} />
+                      <span className="text-[10px] font-bold">過積載</span>
+                    </button>
+                  </div>
+                  <span className="text-[8px] text-slate-600 text-center">または実測・最大積載量を入力</span>
                 </div>
-              ) : (
-                // 判定済み：やり直しボタン
+              ) : isTagged ? (
+                // 判定済み：判定やり直しボタン
                 <button
                   onClick={() => resetTag(item.id)}
                   className="flex items-center gap-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all active:scale-95 text-xs font-bold"
+                  title="過積載/適正の判定をやり直す"
                 >
                   <RotateCcw size={14} />
-                  やり直し
+                  判定取消
                 </button>
-              )}
+              ) : null}
 
               <div className="flex gap-2 flex-wrap">
                 {/* 特徴抽出ボタン（タグ+実測値がある場合） */}
@@ -244,15 +281,24 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
                     {showFeatures === item.id ? '閉' : '詳'}
                   </button>
                 )}
-                {isTagged && (
+                {/* 解析結果を見るボタン（解析済みの場合） */}
+                {(item.estimations && item.estimations.length > 0) || item.result ? (
                   <button
-                    onClick={() => onAnalyze(item)}
-                    className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
-                    title="AI解析"
+                    onClick={() => onViewResult(item)}
+                    className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 transition-all active:scale-95"
+                    title="解析結果を見る"
                   >
-                    <Brain size={16} />
+                    <Eye size={16} />
                   </button>
-                )}
+                ) : null}
+                {/* AI解析ボタン（再解析用） */}
+                <button
+                  onClick={() => onAnalyze(item)}
+                  className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
+                  title="AI解析"
+                >
+                  <Brain size={16} />
+                </button>
                 <button
                   onClick={() => onDelete(item.id)}
                   className="p-2 rounded-xl bg-slate-700 border border-slate-600 text-slate-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all active:scale-95"
@@ -310,32 +356,47 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
           </div>
         ) : (
           <>
-            {/* 未判定 */}
-            {untaggedItems.length > 0 && (
+            {/* 解析済み */}
+            {analyzedItems.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-cyan-400 mb-3">
+                  📊 解析済み（{analyzedItems.length}件）
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  解析結果を確認するには目のアイコンをタップ
+                </p>
+                <div className="space-y-3">
+                  {analyzedItems.map(item => renderItem(item, !!item.tag))}
+                </div>
+              </div>
+            )}
+
+            {/* 未判定（解析されていないもののみ） */}
+            {untaggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
               <div>
                 <h3 className="text-sm font-bold text-amber-500 mb-3">
-                  ⏳ 判定待ち（{untaggedItems.length}件）
+                  ⏳ 判定待ち（{untaggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">
                   計量結果がわかったら、適正積載ならOK、過積載ならNGを押してください
                 </p>
                 <div className="space-y-3">
-                  {untaggedItems.map(item => renderItem(item, false))}
+                  {untaggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item, false))}
                 </div>
               </div>
             )}
 
-            {/* 判定済み */}
-            {taggedItems.length > 0 && (
+            {/* 判定済み（解析されていないもののみ） */}
+            {taggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
               <div>
                 <h3 className="text-sm font-bold text-green-500 mb-3">
-                  ✓ 判定済み（{taggedItems.length}件）
+                  ✓ 判定済み（{taggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">
                   このデータはAI解析の参考として使われます
                 </p>
                 <div className="space-y-3">
-                  {taggedItems.map(item => renderItem(item, true))}
+                  {taggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item, true))}
                 </div>
               </div>
             )}

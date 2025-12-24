@@ -8,11 +8,11 @@ import StockList from './components/StockList';
 import SyncSettings from './components/SyncSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
-import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems } from './services/stockService';
+import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation } from './services/stockService';
 import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
-import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey } from './services/geminiService';
-import { EstimationResult, AnalysisHistory, StockItem } from './types';
+import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from './services/geminiService';
+import { EstimationResult, StockItem } from './types';
 import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud, Scale } from 'lucide-react';
 
 interface LogEntry {
@@ -36,7 +36,6 @@ const App: React.FC = () => {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentImageUrls, setCurrentImageUrls] = useState<string[]>([]);
   const [currentBase64Images, setCurrentBase64Images] = useState<string[]>([]);
-  const [history, setHistory] = useState<AnalysisHistory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analysisStep, setAnalysisStep] = useState(0);
@@ -45,6 +44,7 @@ const App: React.FC = () => {
   const [hasApiKey, setHasApiKey] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
+  const [isGoogleAIStudio, setIsGoogleAIStudio] = useState(false);
   const [showCostDashboard, setShowCostDashboard] = useState(false);
   const [todaysCost, setTodaysCost] = useState(0);
   
@@ -62,7 +62,20 @@ const App: React.FC = () => {
 
   // APIキーの状態を初期化時にチェック
   useEffect(() => {
-    setHasApiKey(!!getApiKey());
+    const apiKey = getApiKey();
+    setHasApiKey(!!apiKey);
+    
+    // 既存のキーがあるが、ソースが不明な場合は確認を促す
+    if (apiKey && !isGoogleAIStudioKey() && !localStorage.getItem('gemini_api_key_source')) {
+      // ソースが不明な場合は、ユーザーに確認を求めるためにモーダルを表示
+      // ただし、初回起動時は自動的に表示しない（ユーザーが設定を開いたときに確認）
+    } else {
+      setIsGoogleAIStudio(isGoogleAIStudioKey());
+    }
+    
+    // 既存の履歴データをストックに移行（初回のみ）
+    migrateLegacyHistory();
+    
     setTodaysCost(getTodayCost());
     setStockItems(getStockItems());
     // URLパラメータからGAS URLを読み込み
@@ -82,20 +95,8 @@ const App: React.FC = () => {
     "AIアンサンブル統合中..."
   ];
 
-  useEffect(() => {
-    const saved = localStorage.getItem('garaton_history_v4');
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load history", e);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('garaton_history_v4', JSON.stringify(history));
-  }, [history]);
+  // 履歴はストックから取得（解析結果があるアイテム）
+  const history = getHistoryItems();
 
   useEffect(() => {
     let interval: any;
@@ -120,19 +121,50 @@ const App: React.FC = () => {
 
   const handleSaveApiKey = () => {
     if (apiKeyInput.trim()) {
-      setApiKey(apiKeyInput.trim());
+      setApiKey(apiKeyInput.trim(), isGoogleAIStudio);
       setHasApiKey(true);
       setShowApiKeyModal(false);
       setApiKeyInput('');
+      setIsGoogleAIStudio(false);
     }
   };
+
+  // APIキーモーダルを開いたときに、既存のキーを読み込む
+  useEffect(() => {
+    if (showApiKeyModal) {
+      const existingKey = getApiKey();
+      if (existingKey) {
+        setApiKeyInput(existingKey);
+        setIsGoogleAIStudio(isGoogleAIStudioKey());
+      } else {
+        setApiKeyInput('');
+        setIsGoogleAIStudio(false);
+      }
+    }
+  }, [showApiKeyModal]);
 
   const handleClearApiKey = () => {
     clearApiKey();
     setHasApiKey(false);
+    setIsGoogleAIStudio(false);
   };
 
-  const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false) => {
+  // 解析開始の統一エントリーポイント
+  const requestAnalysis = (base64s: string[], urls: string[], initialMaxCapacity?: number, stockItemId?: string) => {
+    // ストックアイテムのIDを保存（既存アイテムの場合はaddEstimationを使用するため）
+    if (stockItemId) {
+      setCurrentId(stockItemId);
+    }
+    setCurrentImageUrls(urls);
+    setCurrentBase64Images(base64s);
+    setMaxCapacity(initialMaxCapacity);
+    // CaptureChoiceを表示するためのpendingCaptureを設定
+    const firstUrl = urls[0];
+    const firstBase64 = base64s[0];
+    setPendingCapture({ base64: firstBase64, url: firstUrl });
+  };
+
+  const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false, capacityOverride?: number) => {
     if (!hasApiKey) {
       setError('APIキーが設定されていません。設定してください。');
       setShowApiKeyModal(true);
@@ -174,7 +206,7 @@ const App: React.FC = () => {
         abortSignal,
         isAuto ? 'gemini-flash-lite-latest' : selectedModel,
         getTaggedItems(),
-        isAuto ? undefined : maxCapacity
+        isAuto ? undefined : (capacityOverride !== undefined ? capacityOverride : maxCapacity)
       );
 
       if (activeRequestId.current !== requestId) return;
@@ -194,34 +226,72 @@ const App: React.FC = () => {
             } else {
               setMonitorGuidance("対象を特定できませんでした");
             }
+            // 自動監視の場合は早期リターンしない（finallyでクリーンアップされる）
             return;
           }
           
           setIsTargetLocked(true);
           addLog(`ロックオン: 荷姿を検知`, 'success');
           await new Promise(r => setTimeout(r, 1500));
+          // 自動監視の場合はここで処理を終了（finallyでクリーンアップされる）
+          return;
         } else {
           if (!merged.isTargetDetected) {
             setError("トラックや荷姿が確認できません。撮り直してください。");
+            // エラー時もfinallyでクリーンアップされる
             return;
           }
         }
 
-        const newId = crypto.randomUUID();
+        // currentIdが既に設定されている場合は既存のストックアイテムとして扱う
+        const itemId = currentId || crypto.randomUUID();
         setCurrentResult(merged);
-        setCurrentId(newId);
+        setCurrentId(itemId);
         setRawInferences(results);
         setCurrentImageUrls(urls);
         
+        // 解析結果をストックに保存（自動監視の場合は除く）
+        if (!isAuto && base64s.length > 0 && merged.isTargetDetected) {
+          try {
+            const existingStock = getStockItems();
+            let existingItem: StockItem | undefined;
+            
+            if (currentId) {
+              // currentIdで既存アイテムを検索
+              existingItem = existingStock.find(item => item.id === currentId);
+            }
+            
+            if (!existingItem) {
+              // currentIdがない場合は、画像URLで既存アイテムを検索
+              existingItem = existingStock.find(item => 
+                item.imageUrls.length === urls.length &&
+                item.imageUrls[0] === urls[0]
+              );
+            }
 
-        const newHistoryItem: AnalysisHistory = {
-          id: newId,
-          timestamp: Date.now(),
-          imageUrls: urls,
-          result: merged,
-        };
-
-        setHistory(prev => [newHistoryItem, ...prev.slice(0, 99)]);
+            if (existingItem) {
+              // 既存のアイテムがある場合は、推定結果を追加（ランごとに履歴として保存）
+              addEstimation(existingItem.id, merged);
+            } else {
+              // 新規アイテムの場合は作成
+              const stockItem: StockItem = {
+                id: itemId,
+                timestamp: Date.now(),
+                base64Images: base64s,
+                imageUrls: urls,
+                maxCapacity: capacityOverride !== undefined ? capacityOverride : maxCapacity,
+                result: merged, // 最新の推定結果（後方互換性）
+                estimations: [merged], // 推定結果の履歴（ランごとに追加）
+              };
+              saveStockItem(stockItem);
+            }
+            setStockItems(getStockItems());
+          } catch (err) {
+            console.error('ストック追加エラー:', err);
+            // ストック追加に失敗しても解析は続行
+          }
+        }
+        
         refreshCost();
       }
     } catch (err: any) {
@@ -255,6 +325,7 @@ const App: React.FC = () => {
     setIsBackgroundScanning(false);
     setIsTargetLocked(false);
     setMonitorGuidance(null);
+    setMaxCapacity(undefined); // 最大積載量もリセット
     // 全てのモーダル・サブ画面を閉じる
     setShowCamera(false);
     setPendingCapture(null);
@@ -287,13 +358,15 @@ const App: React.FC = () => {
         {pendingCapture && (
           <CaptureChoice
             imageUrl={pendingCapture.url}
-            onAnalyze={() => {
+            initialMaxCapacity={maxCapacity}
+            source={currentId ? 'stock' : 'capture'}
+            onAnalyze={(capacity) => {
               const { base64, url } = pendingCapture;
               setPendingCapture(null);
-              setCurrentImageUrls([url]);
-              startAnalysis([base64], [url]);
+              setMaxCapacity(capacity); // 解析時に設定した最大積載量を保存
+              startAnalysis([base64], [url], false, capacity); // 最大積載量を直接渡す
             }}
-            onStock={() => {
+            onStock={currentId ? undefined : () => {
               const dataUrl = 'data:image/jpeg;base64,' + pendingCapture.base64;
               const newItem: StockItem = {
                 id: crypto.randomUUID(),
@@ -305,7 +378,10 @@ const App: React.FC = () => {
               setStockItems(getStockItems());
               setPendingCapture(null);
             }}
-            onCancel={() => setPendingCapture(null)}
+            onCancel={() => {
+              setPendingCapture(null);
+              setCurrentId(null); // ストックからの解析の場合、キャンセル時にIDをクリア
+            }}
           />
         )}
         
@@ -321,8 +397,14 @@ const App: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowCostDashboard(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold transition-all ${
+                  isGoogleAIStudio 
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' 
+                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                }`}
+                title={isGoogleAIStudio ? '無料枠を使用中' : ''}
               >
+                {isGoogleAIStudio && <span className="text-xs">🆓</span>}
                 {formatCost(todaysCost)}
               </button>
               <button
@@ -419,60 +501,6 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* 最大積載量入力 */}
-                <div className="bg-slate-900 rounded-[2rem] p-6 border border-slate-800 mt-4">
-                  <h3 className="text-sm font-black flex items-center gap-3 uppercase text-slate-400 mb-4">
-                    <Scale size={20} className="text-green-500" />
-                    最大積載量（任意）
-                  </h3>
-                  <p className="text-xs text-slate-500 mb-4">
-                    車両の最大積載量がわかる場合は入力してください。8トンダンプなど見た目で判別しにくい車両の推定精度が向上します。
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 grid grid-cols-5 gap-2">
-                      {[2, 4, 8, 10, 11].map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setMaxCapacity(maxCapacity === t ? undefined : t)}
-                          className={`py-3 rounded-xl font-black text-sm transition-all ${
-                            maxCapacity === t
-                              ? 'bg-green-500 text-white'
-                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                          }`}
-                        >
-                          {t}t
-                        </button>
-                      ))}
-                    </div>
-                    <div className="text-slate-600">|</div>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.1"
-                      placeholder="その他"
-                      value={maxCapacity && ![2, 4, 8, 10, 11].includes(maxCapacity) ? maxCapacity : ''}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setMaxCapacity(isNaN(val) ? undefined : val);
-                      }}
-                      className="w-24 bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-center font-bold focus:outline-none focus:border-green-500"
-                    />
-                  </div>
-                  {maxCapacity && (
-                    <div className="mt-3 flex items-center justify-between">
-                      <span className="text-green-400 text-sm font-bold">
-                        最大積載量: {maxCapacity}t で解析します
-                      </span>
-                      <button
-                        onClick={() => setMaxCapacity(undefined)}
-                        className="text-xs text-slate-500 hover:text-red-400"
-                      >
-                        クリア
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
@@ -539,59 +567,36 @@ const App: React.FC = () => {
                   imageUrls={currentImageUrls}
                   base64Images={currentBase64Images}
                   analysisId={currentId || ''}
-                  actualTonnage={history.find(h => h.id === currentId)?.actualTonnage}
-                  onSaveActualTonnage={(v) => setHistory(prev => prev.map(h => h.id === currentId ? {...h, actualTonnage: v} : h))}
-                  onUpdateLicensePlate={(p, n) => setHistory(prev => prev.map(h => h.id === currentId ? {...h, result: {...h.result, licensePlate: p, licenseNumber: n}} : h))}
+                  actualTonnage={getHistoryItems().find(h => h.id === currentId)?.actualTonnage}
+                  onSaveActualTonnage={(v) => {
+                    if (currentId) {
+                      updateStockItem(currentId, { actualTonnage: v });
+                      setStockItems(getStockItems());
+                    }
+                  }}
+                  onUpdateLicensePlate={(p, n) => {
+                    if (currentId && currentResult) {
+                      const updatedResult = { ...currentResult, licensePlate: p, licenseNumber: n };
+                      // 最新の推定結果を更新
+                      const item = getStockItems().find(i => i.id === currentId);
+                      if (item && item.estimations && item.estimations.length > 0) {
+                        // estimations配列の最新（先頭）を更新
+                        const updatedEstimations = [...item.estimations];
+                        updatedEstimations[0] = updatedResult;
+                        updateStockItem(currentId, { result: updatedResult, estimations: updatedEstimations });
+                      } else {
+                        // 後方互換性のため、resultも更新
+                        updateStockItem(currentId, { result: updatedResult });
+                      }
+                      setCurrentResult(updatedResult);
+                      setStockItems(getStockItems());
+                    }
+                  }}
                 />
               </div>
             )}
           </div>
 
-        {history.length > 0 && !loading && !currentResult && !showCamera && (
-          <div className="fixed bottom-12 left-0 right-0 p-6 pointer-events-none z-40">
-            <div className="max-w-lg mx-auto space-y-3 pointer-events-auto">
-              <h3 className="text-xs font-black text-slate-500 uppercase flex items-center gap-2 mb-2 bg-slate-950/90 backdrop-blur-xl w-fit px-4 py-2 rounded-full border border-slate-800">
-                <ListChecks size={14} /> 解析履歴
-              </h3>
-              <div className="max-h-56 overflow-y-auto space-y-3 no-scrollbar mask-fade-top">
-                {history.slice(0, 5).map((item) => (
-                  <div 
-                    key={item.id} 
-                    onClick={() => {
-                      if (!loading && !showCamera) {
-                        setCurrentResult(item.result);
-                        setCurrentId(item.id);
-                        setCurrentImageUrls(item.imageUrls);
-                        // data:URLからbase64を抽出
-                        const base64s = item.imageUrls.map(url => {
-                          if (url.startsWith('data:')) {
-                            return url.split(',')[1] || '';
-                          }
-                          return '';
-                        }).filter(b => b);
-                        setCurrentBase64Images(base64s);
-                      }
-                    }}
-                    className={`bg-slate-900/95 backdrop-blur-2xl border border-slate-800 p-3 rounded-2xl flex items-center gap-4 shadow-2xl transition-all ${!loading && !showCamera ? 'cursor-pointer hover:border-blue-500 active:scale-[0.98]' : ''}`}
-                  >
-                    <img src={item.imageUrls[0]} className="w-14 h-14 rounded-xl object-cover bg-slate-800 border border-white/5" />
-                    <div className="flex-grow min-w-0">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-black text-yellow-500 truncate">{item.result.licenseNumber || '----'}</span>
-                        <span className="text-[10px] text-slate-500 font-bold">{new Date(item.timestamp).toLocaleTimeString()}</span>
-                      </div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xl font-black text-white">{item.result.estimatedTonnage.toFixed(1)}t</span>
-                        <span className="text-xs font-bold text-slate-500 truncate">{item.result.truckType}</span>
-                      </div>
-                    </div>
-                    <Activity size={16} className="text-blue-500 shrink-0 opacity-50" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
 
@@ -619,8 +624,21 @@ const App: React.FC = () => {
           }}
           onAnalyze={(item) => {
             setShowStockList(false);
-            setCurrentImageUrls(item.imageUrls);
-            startAnalysis(item.base64Images, item.imageUrls);
+            // 統一フロー：requestAnalysisを使用してCaptureChoiceを表示
+            requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
+          }}
+          onViewResult={(item) => {
+            // 解析結果ページを表示
+            const latestEstimation = item.estimations && item.estimations.length > 0 
+              ? item.estimations[0] 
+              : item.result;
+            if (latestEstimation) {
+              setCurrentResult(latestEstimation);
+              setCurrentId(item.id);
+              setCurrentImageUrls(item.imageUrls);
+              setCurrentBase64Images(item.base64Images);
+              setShowStockList(false);
+            }
           }}
           onClose={() => setShowStockList(false)}
         />
@@ -647,10 +665,48 @@ const App: React.FC = () => {
             <input
               type="password"
               value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
+              onChange={(e) => {
+                setApiKeyInput(e.target.value);
+                // 既存のキーが入力されている場合、ソースが不明なら自動判定を試みる
+                const trimmed = e.target.value.trim();
+                if (trimmed && trimmed.startsWith('AIza') && !localStorage.getItem('gemini_api_key_source')) {
+                  // 既存のキーと同じ場合は、保存されている設定を読み込む
+                  const existingKey = getApiKey();
+                  if (existingKey === trimmed) {
+                    setIsGoogleAIStudio(isGoogleAIStudioKey());
+                  }
+                }
+              }}
               placeholder="AIza..."
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 mb-4"
             />
+            
+            {/* 既存のキーが設定されているが、ソースが不明な場合の警告 */}
+            {getApiKey() && !localStorage.getItem('gemini_api_key_source') && apiKeyInput.trim() === getApiKey() && (
+              <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                <p className="text-xs text-amber-400 font-bold mb-2">
+                  ⚠️ このキーの出所が不明です
+                </p>
+                <p className="text-xs text-slate-400">
+                  既存のキーが設定されていますが、Google AI Studioの無料枠かどうかが不明です。下記で選択してください。
+                </p>
+              </div>
+            )}
+            
+            <label className="flex items-center gap-3 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors">
+              <input
+                type="checkbox"
+                checked={isGoogleAIStudio}
+                onChange={(e) => setIsGoogleAIStudio(e.target.checked)}
+                className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+              />
+              <div className="flex-1">
+                <span className="text-sm font-bold text-white">Google AI Studioの無料枠を使用</span>
+                <p className="text-xs text-slate-400 mt-1">
+                  このキーがGoogle AI Studioから取得した無料枠の場合は、料金カウンターを増加させません。
+                </p>
+              </div>
+            </label>
             
             <div className="flex gap-3">
               <button
