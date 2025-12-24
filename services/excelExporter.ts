@@ -102,8 +102,8 @@ const getTextWidth = (text: string): number => {
     // 全角文字（日本語、全角記号など）は幅2、それ以外は1
     width += char.charCodeAt(0) > 255 ? 2 : 1;
   }
-  // ExcelJSの列幅に換算（約1.2で割る）
-  return Math.ceil(width / 1.2) + 2;
+  // ExcelJSの列幅に換算（×1.2で余裕を持たせる）
+  return Math.ceil(width * 1.2);
 };
 
 // ワークシートを作成
