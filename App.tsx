@@ -623,10 +623,6 @@ const App: React.FC = () => {
       {showStockList && (
         <StockList
           items={stockItems}
-          onTag={(id, tag) => {
-            updateStockItem(id, { tag });
-            setStockItems(getStockItems());
-          }}
           onUpdate={(id, updates) => {
             updateStockItem(id, updates);
             setStockItems(getStockItems());

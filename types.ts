@@ -39,7 +39,6 @@ export interface StockItem {
   timestamp: number;
   base64Images: string[];
   imageUrls: string[];
-  tag?: 'OK' | 'NG';
   actualTonnage?: number;  // ユーザー入力（実測）
   maxCapacity?: number;  // 最大積載量
   memo?: string;
@@ -50,3 +49,17 @@ export interface StockItem {
   result?: EstimationResult;  // 最新の推定結果（後方互換性）
   estimations?: EstimationResult[];  // すべての推定結果の履歴（ランごとに追加）
 }
+
+// 判定状態を導出（actualTonnageとmaxCapacityから計算）
+export type JudgmentStatus = 'OK' | 'NG' | 'unknown';
+
+export const getJudgmentStatus = (item: StockItem): JudgmentStatus => {
+  if (item.actualTonnage === undefined || item.maxCapacity === undefined) {
+    return 'unknown';
+  }
+  return item.actualTonnage <= item.maxCapacity ? 'OK' : 'NG';
+};
+
+export const isJudged = (item: StockItem): boolean => {
+  return item.actualTonnage !== undefined && item.maxCapacity !== undefined;
+};

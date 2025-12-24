@@ -1,4 +1,4 @@
-import { StockItem, EstimationResult } from '../types';
+import { StockItem, EstimationResult, isJudged } from '../types';
 
 const STORAGE_KEY = 'tonchecker_stock_v1';
 const LEGACY_HISTORY_KEY = 'garaton_history_v4';
@@ -33,8 +33,14 @@ export const deleteStockItem = (id: string): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 };
 
+// 判定済みアイテムを取得（actualTonnageとmaxCapacityが両方ある）
+export const getJudgedItems = (): StockItem[] => {
+  return getStockItems().filter(isJudged);
+};
+
+// 後方互換性のため残す（getJudgedItemsのエイリアス）
 export const getTaggedItems = (): StockItem[] => {
-  return getStockItems().filter(item => item.tag !== undefined);
+  return getJudgedItems();
 };
 
 export const clearAllStock = (): void => {

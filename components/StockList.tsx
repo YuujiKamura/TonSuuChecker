@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { StockItem } from '../types';
-import { Check, X, Trash2, Brain, ArrowLeft, RotateCcw, Sparkles, Loader2, Eye } from 'lucide-react';
+import { StockItem, getJudgmentStatus, isJudged, JudgmentStatus } from '../types';
+import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye } from 'lucide-react';
 import { extractFeatures } from '../services/geminiService';
 
 interface StockListProps {
   items: StockItem[];
-  onTag: (id: string, tag: 'OK' | 'NG') => void;
   onUpdate: (id: string, updates: Partial<StockItem>) => void;
   onDelete: (id: string) => void;
   onAnalyze: (item: StockItem) => void;
@@ -13,7 +12,7 @@ interface StockListProps {
   onClose: () => void;
 }
 
-const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete, onAnalyze, onViewResult, onClose }) => {
+const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnalyze, onViewResult, onClose }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTonnage, setEditTonnage] = useState('');
   const [editMaxCapacity, setEditMaxCapacity] = useState('');
@@ -22,13 +21,14 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
   const [showFeatures, setShowFeatures] = useState<string | null>(null);
 
   const handleExtractFeatures = async (item: StockItem) => {
-    if (!item.actualTonnage || !item.tag) return;
+    const status = getJudgmentStatus(item);
+    if (!item.actualTonnage || status === 'unknown') return;
     setExtractingId(item.id);
     try {
       const { features, rawResponse } = await extractFeatures(
         item.base64Images[0],
         item.actualTonnage,
-        item.tag,
+        status as 'OK' | 'NG',
         item.maxCapacity
       );
       onUpdate(item.id, {
@@ -42,8 +42,8 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
     }
   };
 
-  const untaggedItems = items.filter(item => !item.tag);
-  const taggedItems = items.filter(item => item.tag);
+  const unjudgedItems = items.filter(item => !isJudged(item));
+  const judgedItems = items.filter(item => isJudged(item));
   const analyzedItems = items.filter(item => (item.estimations && item.estimations.length > 0) || item.result);
 
   const startEdit = (item: StockItem) => {
@@ -56,18 +56,11 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
   const saveEdit = (id: string) => {
     const actualTonnage = editTonnage ? parseFloat(editTonnage) : undefined;
     const maxCapacity = editMaxCapacity ? parseFloat(editMaxCapacity) : undefined;
-    
-    // 実測と最大積載量が両方入力されていれば自動判定
-    let tag: 'OK' | 'NG' | undefined = undefined;
-    if (actualTonnage !== undefined && maxCapacity !== undefined) {
-      tag = actualTonnage <= maxCapacity ? 'OK' : 'NG';
-    }
-    
+
     onUpdate(id, {
       actualTonnage,
       maxCapacity,
-      memo: editMemo || undefined,
-      ...(tag !== undefined ? { tag } : {})
+      memo: editMemo || undefined
     });
     setEditingId(null);
   };
@@ -79,11 +72,9 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
     setEditMemo('');
   };
 
-  const resetTag = (id: string) => {
-    onUpdate(id, { tag: undefined });
-  };
-
-  const renderItem = (item: StockItem, isTagged: boolean) => {
+  const renderItem = (item: StockItem) => {
+    const judgmentStatus = getJudgmentStatus(item);
+    const itemIsJudged = isJudged(item);
     const isEditing = editingId === item.id;
     const hasAnalysis = (item.estimations && item.estimations.length > 0) || item.result;
 
@@ -91,10 +82,10 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
       <div
         key={item.id}
         className={`bg-slate-800 border rounded-2xl p-4 ${
-          hasAnalysis 
-            ? 'border-cyan-500/30 bg-slate-800/80' 
-            : isTagged 
-              ? 'border-slate-700/50 bg-slate-800/50' 
+          hasAnalysis
+            ? 'border-cyan-500/30 bg-slate-800/80'
+            : itemIsJudged
+              ? 'border-slate-700/50 bg-slate-800/50'
               : 'border-slate-700'
         } ${isEditing ? 'border-blue-500/50' : ''}`}
       >
@@ -109,9 +100,9 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
             />
             <div className="space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
-                {item.tag && (
-                  <span className={`text-xs font-black px-2 py-0.5 rounded-full ${item.tag === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {item.tag === 'OK' ? '適正' : '過積載'}
+                {judgmentStatus !== 'unknown' && (
+                  <span className={`text-xs font-black px-2 py-0.5 rounded-full ${judgmentStatus === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {judgmentStatus === 'OK' ? '適正' : '過積載'}
                   </span>
                 )}
                 <span className="text-xs text-slate-500">
@@ -170,7 +161,7 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
           <div className="flex items-start gap-4">
             <img
               src={item.imageUrls[0]}
-              className={`w-20 h-20 rounded-xl object-cover bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 ${isTagged ? 'opacity-80' : ''}`}
+              className={`w-20 h-20 rounded-xl object-cover bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 ${itemIsJudged ? 'opacity-80' : ''}`}
               alt="Stock"
               onClick={() => startEdit(item)}
             />
@@ -178,9 +169,9 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
             <div className="flex-grow min-w-0">
               {/* 日時とタグ */}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                {item.tag && (
-                  <span className={`text-xs font-black px-2 py-0.5 rounded-full ${item.tag === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {item.tag === 'OK' ? '適正' : '過積載'}
+                {judgmentStatus !== 'unknown' && (
+                  <span className={`text-xs font-black px-2 py-0.5 rounded-full ${judgmentStatus === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {judgmentStatus === 'OK' ? '適正' : '過積載'}
                   </span>
                 )}
                 {(() => {
@@ -215,46 +206,16 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
 
             {/* アクションボタン */}
             <div className="flex flex-col gap-2 shrink-0">
-              {/* 実測と最大積載量が未入力の場合のみ手動判定ボタンを表示 */}
-              {!isTagged && !(item.actualTonnage && item.maxCapacity) ? (
-                // 未判定かつ自動判定不可：手動判定ボタン
-                <div className="flex flex-col gap-1">
-                  <span className="text-[9px] text-slate-500 text-center">過積載？</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => onTag(item.id, 'OK')}
-                      className="flex flex-col items-center gap-1 p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-all active:scale-95"
-                      title="適正積載（過積載ではない）"
-                    >
-                      <Check size={20} />
-                      <span className="text-[10px] font-bold">適正</span>
-                    </button>
-                    <button
-                      onClick={() => onTag(item.id, 'NG')}
-                      className="flex flex-col items-center gap-1 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all active:scale-95"
-                      title="過積載"
-                    >
-                      <X size={20} />
-                      <span className="text-[10px] font-bold">過積載</span>
-                    </button>
-                  </div>
-                  <span className="text-[8px] text-slate-600 text-center">または実測・最大積載量を入力</span>
-                </div>
-              ) : isTagged ? (
-                // 判定済み：判定やり直しボタン
-                <button
-                  onClick={() => resetTag(item.id)}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all active:scale-95 text-xs font-bold"
-                  title="過積載/適正の判定をやり直す"
-                >
-                  <RotateCcw size={14} />
-                  判定取消
-                </button>
-              ) : null}
+              {/* 未判定の場合はヒントを表示 */}
+              {!itemIsJudged && (
+                <span className="text-[9px] text-slate-500 text-center">
+                  画像をタップして<br/>実測・最大積載量を入力
+                </span>
+              )}
 
               <div className="flex gap-2 flex-wrap">
-                {/* 特徴抽出ボタン（タグ+実測値がある場合） */}
-                {isTagged && item.actualTonnage && (
+                {/* 特徴抽出ボタン（判定済み+実測値がある場合） */}
+                {itemIsJudged && item.actualTonnage && (
                   <button
                     onClick={() => handleExtractFeatures(item)}
                     disabled={extractingId === item.id}
@@ -366,37 +327,37 @@ const StockList: React.FC<StockListProps> = ({ items, onTag, onUpdate, onDelete,
                   解析結果を確認するには目のアイコンをタップ
                 </p>
                 <div className="space-y-3">
-                  {analyzedItems.map(item => renderItem(item, !!item.tag))}
+                  {analyzedItems.map(item => renderItem(item))}
                 </div>
               </div>
             )}
 
             {/* 未判定（解析されていないもののみ） */}
-            {untaggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
+            {unjudgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
               <div>
                 <h3 className="text-sm font-bold text-amber-500 mb-3">
-                  ⏳ 判定待ち（{untaggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
+                  ⏳ 判定待ち（{unjudgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">
-                  計量結果がわかったら、適正積載ならOK、過積載ならNGを押してください
+                  実測値と最大積載量を入力すると自動判定されます
                 </p>
                 <div className="space-y-3">
-                  {untaggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item, false))}
+                  {unjudgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item))}
                 </div>
               </div>
             )}
 
             {/* 判定済み（解析されていないもののみ） */}
-            {taggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
+            {judgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length > 0 && (
               <div>
                 <h3 className="text-sm font-bold text-green-500 mb-3">
-                  ✓ 判定済み（{taggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
+                  ✓ 判定済み（{judgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).length}件）
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">
                   このデータはAI解析の参考として使われます
                 </p>
                 <div className="space-y-3">
-                  {taggedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item, true))}
+                  {judgedItems.filter(item => !((item.estimations && item.estimations.length > 0) || item.result)).map(item => renderItem(item))}
                 </div>
               </div>
             )}

@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
-import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature } from "../types";
+import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, getJudgmentStatus } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
@@ -203,8 +203,9 @@ export const analyzeGaraImageEnsemble = async (
       const featureStr = s.extractedFeatures!
         .map(f => `${f.parameterName}=${f.value}${f.unit || ''}`)
         .join(', ');
+      const status = getJudgmentStatus(s);
       return {
-        text: `【参考データ】実測${s.actualTonnage}t（${s.tag === 'OK' ? '適正' : '過積載'}）の特徴: ${featureStr}`
+        text: `【参考データ】実測${s.actualTonnage}t（${status === 'OK' ? '適正' : '過積載'}）の特徴: ${featureStr}`
       };
     });
 
