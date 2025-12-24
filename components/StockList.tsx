@@ -321,7 +321,7 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950 z-50 flex flex-col">
+    <div className="fixed inset-0 bg-slate-950 z-[110] flex flex-col">
       {/* ヘッダー */}
       <div className="bg-slate-900 border-b border-slate-800 p-4 flex items-center gap-4">
         <button
