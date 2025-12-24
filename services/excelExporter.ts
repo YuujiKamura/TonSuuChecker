@@ -1,7 +1,7 @@
 /**
  * 建設廃棄物処理実績集計表 Excel出力サービス
  * テンプレートExcel構造に基づいてストックデータを埋め込みExcelを生成する
- * 
+ *
  * テンプレート構造（列）:
  * B列: 通番号
  * C列: 廃棄物の種類
@@ -11,7 +11,7 @@
  * G列: 搬出量
  * H列: 搬出先
  * I列: 備考
- * 
+ *
  * データ開始行: 10行目
  */
 
@@ -75,22 +75,48 @@ const dateToExcelSerial = (date: Date): number => {
   return Math.floor((date.getTime() - excelEpoch.getTime()) / msPerDay);
 };
 
+// 列幅設定（テンプレートから抽出）
+const COLUMN_WIDTHS = [
+  { wch: 2 },      // A列（空）
+  { wch: 8.17 },   // B列: 通番号
+  { wch: 16.33 },  // C列: 廃棄物の種類
+  { wch: 10.67 },  // D列: 交付日
+  { wch: 13.17 },  // E列: マニフェスト伝票番号
+  { wch: 5.33 },   // F列: 単位
+  { wch: 10 },     // G列: 搬出量
+  { wch: 18.67 },  // H列: 搬出先
+  { wch: 10 },     // I列: 備考
+];
+
+// 行高設定（テンプレートから抽出）
+const getRowHeights = (dataRowCount: number) => {
+  const rows: any[] = [];
+  // 行1-5: デフォルト
+  for (let i = 0; i < 5; i++) rows.push(undefined);
+  // 行6-9: ヘッダー部分 (hpt=18.75)
+  for (let i = 5; i < 9; i++) rows.push({ hpt: 18.75 });
+  // 行10以降: データ部分 (hpt=21)
+  for (let i = 9; i < 9 + dataRowCount + 10; i++) rows.push({ hpt: 21 });
+  return rows;
+};
+
 // 新規シートを作成（テンプレート形式）
 const createSheetWithHeader = (
   _sheetName: string,
-  config: ExportConfig
+  config: ExportConfig,
+  dataRowCount: number = 30
 ) => {
-  const ws: Record<string, unknown> = {};
+  const ws: any = {};
 
-  // タイトル（B3:I4結合）
+  // タイトル（B3）
   ws['B3'] = { t: 's', v: '建設廃棄物処理実績集計表' };
 
-  // 工事情報
+  // 工事情報（行6-7）
   ws['B6'] = { t: 's', v: '工事番号' };
   ws['C6'] = { t: 's', v: config.projectNumber || '' };
   ws['F6'] = { t: 's', v: '受注者名' };
   ws['H6'] = { t: 's', v: config.contractorName || '' };
-  
+
   ws['B7'] = { t: 's', v: '工事名' };
   ws['C7'] = { t: 's', v: config.projectName || '' };
   ws['F7'] = { t: 's', v: '現場代理人' };
@@ -107,19 +133,25 @@ const createSheetWithHeader = (
   ws['H8'] = { t: 's', v: '搬出先' };
   ws['I8'] = { t: 's', v: '備　考' };
 
+  // 列幅設定
+  ws['!cols'] = COLUMN_WIDTHS;
+
+  // 行高設定
+  ws['!rows'] = getRowHeights(dataRowCount);
+
   // 結合セル設定
   ws['!merges'] = [
     { s: { r: 2, c: 1 }, e: { r: 3, c: 8 } },   // B3:I4 タイトル
-    { s: { r: 5, c: 5 }, e: { r: 5, c: 6 } },   // F6:G6
-    { s: { r: 6, c: 2 }, e: { r: 6, c: 4 } },   // C7:E7
-    { s: { r: 6, c: 5 }, e: { r: 6, c: 6 } },   // F7:G7
-    { s: { r: 7, c: 1 }, e: { r: 8, c: 1 } },   // B8:B9
-    { s: { r: 7, c: 2 }, e: { r: 8, c: 2 } },   // C8:C9
-    { s: { r: 7, c: 3 }, e: { r: 8, c: 3 } },   // D8:D9
-    { s: { r: 7, c: 5 }, e: { r: 8, c: 5 } },   // F8:F9
-    { s: { r: 7, c: 6 }, e: { r: 8, c: 6 } },   // G8:G9
-    { s: { r: 7, c: 7 }, e: { r: 8, c: 7 } },   // H8:H9
-    { s: { r: 7, c: 8 }, e: { r: 8, c: 8 } },   // I8:I9
+    { s: { r: 5, c: 5 }, e: { r: 5, c: 6 } },   // F6:G6 受注者名
+    { s: { r: 6, c: 2 }, e: { r: 6, c: 4 } },   // C7:E7 工事名
+    { s: { r: 6, c: 5 }, e: { r: 6, c: 6 } },   // F7:G7 現場代理人
+    { s: { r: 7, c: 1 }, e: { r: 8, c: 1 } },   // B8:B9 通番号
+    { s: { r: 7, c: 2 }, e: { r: 8, c: 2 } },   // C8:C9 廃棄物の種類
+    { s: { r: 7, c: 3 }, e: { r: 8, c: 3 } },   // D8:D9 交付日
+    { s: { r: 7, c: 5 }, e: { r: 8, c: 5 } },   // F8:F9 単位
+    { s: { r: 7, c: 6 }, e: { r: 8, c: 6 } },   // G8:G9 搬出量
+    { s: { r: 7, c: 7 }, e: { r: 8, c: 7 } },   // H8:H9 搬出先
+    { s: { r: 7, c: 8 }, e: { r: 8, c: 8 } },   // I8:I9 備考
   ];
 
   // 範囲設定（初期は空データ想定）
@@ -130,7 +162,7 @@ const createSheetWithHeader = (
 
 // エントリーデータをシートに書き込み
 const writeEntriesToSheet = (
-  ws: Record<string, unknown>,
+  ws: any,
   entries: WasteEntry[],
   startRow: number = 10
 ): void => {
@@ -140,7 +172,8 @@ const writeEntriesToSheet = (
   entries.forEach((entry, idx) => {
     ws[`B${rowIndex}`] = { t: 'n', v: idx + 1 };
     ws[`C${rowIndex}`] = { t: 's', v: entry.wasteType };
-    ws[`D${rowIndex}`] = { t: 'n', v: dateToExcelSerial(entry.deliveryDate) };
+    // 日付はExcelシリアル値で保存し、日付フォーマットを適用
+    ws[`D${rowIndex}`] = { t: 'n', v: dateToExcelSerial(entry.deliveryDate), z: 'yyyy/mm/dd' };
     ws[`E${rowIndex}`] = { t: 's', v: entry.manifestNumber };
     ws[`F${rowIndex}`] = { t: 's', v: entry.unit };
     ws[`G${rowIndex}`] = { t: 'n', v: entry.amount };
@@ -196,13 +229,11 @@ export const generateWasteReport = async (
 
   const workbook = xlsx.utils.book_new();
 
-  // 統括表シート作成
-  const summarySheet = createSheetWithHeader('統括表', config);
-
   // 日付ごとに集計してサマリーを作成
   const dateGroups = groupByDate(entries);
-  const summaryEntries: WasteEntry[] = [];
 
+  // 統括表シート作成
+  const summaryEntries: WasteEntry[] = [];
   dateGroups.forEach((groupEntries, dateKey) => {
     const totalAmount = groupEntries.reduce((sum, e) => sum + e.amount, 0);
     summaryEntries.push({
@@ -215,15 +246,16 @@ export const generateWasteReport = async (
     });
   });
 
+  const summarySheet = createSheetWithHeader('統括表', config, summaryEntries.length);
   writeEntriesToSheet(summarySheet, summaryEntries);
   xlsx.utils.book_append_sheet(workbook, summarySheet, '統括表');
 
   // 日付ごとの詳細シート作成
   dateGroups.forEach((groupEntries, dateKey) => {
     const date = new Date(dateKey);
-    const sheetName = `${date.getMonth() + 1}-${date.getDate()}`; // 例: 12-24
+    const sheetName = `${date.getDate()}`; // 日付のみ（例: 24, 25, 30）
 
-    const detailSheet = createSheetWithHeader(sheetName, config);
+    const detailSheet = createSheetWithHeader(sheetName, config, groupEntries.length);
     writeEntriesToSheet(detailSheet, groupEntries);
     xlsx.utils.book_append_sheet(workbook, detailSheet, sheetName);
   });
@@ -263,4 +295,3 @@ export const exportWasteReportFromStock = async (
 export const countManifestEntries = (items: StockItem[]): number => {
   return items.filter(item => item.manifestNumber && item.actualTonnage).length;
 };
-
