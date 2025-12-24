@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
-import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature } from "../types";
+import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
 import { getReferenceImages } from './referenceImages';
 
@@ -439,12 +439,6 @@ ${maxCapacity ? `最大積載量は ${maxCapacity}t です。` : ''}
     return { features: [], rawResponse };
   }
 };
-
-// 会話メッセージの型
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
 
 // 解析後にAIに追加質問する機能
 export const askFollowUp = async (

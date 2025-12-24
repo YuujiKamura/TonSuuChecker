@@ -36,6 +36,12 @@ export interface ExtractedFeature {
   reference?: string;  // 基準（ナンバープレート幅基準など）
 }
 
+// チャットメッセージ（解析結果への指摘・質問）
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface StockItem {
   id: string;
   timestamp: number;
@@ -50,6 +56,8 @@ export interface StockItem {
   // 解析結果（履歴管理の統合）
   result?: EstimationResult;  // 最新の推定結果（後方互換性）
   estimations?: EstimationResult[];  // すべての推定結果の履歴（ランごとに追加）
+  // ユーザーからの指摘・質問履歴
+  chatHistory?: ChatMessage[];
 }
 
 // 判定状態を導出（actualTonnageとmaxCapacityから計算）

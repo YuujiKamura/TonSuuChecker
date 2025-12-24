@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { EstimationResult } from '../types';
+import { EstimationResult, ChatMessage } from '../types';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check, MessageCircle, Send, Loader2, Bot, User, Copy, CheckCheck, Trash2 } from 'lucide-react';
-import { askFollowUp, ChatMessage } from '../services/geminiService';
+import { askFollowUp } from '../services/geminiService';
 
 interface AnalysisResultProps {
   result: EstimationResult;
@@ -11,8 +11,10 @@ interface AnalysisResultProps {
   base64Images: string[];
   analysisId: string;
   actualTonnage?: number;
+  initialChatHistory?: ChatMessage[];  // ストックから読み込んだ会話履歴
   onSaveActualTonnage: (value: number) => void;
   onUpdateLicensePlate: (plate: string, number: string) => void;
+  onUpdateChatHistory?: (messages: ChatMessage[]) => void;  // 会話履歴をストックに保存
 }
 
 // 会話履歴の保存・読み込み
@@ -50,7 +52,7 @@ const clearChatHistory = (analysisId: string) => {
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'];
 
-const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, analysisId, actualTonnage, onSaveActualTonnage, onUpdateLicensePlate }) => {
+const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory, onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
   const [isEditingPlate, setIsEditingPlate] = useState(false);
@@ -66,23 +68,26 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
   const [copiedAll, setCopiedAll] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 解析IDが変わったら会話履歴を読み込む
+  // 解析IDが変わったら会話履歴を読み込む（ストックデータ優先）
   useEffect(() => {
     if (analysisId) {
-      const saved = loadChatHistory(analysisId);
-      setChatMessages(saved);
-      if (saved.length > 0) {
+      // ストックデータに会話履歴があればそれを使用、なければlocalStorageから
+      const messages = initialChatHistory?.length ? initialChatHistory : loadChatHistory(analysisId);
+      setChatMessages(messages);
+      if (messages.length > 0) {
         setShowChat(true);
       }
     }
-  }, [analysisId]);
+  }, [analysisId, initialChatHistory]);
 
-  // 会話が更新されたら自動保存
+  // 会話が更新されたら自動保存（ストック+localStorage両方）
   useEffect(() => {
     if (analysisId && chatMessages.length > 0) {
       saveChatHistory(analysisId, chatMessages);
+      // ストックデータにも保存
+      onUpdateChatHistory?.(chatMessages);
     }
-  }, [chatMessages, analysisId]);
+  }, [chatMessages, analysisId, onUpdateChatHistory]);
 
   // チャットが更新されたら自動スクロール
   useEffect(() => {
@@ -133,6 +138,8 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
       if (analysisId) {
         clearChatHistory(analysisId);
       }
+      // ストックデータからもクリア
+      onUpdateChatHistory?.([]);
     }
   };
 

@@ -597,6 +597,7 @@ const App: React.FC = () => {
                   base64Images={currentBase64Images}
                   analysisId={currentId || ''}
                   actualTonnage={getHistoryItems().find(h => h.id === currentId)?.actualTonnage}
+                  initialChatHistory={getStockItems().find(i => i.id === currentId)?.chatHistory}
                   onSaveActualTonnage={(v) => {
                     if (currentId) {
                       updateStockItem(currentId, { actualTonnage: v });
@@ -618,6 +619,12 @@ const App: React.FC = () => {
                         updateStockItem(currentId, { result: updatedResult });
                       }
                       setCurrentResult(updatedResult);
+                      setStockItems(getStockItems());
+                    }
+                  }}
+                  onUpdateChatHistory={(messages) => {
+                    if (currentId) {
+                      updateStockItem(currentId, { chatHistory: messages });
                       setStockItems(getStockItems());
                     }
                   }}
