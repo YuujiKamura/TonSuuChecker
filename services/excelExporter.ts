@@ -81,16 +81,16 @@ const titleStyle: Partial<ExcelJS.Style> = {
   alignment: { horizontal: 'center', vertical: 'middle' }
 };
 
-// 列幅設定（テンプレートから抽出）
+// 列幅設定
 const COLUMN_WIDTHS: { [key: string]: number } = {
   'A': 2,
-  'B': 8.17,
-  'C': 16.33,
-  'D': 10.67,
-  'E': 13.17,
-  'F': 5.33,
+  'B': 8,
+  'C': 16,
+  'D': 13,    // 交付日（yyyy/mm/dd）が切れないよう広め
+  'E': 13,
+  'F': 5,
   'G': 10,
-  'H': 18.67,
+  'H': 19,
   'I': 10
 };
 
@@ -108,12 +108,12 @@ const createWorksheet = (
     ws.getColumn(col).width = width;
   });
 
-  // 行高設定
+  // 行高設定（約1.3倍）
   for (let i = 1; i <= 5; i++) {
-    ws.getRow(i).height = 15;
+    ws.getRow(i).height = 20;
   }
   for (let i = 6; i <= 9; i++) {
-    ws.getRow(i).height = 18.75;
+    ws.getRow(i).height = 24;
   }
 
   // タイトル（B3:I4）
@@ -193,7 +193,7 @@ const createWorksheet = (
   let totalAmount = 0;
 
   entries.forEach((entry, idx) => {
-    ws.getRow(rowIndex).height = 21;
+    ws.getRow(rowIndex).height = 27;
 
     const row = ws.getRow(rowIndex);
 
@@ -258,7 +258,7 @@ const createWorksheet = (
   // 空行を追加（データがない行にも罫線を適用するため）
   for (let i = entries.length; i < dataRowCount; i++) {
     const emptyRowIndex = 10 + i;
-    ws.getRow(emptyRowIndex).height = 21;
+    ws.getRow(emptyRowIndex).height = 27;
 
     // 通番号だけ入れる
     const cellB = ws.getCell(`B${emptyRowIndex}`);
@@ -276,7 +276,7 @@ const createWorksheet = (
 
   // 合計行（データ行の下）
   const sumRowIndex = 10 + dataRowCount;
-  ws.getRow(sumRowIndex).height = 21;
+  ws.getRow(sumRowIndex).height = 27;
 
   // 合計ラベル
   ws.mergeCells(`B${sumRowIndex}:F${sumRowIndex}`);
