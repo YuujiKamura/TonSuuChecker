@@ -98,12 +98,18 @@ const ReportView: React.FC<ReportViewProps> = ({
         <table className={`w-full text-sm border-collapse ${isDark ? '' : 'bg-white'}`}>
           <thead className={`sticky top-0 z-10 ${isDark ? 'bg-slate-800 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
             <tr>
-              <th className={`p-2 text-center border-b w-10 ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>No</th>
-              <th className={`p-2 text-left border-b ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>廃棄物の種類</th>
-              <th className={`p-2 text-left border-b w-28 ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>交付日</th>
-              <th className={`p-2 text-left border-b ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>マニフェスト伝票番号</th>
-              <th className={`p-2 text-right border-b w-16 ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>搬出量</th>
-              <th className={`p-2 text-left border-b ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>備考</th>
+              <th className={`p-2 text-center border-b w-10 whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>No</th>
+              <th className={`p-2 text-left border-b whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>
+                <span className="hidden sm:inline">廃棄物の種類</span>
+                <span className="sm:hidden">種類</span>
+              </th>
+              <th className={`p-2 text-left border-b w-28 whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>交付日</th>
+              <th className={`p-2 text-left border-b whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>
+                <span className="hidden sm:inline">マニフェスト伝票番号</span>
+                <span className="sm:hidden">伝票No</span>
+              </th>
+              <th className={`p-2 text-right border-b w-16 whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>搬出量</th>
+              <th className={`p-2 text-left border-b whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>備考</th>
               <th className={`p-2 w-16 border-b ${isDark ? 'border-slate-700' : 'border-gray-300'}`}></th>
             </tr>
           </thead>
