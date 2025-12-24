@@ -1,11 +1,11 @@
 /**
  * 建設廃棄物処理実績集計表 Excel出力サービス
- * テンプレートExcel構造に基づいてストックデータを埋め込みExcelを生成する
+ * ExcelJSを使用してテンプレート形式のExcelを生成する
  *
  * テンプレート構造（列）:
  * B列: 通番号
  * C列: 廃棄物の種類
- * D列: 交付日（Excelシリアル値）
+ * D列: 交付日（yyyy/mm/dd）
  * E列: マニフェスト伝票番号
  * F列: 単位（ｔ、㎥）
  * G列: 搬出量
@@ -16,16 +16,7 @@
  */
 
 import { StockItem } from '../types';
-
-// XLSXは動的インポート（アプリ起動時の負荷を避けるため）
-let XLSX: typeof import('xlsx') | null = null;
-
-const loadXLSX = async () => {
-  if (!XLSX) {
-    XLSX = await import('xlsx');
-  }
-  return XLSX;
-};
+import ExcelJS from 'exceljs';
 
 // 産廃データのエントリー型
 export interface WasteEntry {
@@ -67,120 +58,188 @@ export const stockItemToWasteEntry = (
   };
 };
 
-// 日付をExcelシリアル値に変換
-const dateToExcelSerial = (date: Date): number => {
-  // Excel基準日: 1900/1/1 = 1（ただし1900/2/29バグがあるため+1）
-  const excelEpoch = new Date(1899, 11, 30);
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.floor((date.getTime() - excelEpoch.getTime()) / msPerDay);
+// 罫線スタイル
+const thinBorder: Partial<ExcelJS.Border> = { style: 'thin', color: { argb: 'FF000000' } };
+const allBorders: Partial<ExcelJS.Borders> = {
+  top: thinBorder,
+  left: thinBorder,
+  bottom: thinBorder,
+  right: thinBorder
+};
+
+// ヘッダーセルスタイル
+const headerStyle: Partial<ExcelJS.Style> = {
+  font: { name: 'ＭＳ ゴシック', size: 11, bold: true },
+  alignment: { horizontal: 'center', vertical: 'middle' },
+  border: allBorders,
+  fill: {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFFF2CC' } // 薄い黄色
+  }
+};
+
+// データセルスタイル
+const dataStyle: Partial<ExcelJS.Style> = {
+  font: { name: 'ＭＳ ゴシック', size: 11 },
+  alignment: { vertical: 'middle' },
+  border: allBorders
+};
+
+// タイトルスタイル
+const titleStyle: Partial<ExcelJS.Style> = {
+  font: { name: 'ＭＳ ゴシック', size: 14, bold: true },
+  alignment: { horizontal: 'center', vertical: 'middle' }
 };
 
 // 列幅設定（テンプレートから抽出）
-const COLUMN_WIDTHS = [
-  { wch: 2 },      // A列（空）
-  { wch: 8.17 },   // B列: 通番号
-  { wch: 16.33 },  // C列: 廃棄物の種類
-  { wch: 10.67 },  // D列: 交付日
-  { wch: 13.17 },  // E列: マニフェスト伝票番号
-  { wch: 5.33 },   // F列: 単位
-  { wch: 10 },     // G列: 搬出量
-  { wch: 18.67 },  // H列: 搬出先
-  { wch: 10 },     // I列: 備考
-];
-
-// 行高設定（テンプレートから抽出）
-const getRowHeights = (dataRowCount: number) => {
-  const rows: any[] = [];
-  // 行1-5: デフォルト
-  for (let i = 0; i < 5; i++) rows.push(undefined);
-  // 行6-9: ヘッダー部分 (hpt=18.75)
-  for (let i = 5; i < 9; i++) rows.push({ hpt: 18.75 });
-  // 行10以降: データ部分 (hpt=21)
-  for (let i = 9; i < 9 + dataRowCount + 10; i++) rows.push({ hpt: 21 });
-  return rows;
+const COLUMN_WIDTHS: { [key: string]: number } = {
+  'A': 2,
+  'B': 8.17,
+  'C': 16.33,
+  'D': 10.67,
+  'E': 13.17,
+  'F': 5.33,
+  'G': 10,
+  'H': 18.67,
+  'I': 10
 };
 
-// 新規シートを作成（テンプレート形式）
-const createSheetWithHeader = (
-  _sheetName: string,
+// ワークシートを作成
+const createWorksheet = (
+  workbook: ExcelJS.Workbook,
+  sheetName: string,
   config: ExportConfig,
-  dataRowCount: number = 30
-) => {
-  const ws: any = {};
-
-  // タイトル（B3）
-  ws['B3'] = { t: 's', v: '建設廃棄物処理実績集計表' };
-
-  // 工事情報（行6-7）
-  ws['B6'] = { t: 's', v: '工事番号' };
-  ws['C6'] = { t: 's', v: config.projectNumber || '' };
-  ws['F6'] = { t: 's', v: '受注者名' };
-  ws['H6'] = { t: 's', v: config.contractorName || '' };
-
-  ws['B7'] = { t: 's', v: '工事名' };
-  ws['C7'] = { t: 's', v: config.projectName || '' };
-  ws['F7'] = { t: 's', v: '現場代理人' };
-  ws['H7'] = { t: 's', v: config.siteManager || '' };
-
-  // ヘッダー行（8-9行目）
-  ws['B8'] = { t: 's', v: '通番号' };
-  ws['C8'] = { t: 's', v: '廃棄物の種類' };
-  ws['D8'] = { t: 's', v: '交付日' };
-  ws['E8'] = { t: 's', v: 'マニフェスト' };
-  ws['E9'] = { t: 's', v: '伝票番号' };
-  ws['F8'] = { t: 's', v: '単位' };
-  ws['G8'] = { t: 's', v: '搬出量' };
-  ws['H8'] = { t: 's', v: '搬出先' };
-  ws['I8'] = { t: 's', v: '備　考' };
+  entries: WasteEntry[]
+): ExcelJS.Worksheet => {
+  const ws = workbook.addWorksheet(sheetName);
 
   // 列幅設定
-  ws['!cols'] = COLUMN_WIDTHS;
+  Object.entries(COLUMN_WIDTHS).forEach(([col, width]) => {
+    ws.getColumn(col).width = width;
+  });
 
   // 行高設定
-  ws['!rows'] = getRowHeights(dataRowCount);
+  for (let i = 1; i <= 5; i++) {
+    ws.getRow(i).height = 15;
+  }
+  for (let i = 6; i <= 9; i++) {
+    ws.getRow(i).height = 18.75;
+  }
 
-  // 結合セル設定
-  ws['!merges'] = [
-    { s: { r: 2, c: 1 }, e: { r: 3, c: 8 } },   // B3:I4 タイトル
-    { s: { r: 5, c: 5 }, e: { r: 5, c: 6 } },   // F6:G6 受注者名
-    { s: { r: 6, c: 2 }, e: { r: 6, c: 4 } },   // C7:E7 工事名
-    { s: { r: 6, c: 5 }, e: { r: 6, c: 6 } },   // F7:G7 現場代理人
-    { s: { r: 7, c: 1 }, e: { r: 8, c: 1 } },   // B8:B9 通番号
-    { s: { r: 7, c: 2 }, e: { r: 8, c: 2 } },   // C8:C9 廃棄物の種類
-    { s: { r: 7, c: 3 }, e: { r: 8, c: 3 } },   // D8:D9 交付日
-    { s: { r: 7, c: 5 }, e: { r: 8, c: 5 } },   // F8:F9 単位
-    { s: { r: 7, c: 6 }, e: { r: 8, c: 6 } },   // G8:G9 搬出量
-    { s: { r: 7, c: 7 }, e: { r: 8, c: 7 } },   // H8:H9 搬出先
-    { s: { r: 7, c: 8 }, e: { r: 8, c: 8 } },   // I8:I9 備考
-  ];
+  // タイトル（B3:I4）
+  ws.mergeCells('B3:I4');
+  const titleCell = ws.getCell('B3');
+  titleCell.value = '建設廃棄物処理実績集計表';
+  titleCell.style = titleStyle;
 
-  // 範囲設定（初期は空データ想定）
-  ws['!ref'] = 'B3:I44';
+  // 工事情報（行6-7）
+  ws.getCell('B6').value = '工事番号';
+  ws.getCell('C6').value = config.projectNumber || '';
+  ws.mergeCells('F6:G6');
+  ws.getCell('F6').value = '受注者名';
+  ws.getCell('H6').value = config.contractorName || '';
 
-  return ws;
-};
+  ws.getCell('B7').value = '工事名';
+  ws.mergeCells('C7:E7');
+  ws.getCell('C7').value = config.projectName || '';
+  ws.mergeCells('F7:G7');
+  ws.getCell('F7').value = '現場代理人';
+  ws.getCell('H7').value = config.siteManager || '';
 
-// エントリーデータをシートに書き込み
-const writeEntriesToSheet = (
-  ws: any,
-  entries: WasteEntry[],
-  startRow: number = 10
-): void => {
-  let rowIndex = startRow;
+  // 工事情報のスタイル
+  ['B6', 'F6', 'B7', 'F7'].forEach(addr => {
+    ws.getCell(addr).style = {
+      font: { name: 'ＭＳ ゴシック', size: 10 },
+      alignment: { vertical: 'middle' }
+    };
+  });
+
+  // ヘッダー行（8-9行目）
+  ws.mergeCells('B8:B9');
+  ws.getCell('B8').value = '通番号';
+  ws.getCell('B8').style = headerStyle;
+
+  ws.mergeCells('C8:C9');
+  ws.getCell('C8').value = '廃棄物の種類';
+  ws.getCell('C8').style = headerStyle;
+
+  ws.mergeCells('D8:D9');
+  ws.getCell('D8').value = '交付日';
+  ws.getCell('D8').style = headerStyle;
+
+  // マニフェスト伝票番号は2行に分割
+  ws.getCell('E8').value = 'マニフェスト';
+  ws.getCell('E8').style = headerStyle;
+  ws.getCell('E9').value = '伝票番号';
+  ws.getCell('E9').style = headerStyle;
+
+  ws.mergeCells('F8:F9');
+  ws.getCell('F8').value = '単位';
+  ws.getCell('F8').style = headerStyle;
+
+  ws.mergeCells('G8:G9');
+  ws.getCell('G8').value = '搬出量';
+  ws.getCell('G8').style = headerStyle;
+
+  ws.mergeCells('H8:H9');
+  ws.getCell('H8').value = '搬出先';
+  ws.getCell('H8').style = headerStyle;
+
+  ws.mergeCells('I8:I9');
+  ws.getCell('I8').value = '備　考';
+  ws.getCell('I8').style = headerStyle;
+
+  // データ行
+  let rowIndex = 10;
   let totalAmount = 0;
 
   entries.forEach((entry, idx) => {
-    ws[`B${rowIndex}`] = { t: 'n', v: idx + 1 };
-    ws[`C${rowIndex}`] = { t: 's', v: entry.wasteType };
-    // 日付はExcelシリアル値で保存し、日付フォーマットを適用
-    ws[`D${rowIndex}`] = { t: 'n', v: dateToExcelSerial(entry.deliveryDate), z: 'yyyy/mm/dd' };
-    ws[`E${rowIndex}`] = { t: 's', v: entry.manifestNumber };
-    ws[`F${rowIndex}`] = { t: 's', v: entry.unit };
-    ws[`G${rowIndex}`] = { t: 'n', v: entry.amount };
-    ws[`H${rowIndex}`] = { t: 's', v: entry.destination };
-    if (entry.remarks) {
-      ws[`I${rowIndex}`] = { t: 's', v: entry.remarks };
-    }
+    ws.getRow(rowIndex).height = 21;
+
+    const row = ws.getRow(rowIndex);
+
+    // 通番号
+    const cellB = row.getCell('B');
+    cellB.value = idx + 1;
+    cellB.style = { ...dataStyle, alignment: { horizontal: 'center', vertical: 'middle' } };
+
+    // 廃棄物の種類
+    const cellC = row.getCell('C');
+    cellC.value = entry.wasteType;
+    cellC.style = dataStyle;
+
+    // 交付日
+    const cellD = row.getCell('D');
+    cellD.value = entry.deliveryDate;
+    cellD.numFmt = 'yyyy/mm/dd';
+    cellD.style = { ...dataStyle, alignment: { horizontal: 'center', vertical: 'middle' } };
+
+    // マニフェスト伝票番号
+    const cellE = row.getCell('E');
+    cellE.value = entry.manifestNumber;
+    cellE.style = dataStyle;
+
+    // 単位
+    const cellF = row.getCell('F');
+    cellF.value = entry.unit;
+    cellF.style = { ...dataStyle, alignment: { horizontal: 'center', vertical: 'middle' } };
+
+    // 搬出量
+    const cellG = row.getCell('G');
+    cellG.value = entry.amount;
+    cellG.numFmt = '#,##0.00';
+    cellG.style = { ...dataStyle, alignment: { horizontal: 'right', vertical: 'middle' } };
+
+    // 搬出先
+    const cellH = row.getCell('H');
+    cellH.value = entry.destination;
+    cellH.style = dataStyle;
+
+    // 備考
+    const cellI = row.getCell('I');
+    cellI.value = entry.remarks || '';
+    cellI.style = dataStyle;
 
     totalAmount += entry.amount;
     rowIndex++;
@@ -188,12 +247,33 @@ const writeEntriesToSheet = (
 
   // 合計行
   if (entries.length > 0) {
-    ws[`G${rowIndex}`] = { t: 'n', v: totalAmount };
+    ws.getRow(rowIndex).height = 21;
+
+    // 合計ラベル
+    ws.mergeCells(`B${rowIndex}:F${rowIndex}`);
+    const sumLabelCell = ws.getCell(`B${rowIndex}`);
+    sumLabelCell.value = '合　計';
+    sumLabelCell.style = {
+      ...headerStyle,
+      alignment: { horizontal: 'center', vertical: 'middle' }
+    };
+
+    // 合計値
+    const sumCell = ws.getCell(`G${rowIndex}`);
+    sumCell.value = totalAmount;
+    sumCell.numFmt = '#,##0.00';
+    sumCell.style = {
+      ...headerStyle,
+      alignment: { horizontal: 'right', vertical: 'middle' }
+    };
+
+    // 空セル（罫線のため）
+    ['H', 'I'].forEach(col => {
+      ws.getCell(`${col}${rowIndex}`).style = headerStyle;
+    });
   }
 
-  // 範囲を更新
-  const endRow = Math.max(rowIndex, 44);
-  ws['!ref'] = `B3:I${endRow}`;
+  return ws;
 };
 
 // 日付でグループ化
@@ -218,16 +298,16 @@ export const generateWasteReport = async (
   wasteType: string = 'アスファルト殻',
   destination: string = '',
   unit: string = 'ｔ'
-) => {
-  const xlsx = await loadXLSX();
-
+): Promise<ExcelJS.Workbook> => {
   // StockItemをWasteEntryに変換（actualTonnageがあるもののみ）
   const entries = items
     .filter(item => item.actualTonnage)
     .map(item => stockItemToWasteEntry(item, wasteType, destination, unit)!)
     .sort((a, b) => a.deliveryDate.getTime() - b.deliveryDate.getTime());
 
-  const workbook = xlsx.utils.book_new();
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'TonSuuChecker';
+  workbook.created = new Date();
 
   // 日付ごとに集計してサマリーを作成
   const dateGroups = groupByDate(entries);
@@ -246,18 +326,13 @@ export const generateWasteReport = async (
     });
   });
 
-  const summarySheet = createSheetWithHeader('統括表', config, summaryEntries.length);
-  writeEntriesToSheet(summarySheet, summaryEntries);
-  xlsx.utils.book_append_sheet(workbook, summarySheet, '統括表');
+  createWorksheet(workbook, '統括表', config, summaryEntries);
 
   // 日付ごとの詳細シート作成
   dateGroups.forEach((groupEntries, dateKey) => {
     const date = new Date(dateKey);
     const sheetName = `${date.getDate()}`; // 日付のみ（例: 24, 25, 30）
-
-    const detailSheet = createSheetWithHeader(sheetName, config, groupEntries.length);
-    writeEntriesToSheet(detailSheet, groupEntries);
-    xlsx.utils.book_append_sheet(workbook, detailSheet, sheetName);
+    createWorksheet(workbook, sheetName, config, groupEntries);
   });
 
   return workbook;
@@ -267,11 +342,21 @@ export const generateWasteReport = async (
  * Excelファイルをダウンロード
  */
 export const downloadExcel = async (
-  workbook: any,
+  workbook: ExcelJS.Workbook,
   filename: string = '産廃集計表.xlsx'
 ): Promise<void> => {
-  const xlsx = await loadXLSX();
-  xlsx.writeFile(workbook, filename);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 /**
