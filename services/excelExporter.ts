@@ -81,7 +81,7 @@ const titleStyle: Partial<ExcelJS.Style> = {
   alignment: { horizontal: 'center', vertical: 'middle' }
 };
 
-// 列幅設定
+// 列幅設定（最小値）
 const COLUMN_WIDTHS: { [key: string]: number } = {
   'A': 2,
   'B': 8,
@@ -94,6 +94,18 @@ const COLUMN_WIDTHS: { [key: string]: number } = {
   'I': 10
 };
 
+// 文字列の表示幅を計算（全角文字は2、半角は1として概算）
+const getTextWidth = (text: string): number => {
+  if (!text) return 0;
+  let width = 0;
+  for (const char of text) {
+    // 全角文字（日本語、全角記号など）は幅2、それ以外は1
+    width += char.charCodeAt(0) > 255 ? 2 : 1;
+  }
+  // ExcelJSの列幅に換算（約1.2で割る）
+  return Math.ceil(width / 1.2) + 2;
+};
+
 // ワークシートを作成
 const createWorksheet = (
   workbook: ExcelJS.Workbook,
@@ -103,8 +115,37 @@ const createWorksheet = (
 ): ExcelJS.Worksheet => {
   const ws = workbook.addWorksheet(sheetName);
 
-  // 列幅設定
-  Object.entries(COLUMN_WIDTHS).forEach(([col, width]) => {
+  // 列幅の最大値を追跡（オートフィット用）
+  const maxWidths: { [key: string]: number } = { ...COLUMN_WIDTHS };
+
+  // 工事情報の幅をチェック
+  if (config.projectName) {
+    // C7:E7に結合されているので、3列分として計算
+    const projectNameWidth = Math.ceil(getTextWidth(config.projectName) / 3);
+    maxWidths['C'] = Math.max(maxWidths['C'], projectNameWidth);
+  }
+  if (config.contractorName) {
+    maxWidths['H'] = Math.max(maxWidths['H'], getTextWidth(config.contractorName));
+  }
+
+  // エントリーデータの幅をチェック
+  entries.forEach(entry => {
+    if (entry.manifestNumber) {
+      maxWidths['E'] = Math.max(maxWidths['E'], getTextWidth(entry.manifestNumber));
+    }
+    if (entry.destination) {
+      maxWidths['H'] = Math.max(maxWidths['H'], getTextWidth(entry.destination));
+    }
+    if (entry.wasteType) {
+      maxWidths['C'] = Math.max(maxWidths['C'], getTextWidth(entry.wasteType));
+    }
+    if (entry.remarks) {
+      maxWidths['I'] = Math.max(maxWidths['I'], getTextWidth(entry.remarks));
+    }
+  });
+
+  // 列幅設定（オートフィット適用）
+  Object.entries(maxWidths).forEach(([col, width]) => {
     ws.getColumn(col).width = width;
   });
 
