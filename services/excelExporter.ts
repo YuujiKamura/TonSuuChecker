@@ -229,8 +229,9 @@ const createWorksheet = (
   ws.getCell('H5').font = headerFont;
   ws.getCell('H5').alignment = headerAlignment;
 
-  // 行高さを統一（1〜35行目まで明示的に設定）
-  for (let i = 1; i <= 35; i++) {
+  // 行高さを統一（ヘッダー〜合計行まで、注意書きは除く）
+  const lastDataRow = 7 + Math.max(entries.length, 20); // 合計行
+  for (let i = 1; i <= lastDataRow; i++) {
     ws.getRow(i).height = 27;
   }
 
