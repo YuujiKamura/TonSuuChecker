@@ -67,24 +67,13 @@ const allBorders: Partial<ExcelJS.Borders> = {
   right: thinBorder
 };
 
-// ヘッダーセルスタイル
-const headerStyle: Partial<ExcelJS.Style> = {
-  font: { name: 'ＭＳ ゴシック', size: 11, bold: true },
-  alignment: { horizontal: 'center', vertical: 'middle' },
-  border: allBorders,
-  fill: {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFFFF2CC' } // 薄い黄色
-  }
-};
+// ヘッダーセルスタイル（罫線は後で適用）
+const headerFont: Partial<ExcelJS.Font> = { name: 'ＭＳ ゴシック', size: 11, bold: true };
+const headerAlignment: Partial<ExcelJS.Alignment> = { horizontal: 'center', vertical: 'middle' };
 
-// データセルスタイル
-const dataStyle: Partial<ExcelJS.Style> = {
-  font: { name: 'ＭＳ ゴシック', size: 11 },
-  alignment: { vertical: 'middle' },
-  border: allBorders
-};
+// データセルスタイル（罫線は後で適用）
+const dataFont: Partial<ExcelJS.Font> = { name: 'ＭＳ ゴシック', size: 11 };
+const dataAlignment: Partial<ExcelJS.Alignment> = { vertical: 'middle' };
 
 // タイトルスタイル
 const titleStyle: Partial<ExcelJS.Style> = {
@@ -158,37 +147,46 @@ const createWorksheet = (
   // ヘッダー行（8-9行目）
   ws.mergeCells('B8:B9');
   ws.getCell('B8').value = '通番号';
-  ws.getCell('B8').style = headerStyle;
+  ws.getCell('B8').font = headerFont;
+  ws.getCell('B8').alignment = headerAlignment;
 
   ws.mergeCells('C8:C9');
   ws.getCell('C8').value = '廃棄物の種類';
-  ws.getCell('C8').style = headerStyle;
+  ws.getCell('C8').font = headerFont;
+  ws.getCell('C8').alignment = headerAlignment;
 
   ws.mergeCells('D8:D9');
   ws.getCell('D8').value = '交付日';
-  ws.getCell('D8').style = headerStyle;
+  ws.getCell('D8').font = headerFont;
+  ws.getCell('D8').alignment = headerAlignment;
 
   // マニフェスト伝票番号は2行に分割
   ws.getCell('E8').value = 'マニフェスト';
-  ws.getCell('E8').style = headerStyle;
+  ws.getCell('E8').font = headerFont;
+  ws.getCell('E8').alignment = headerAlignment;
   ws.getCell('E9').value = '伝票番号';
-  ws.getCell('E9').style = headerStyle;
+  ws.getCell('E9').font = headerFont;
+  ws.getCell('E9').alignment = headerAlignment;
 
   ws.mergeCells('F8:F9');
   ws.getCell('F8').value = '単位';
-  ws.getCell('F8').style = headerStyle;
+  ws.getCell('F8').font = headerFont;
+  ws.getCell('F8').alignment = headerAlignment;
 
   ws.mergeCells('G8:G9');
   ws.getCell('G8').value = '搬出量';
-  ws.getCell('G8').style = headerStyle;
+  ws.getCell('G8').font = headerFont;
+  ws.getCell('G8').alignment = headerAlignment;
 
   ws.mergeCells('H8:H9');
   ws.getCell('H8').value = '搬出先';
-  ws.getCell('H8').style = headerStyle;
+  ws.getCell('H8').font = headerFont;
+  ws.getCell('H8').alignment = headerAlignment;
 
   ws.mergeCells('I8:I9');
   ws.getCell('I8').value = '備　考';
-  ws.getCell('I8').style = headerStyle;
+  ws.getCell('I8').font = headerFont;
+  ws.getCell('I8').alignment = headerAlignment;
 
   // データ行
   let rowIndex = 10;
@@ -202,50 +200,59 @@ const createWorksheet = (
     // 通番号
     const cellB = row.getCell('B');
     cellB.value = idx + 1;
-    cellB.style = { ...dataStyle, alignment: { horizontal: 'center', vertical: 'middle' } };
+    cellB.font = dataFont;
+    cellB.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // 廃棄物の種類
     const cellC = row.getCell('C');
     cellC.value = entry.wasteType;
-    cellC.style = dataStyle;
+    cellC.font = dataFont;
+    cellC.alignment = dataAlignment;
 
     // 交付日
     const cellD = row.getCell('D');
     cellD.value = entry.deliveryDate;
     cellD.numFmt = 'yyyy/mm/dd';
-    cellD.style = { ...dataStyle, alignment: { horizontal: 'center', vertical: 'middle' } };
+    cellD.font = dataFont;
+    cellD.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // マニフェスト伝票番号
     const cellE = row.getCell('E');
     cellE.value = entry.manifestNumber;
-    cellE.style = dataStyle;
+    cellE.font = dataFont;
+    cellE.alignment = dataAlignment;
 
     // 単位
     const cellF = row.getCell('F');
     cellF.value = entry.unit;
-    cellF.style = { ...dataStyle, alignment: { horizontal: 'center', vertical: 'middle' } };
+    cellF.font = dataFont;
+    cellF.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // 搬出量
     const cellG = row.getCell('G');
     cellG.value = entry.amount;
     cellG.numFmt = '#,##0.00';
-    cellG.style = { ...dataStyle, alignment: { horizontal: 'right', vertical: 'middle' } };
+    cellG.font = dataFont;
+    cellG.alignment = { horizontal: 'right', vertical: 'middle' };
 
     // 搬出先
     const cellH = row.getCell('H');
     cellH.value = entry.destination;
-    cellH.style = dataStyle;
+    cellH.font = dataFont;
+    cellH.alignment = dataAlignment;
 
     // 備考
     const cellI = row.getCell('I');
     cellI.value = entry.remarks || '';
-    cellI.style = dataStyle;
+    cellI.font = dataFont;
+    cellI.alignment = dataAlignment;
 
     totalAmount += entry.amount;
     rowIndex++;
   });
 
   // 合計行
+  let lastDataRow = entries.length > 0 ? rowIndex - 1 : 9; // データがない場合はヘッダーまで
   if (entries.length > 0) {
     ws.getRow(rowIndex).height = 21;
 
@@ -253,23 +260,29 @@ const createWorksheet = (
     ws.mergeCells(`B${rowIndex}:F${rowIndex}`);
     const sumLabelCell = ws.getCell(`B${rowIndex}`);
     sumLabelCell.value = '合　計';
-    sumLabelCell.style = {
-      ...headerStyle,
-      alignment: { horizontal: 'center', vertical: 'middle' }
-    };
+    sumLabelCell.font = headerFont;
+    sumLabelCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // 合計値
     const sumCell = ws.getCell(`G${rowIndex}`);
     sumCell.value = totalAmount;
     sumCell.numFmt = '#,##0.00';
-    sumCell.style = {
-      ...headerStyle,
-      alignment: { horizontal: 'right', vertical: 'middle' }
-    };
+    sumCell.font = headerFont;
+    sumCell.alignment = { horizontal: 'right', vertical: 'middle' };
 
-    // 空セル（罫線のため）
+    // 空セル
     ['H', 'I'].forEach(col => {
-      ws.getCell(`${col}${rowIndex}`).style = headerStyle;
+      ws.getCell(`${col}${rowIndex}`).font = headerFont;
+    });
+
+    lastDataRow = rowIndex;
+  }
+
+  // 最後に罫線を適用（ヘッダー8行目から最終データ行まで）
+  for (let r = 8; r <= lastDataRow; r++) {
+    ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].forEach(col => {
+      const cell = ws.getCell(`${col}${r}`);
+      cell.border = allBorders;
     });
   }
 
