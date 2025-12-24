@@ -135,9 +135,9 @@ const createWorksheet = (
     ws.getColumn(col).width = width;
   });
 
-  // タイトル（B3:H3、行結合なし）
-  ws.mergeCells('B3:H3');
-  const titleCell = ws.getCell('B3');
+  // タイトル（B1:H1）
+  ws.mergeCells('B1:H1');
+  const titleCell = ws.getCell('B1');
   titleCell.value = '建設廃棄物処理実績集計表';
   titleCell.style = titleStyle;
 
@@ -151,89 +151,91 @@ const createWorksheet = (
     alignment: { horizontal: 'left' as const, vertical: 'middle' as const }
   };
 
-  // 工事情報（行4-6）
-  ws.getCell('B4').value = '工事番号';
+  // 工事情報（行2-4）
+  ws.getCell('B2').value = '工事番号';
+  ws.getCell('B2').font = infoLabelStyle.font;
+  ws.getCell('B2').alignment = infoLabelStyle.alignment;
+  ws.getCell('C2').value = config.projectNumber || '';
+  ws.getCell('C2').font = infoValueStyle.font;
+  ws.getCell('C2').alignment = infoValueStyle.alignment;
+  ws.mergeCells('F2:G2');
+  ws.getCell('F2').value = '受注者名';
+  ws.getCell('F2').font = infoLabelStyle.font;
+  ws.getCell('F2').alignment = infoLabelStyle.alignment;
+  ws.getCell('H2').value = config.contractorName || '';
+  ws.getCell('H2').font = infoValueStyle.font;
+  ws.getCell('H2').alignment = infoValueStyle.alignment;
+
+  ws.getCell('B3').value = '工事名';
+  ws.getCell('B3').font = infoLabelStyle.font;
+  ws.getCell('B3').alignment = infoLabelStyle.alignment;
+  ws.mergeCells('C3:E3');
+  ws.getCell('C3').value = config.projectName || '';
+  ws.getCell('C3').font = infoValueStyle.font;
+  ws.getCell('C3').alignment = infoValueStyle.alignment;
+  ws.mergeCells('F3:G3');
+  ws.getCell('F3').value = '現場代理人';
+  ws.getCell('F3').font = infoLabelStyle.font;
+  ws.getCell('F3').alignment = infoLabelStyle.alignment;
+  ws.getCell('H3').value = config.siteManager || '';
+  ws.getCell('H3').font = infoValueStyle.font;
+  ws.getCell('H3').alignment = infoValueStyle.alignment;
+
+  // 搬出先（行4）
+  ws.getCell('B4').value = '搬出先';
   ws.getCell('B4').font = infoLabelStyle.font;
   ws.getCell('B4').alignment = infoLabelStyle.alignment;
-  ws.getCell('C4').value = config.projectNumber || '';
+  ws.mergeCells('C4:H4');
+  ws.getCell('C4').value = entries.length > 0 ? entries[0].destination : '';
   ws.getCell('C4').font = infoValueStyle.font;
   ws.getCell('C4').alignment = infoValueStyle.alignment;
-  ws.mergeCells('F4:G4');
-  ws.getCell('F4').value = '受注者名';
-  ws.getCell('F4').font = infoLabelStyle.font;
-  ws.getCell('F4').alignment = infoLabelStyle.alignment;
-  ws.getCell('H4').value = config.contractorName || '';
-  ws.getCell('H4').font = infoValueStyle.font;
-  ws.getCell('H4').alignment = infoValueStyle.alignment;
 
-  ws.getCell('B5').value = '工事名';
-  ws.getCell('B5').font = infoLabelStyle.font;
-  ws.getCell('B5').alignment = infoLabelStyle.alignment;
-  ws.mergeCells('C5:E5');
-  ws.getCell('C5').value = config.projectName || '';
-  ws.getCell('C5').font = infoValueStyle.font;
-  ws.getCell('C5').alignment = infoValueStyle.alignment;
-  ws.mergeCells('F5:G5');
-  ws.getCell('F5').value = '現場代理人';
-  ws.getCell('F5').font = infoLabelStyle.font;
-  ws.getCell('F5').alignment = infoLabelStyle.alignment;
-  ws.getCell('H5').value = config.siteManager || '';
-  ws.getCell('H5').font = infoValueStyle.font;
-  ws.getCell('H5').alignment = infoValueStyle.alignment;
+  // ヘッダー行（5-6行目）
+  ws.mergeCells('B5:B6');
+  ws.getCell('B5').value = '通番号';
+  ws.getCell('B5').font = headerFont;
+  ws.getCell('B5').alignment = headerAlignment;
 
-  // 搬出先（行6）
-  ws.getCell('B6').value = '搬出先';
-  ws.getCell('B6').font = infoLabelStyle.font;
-  ws.getCell('B6').alignment = infoLabelStyle.alignment;
-  ws.mergeCells('C6:H6');
-  ws.getCell('C6').value = entries.length > 0 ? entries[0].destination : '';
-  ws.getCell('C6').font = infoValueStyle.font;
-  ws.getCell('C6').alignment = infoValueStyle.alignment;
+  ws.mergeCells('C5:C6');
+  ws.getCell('C5').value = '廃棄物の種類';
+  ws.getCell('C5').font = headerFont;
+  ws.getCell('C5').alignment = headerAlignment;
 
-  // ヘッダー行（7-8行目）
-  ws.mergeCells('B7:B8');
-  ws.getCell('B7').value = '通番号';
-  ws.getCell('B7').font = headerFont;
-  ws.getCell('B7').alignment = headerAlignment;
-
-  ws.mergeCells('C7:C8');
-  ws.getCell('C7').value = '廃棄物の種類';
-  ws.getCell('C7').font = headerFont;
-  ws.getCell('C7').alignment = headerAlignment;
-
-  ws.mergeCells('D7:D8');
-  ws.getCell('D7').value = '交付日';
-  ws.getCell('D7').font = headerFont;
-  ws.getCell('D7').alignment = headerAlignment;
+  ws.mergeCells('D5:D6');
+  ws.getCell('D5').value = '交付日';
+  ws.getCell('D5').font = headerFont;
+  ws.getCell('D5').alignment = headerAlignment;
 
   // マニフェスト伝票番号は2行に分割
-  ws.getCell('E7').value = 'マニフェスト';
-  ws.getCell('E7').font = headerFont;
-  ws.getCell('E7').alignment = headerAlignment;
-  ws.getCell('E8').value = '伝票番号';
-  ws.getCell('E8').font = headerFont;
-  ws.getCell('E8').alignment = headerAlignment;
+  ws.getCell('E5').value = 'マニフェスト';
+  ws.getCell('E5').font = headerFont;
+  ws.getCell('E5').alignment = headerAlignment;
+  ws.getCell('E6').value = '伝票番号';
+  ws.getCell('E6').font = headerFont;
+  ws.getCell('E6').alignment = headerAlignment;
 
-  ws.mergeCells('F7:F8');
-  ws.getCell('F7').value = '単位';
-  ws.getCell('F7').font = headerFont;
-  ws.getCell('F7').alignment = headerAlignment;
+  ws.mergeCells('F5:F6');
+  ws.getCell('F5').value = '単位';
+  ws.getCell('F5').font = headerFont;
+  ws.getCell('F5').alignment = headerAlignment;
 
-  ws.mergeCells('G7:G8');
-  ws.getCell('G7').value = '搬出量';
-  ws.getCell('G7').font = headerFont;
-  ws.getCell('G7').alignment = headerAlignment;
+  ws.mergeCells('G5:G6');
+  ws.getCell('G5').value = '搬出量';
+  ws.getCell('G5').font = headerFont;
+  ws.getCell('G5').alignment = headerAlignment;
 
-  ws.mergeCells('H7:H8');
-  ws.getCell('H7').value = '備　考';
-  ws.getCell('H7').font = headerFont;
-  ws.getCell('H7').alignment = headerAlignment;
+  ws.mergeCells('H5:H6');
+  ws.getCell('H5').value = '備　考';
+  ws.getCell('H5').font = headerFont;
+  ws.getCell('H5').alignment = headerAlignment;
 
-  // デフォルト行高さを統一
-  ws.properties.defaultRowHeight = 27;
+  // 行高さを統一（1〜35行目まで明示的に設定）
+  for (let i = 1; i <= 35; i++) {
+    ws.getRow(i).height = 27;
+  }
 
-  // データ行（9行目から）
-  let rowIndex = 9;
+  // データ行（7行目から）
+  let rowIndex = 7;
   let totalAmount = 0;
 
   entries.forEach((entry, idx) => {
@@ -293,7 +295,7 @@ const createWorksheet = (
 
   // 空行を追加（データがない行にも罫線を適用するため）
   for (let i = entries.length; i < dataRowCount; i++) {
-    const emptyRowIndex = 9 + i;
+    const emptyRowIndex = 7 + i;
 
     // 通番号だけ入れる
     const cellB = ws.getCell(`B${emptyRowIndex}`);
@@ -310,7 +312,7 @@ const createWorksheet = (
   }
 
   // 合計行（データ行の下）
-  const sumRowIndex = 9 + dataRowCount;
+  const sumRowIndex = 7 + dataRowCount;
 
   // 合計ラベル
   ws.mergeCells(`B${sumRowIndex}:F${sumRowIndex}`);
@@ -329,8 +331,8 @@ const createWorksheet = (
   // 空セル（備考欄）
   ws.getCell(`H${sumRowIndex}`).font = headerFont;
 
-  // 最後に罫線を適用（ヘッダー7行目から合計行まで）
-  for (let r = 7; r <= sumRowIndex; r++) {
+  // 最後に罫線を適用（ヘッダー5行目から合計行まで）
+  for (let r = 5; r <= sumRowIndex; r++) {
     ['B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach(col => {
       const cell = ws.getCell(`${col}${r}`);
       cell.border = allBorders;
