@@ -13,7 +13,7 @@ import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey } from './services/geminiService';
 import { EstimationResult, AnalysisHistory, StockItem } from './types';
-import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud } from 'lucide-react';
+import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud, Scale } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -53,6 +53,9 @@ const App: React.FC = () => {
   const [showStockList, setShowStockList] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
+
+  // 最大積載量
+  const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
   
   const requestCounter = useRef(0);
   const activeRequestId = useRef(0);
@@ -158,9 +161,9 @@ const App: React.FC = () => {
       
       // 自動監視時は Lite モデル (gemini-flash-lite-latest) を優先
       const results = await analyzeGaraImageEnsemble(
-        base64s, 
+        base64s,
         isAuto ? 1 : ensembleTarget,
-        history, 
+        history,
         (count, lastRes) => {
           if (activeRequestId.current !== requestId) return;
           if (!isAuto) {
@@ -170,7 +173,8 @@ const App: React.FC = () => {
         },
         abortSignal,
         isAuto ? 'gemini-flash-lite-latest' : selectedModel,
-        getTaggedItems()
+        getTaggedItems(),
+        isAuto ? undefined : maxCapacity
       );
 
       if (activeRequestId.current !== requestId) return;
@@ -402,9 +406,9 @@ const App: React.FC = () => {
                       <Gauge size={20} className="text-blue-500" />
                       推論の深さ (x{ensembleTarget})
                     </h3>
-                    <input 
-                      type="range" min="1" max="5" step="1" 
-                      value={ensembleTarget} 
+                    <input
+                      type="range" min="1" max="5" step="1"
+                      value={ensembleTarget}
                       onChange={(e) => setEnsembleTarget(parseInt(e.target.value))}
                       className="w-full accent-blue-500 h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer mb-4"
                     />
@@ -414,6 +418,60 @@ const App: React.FC = () => {
                       <span>最大精度</span>
                     </div>
                   </div>
+                </div>
+
+                {/* 最大積載量入力 */}
+                <div className="bg-slate-900 rounded-[2rem] p-6 border border-slate-800 mt-4">
+                  <h3 className="text-sm font-black flex items-center gap-3 uppercase text-slate-400 mb-4">
+                    <Scale size={20} className="text-green-500" />
+                    最大積載量（任意）
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-4">
+                    車両の最大積載量がわかる場合は入力してください。8トンダンプなど見た目で判別しにくい車両の推定精度が向上します。
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 grid grid-cols-5 gap-2">
+                      {[2, 4, 8, 10, 11].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setMaxCapacity(maxCapacity === t ? undefined : t)}
+                          className={`py-3 rounded-xl font-black text-sm transition-all ${
+                            maxCapacity === t
+                              ? 'bg-green-500 text-white'
+                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                          }`}
+                        >
+                          {t}t
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-slate-600">|</div>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      placeholder="その他"
+                      value={maxCapacity && ![2, 4, 8, 10, 11].includes(maxCapacity) ? maxCapacity : ''}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setMaxCapacity(isNaN(val) ? undefined : val);
+                      }}
+                      className="w-24 bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-center font-bold focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+                  {maxCapacity && (
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-green-400 text-sm font-bold">
+                        最大積載量: {maxCapacity}t で解析します
+                      </span>
+                      <button
+                        onClick={() => setMaxCapacity(undefined)}
+                        className="text-xs text-slate-500 hover:text-red-400"
+                      >
+                        クリア
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

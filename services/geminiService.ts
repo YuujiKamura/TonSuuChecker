@@ -17,12 +17,17 @@ async function runSingleInference(
   ai: any,
   imageParts: any[],
   learningContext: any[],
-  modelName: string
+  modelName: string,
+  maxCapacity?: number
 ): Promise<EstimationResult> {
+  const promptText = maxCapacity
+    ? `画像の内容を判定し、重量を推定してください。\n【重要】この車両の最大積載量は${maxCapacity}トンです。この情報を考慮して推定してください。`
+    : "画像の内容を判定し、重量を推定してください。";
+
   const response = await ai.models.generateContent({
     model: modelName,
     contents: {
-      parts: [...learningContext, ...imageParts, { text: "画像の内容を判定し、重量を推定してください。" }],
+      parts: [...learningContext, ...imageParts, { text: promptText }],
     },
     config: {
       systemInstruction: SYSTEM_PROMPT,
@@ -118,7 +123,8 @@ export const analyzeGaraImageEnsemble = async (
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview',
-  taggedStock: StockItem[] = []
+  taggedStock: StockItem[] = [],
+  maxCapacity?: number
 ): Promise<EstimationResult[]> => {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -158,7 +164,7 @@ export const analyzeGaraImageEnsemble = async (
     if (abortSignal?.cancelled) break;
 
     try {
-      const res = await runSingleInference(ai, imageParts, learningContext, modelName);
+      const res = await runSingleInference(ai, imageParts, learningContext, modelName, maxCapacity);
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];
