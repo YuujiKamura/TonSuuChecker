@@ -124,32 +124,32 @@ const ReportView: React.FC<ReportViewProps> = ({
                   <td className={`p-2 font-mono ${item.manifestNumber ? textColor : mutedColor}`}>{item.manifestNumber || '-'}</td>
                   <td className={`p-2 text-right ${item.actualTonnage ? textColor : mutedColor}`}>{item.actualTonnage?.toFixed(2) || '-'}</td>
                   <td className={`p-2 ${textColor}`}>
-                    {item.maxCapacity && `積載${item.maxCapacity}t `}
-                    {item.memo || ''}
+                    {item.maxCapacity && <span>最大積載量: {item.maxCapacity}t </span>}
+                    {item.memo && <span>車番: {item.memo}</span>}
                   </td>
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex gap-1 justify-end">
+                    <div className="flex gap-2 justify-end">
                       {hasAnalysis && onViewResult && (
                         <button
                           onClick={() => { onClose(); onViewResult(item); }}
-                          className={`p-1.5 rounded ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                          className={`p-2 rounded ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
                         >
-                          <Eye size={14} />
+                          <Eye size={20} />
                         </button>
                       )}
                       {item.imageUrls[0] && onAnalyze && (
                         <button
                           onClick={() => { onClose(); onAnalyze(item); }}
-                          className={`p-1.5 rounded ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+                          className={`p-2 rounded ${isDark ? 'text-green-400 hover:text-green-300' : 'text-green-600 hover:text-green-800'}`}
                         >
-                          <Brain size={14} />
+                          <Brain size={20} />
                         </button>
                       )}
                       <button
                         onClick={() => onDelete(item.id)}
-                        className={`p-1.5 rounded ${isDark ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'}`}
+                        className={`p-2 rounded ${isDark ? 'text-gray-400 hover:text-red-400' : 'text-gray-500 hover:text-red-500'}`}
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={20} />
                       </button>
                     </div>
                   </td>

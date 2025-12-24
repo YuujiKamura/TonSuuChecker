@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StockItem } from '../../types';
-import { Camera, FolderOpen, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import ImagePicker from './ImagePicker';
 
 interface EntryEditFormProps {
   item: StockItem | null;
@@ -42,18 +43,9 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
     }
   }, [item, isOpen]);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(',')[1];
-      setImageBase64(base64);
-      setImageUrl(dataUrl);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+  const handleImageSelect = (base64: string, dataUrl: string) => {
+    setImageBase64(base64);
+    setImageUrl(dataUrl);
   };
 
   const handleSave = () => {
@@ -97,40 +89,13 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
                 alt="Stock"
               />
             ) : (
-              <div className="w-full h-32 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center gap-6">
-                <label className="flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer hover:bg-slate-700 transition-colors">
-                  <Camera size={24} className="text-blue-400" />
-                  <span className="text-[10px] text-slate-400">カメラ</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                  />
-                </label>
-                <label className="flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer hover:bg-slate-700 transition-colors">
-                  <FolderOpen size={24} className="text-yellow-400" />
-                  <span className="text-[10px] text-slate-400">ギャラリー</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                  />
-                </label>
+              <div className="w-full h-32 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center">
+                <ImagePicker onImageSelect={handleImageSelect} />
               </div>
             )}
             {imageUrl && (
-              <div className="absolute bottom-2 right-2 flex gap-1.5">
-                <label className="flex items-center gap-1 px-2 py-1 bg-slate-900/90 hover:bg-slate-800 text-white text-[10px] font-bold rounded-lg cursor-pointer border border-slate-600">
-                  <Camera size={12} />
-                  <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="hidden" />
-                </label>
-                <label className="flex items-center gap-1 px-2 py-1 bg-slate-900/90 hover:bg-slate-800 text-white text-[10px] font-bold rounded-lg cursor-pointer border border-slate-600">
-                  <FolderOpen size={12} />
-                  <input type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-                </label>
+              <div className="absolute bottom-2 right-2">
+                <ImagePicker onImageSelect={handleImageSelect} compact />
               </div>
             )}
           </div>
