@@ -361,10 +361,12 @@ const App: React.FC = () => {
             initialMaxCapacity={maxCapacity}
             source={currentId ? 'stock' : 'capture'}
             onAnalyze={(capacity) => {
-              const { base64, url } = pendingCapture;
+              const { base64, url } = pendingCapture!;
               setPendingCapture(null);
-              setMaxCapacity(capacity); // 解析時に設定した最大積載量を保存
-              startAnalysis([base64], [url], false, capacity); // 最大積載量を直接渡す
+              setMaxCapacity(capacity);
+              setCurrentImageUrls([url]);
+              setCurrentBase64Images([base64]);
+              startAnalysis([base64], [url], false, capacity);
             }}
             onStock={currentId ? undefined : () => {
               const dataUrl = 'data:image/jpeg;base64,' + pendingCapture.base64;
