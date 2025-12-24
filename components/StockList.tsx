@@ -431,7 +431,7 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                   type="text"
                   value={exportConfig.destination}
                   onChange={(e) => setExportConfig({ ...exportConfig, destination: e.target.value })}
-                  placeholder="例: 大林道路株式会社"
+                  placeholder="例: ○○処理センター"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
