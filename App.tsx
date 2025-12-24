@@ -9,6 +9,7 @@ import Settings from './components/Settings';
 import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
+import ApiKeySetup from './components/ApiKeySetup';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation } from './services/stockService';
 import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
@@ -59,6 +60,8 @@ const App: React.FC = () => {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showReferenceSettings, setShowReferenceSettings] = useState(false);
+  const [showApiKeySetup, setShowApiKeySetup] = useState(false);
+  const [pendingAnalysis, setPendingAnalysis] = useState<{base64s: string[], urls: string[], capacity?: number} | null>(null);
 
   // 最大積載量
   const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
@@ -154,8 +157,9 @@ const App: React.FC = () => {
 
   const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false, capacityOverride?: number, userFeedback?: ChatMessage[]) => {
     if (!hasApiKey) {
-      setError('APIキーが設定されていません。設定してください。');
-      setShowSettings(true);
+      // APIキー未設定時はセットアップ画面を表示し、解析を保留
+      setPendingAnalysis({ base64s, urls, capacity: capacityOverride });
+      setShowApiKeySetup(true);
       return;
     }
 
@@ -329,6 +333,23 @@ const App: React.FC = () => {
     setShowCostDashboard(false);
     setShowStockList(false);
     setShowReferenceSettings(false);
+    setShowApiKeySetup(false);
+    setPendingAnalysis(null);
+  };
+
+  // APIキーセットアップ完了時
+  const handleApiKeySetupComplete = (key: string, isStudio: boolean) => {
+    setApiKey(key, isStudio);
+    setHasApiKey(true);
+    setIsGoogleAIStudio(isStudio);
+    setShowApiKeySetup(false);
+
+    // 保留中の解析があれば実行
+    if (pendingAnalysis) {
+      const { base64s, urls, capacity } = pendingAnalysis;
+      setPendingAnalysis(null);
+      startAnalysis(base64s, urls, false, capacity);
+    }
   };
 
   return (
@@ -620,6 +641,17 @@ const App: React.FC = () => {
         isOpen={showReferenceSettings}
         onClose={() => setShowReferenceSettings(false)}
       />
+
+      {/* APIキーセットアップ */}
+      {showApiKeySetup && (
+        <ApiKeySetup
+          onComplete={handleApiKeySetupComplete}
+          onCancel={() => {
+            setShowApiKeySetup(false);
+            setPendingAnalysis(null);
+          }}
+        />
+      )}
 
       <footer className="bg-slate-950 border-t border-slate-900 p-4 text-center z-50">
         <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.3em]">
