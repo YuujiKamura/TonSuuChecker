@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { StockItem, getJudgmentStatus, isJudged, JudgmentStatus } from '../types';
-import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye } from 'lucide-react';
+import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye, FileSpreadsheet } from 'lucide-react';
 import { extractFeatures } from '../services/geminiService';
+import { exportWasteReportFromStock } from '../services/excelExporter';
 
 interface StockListProps {
   items: StockItem[];
@@ -17,8 +18,15 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
   const [editTonnage, setEditTonnage] = useState('');
   const [editMaxCapacity, setEditMaxCapacity] = useState('');
   const [editMemo, setEditMemo] = useState('');
+  const [editManifestNumber, setEditManifestNumber] = useState('');
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [showFeatures, setShowFeatures] = useState<string | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportConfig, setExportConfig] = useState({
+    wasteType: 'アスファルト殻',
+    destination: '',
+    unit: 'ｔ'
+  });
 
   const handleExtractFeatures = async (item: StockItem) => {
     const status = getJudgmentStatus(item);
@@ -52,16 +60,20 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
     setEditTonnage(item.actualTonnage?.toString() || '');
     setEditMaxCapacity(item.maxCapacity?.toString() || '');
     setEditMemo(item.memo || '');
+    setEditManifestNumber(item.manifestNumber || '');
   };
 
   const saveEdit = (id: string) => {
     const actualTonnage = editTonnage ? parseFloat(editTonnage) : undefined;
     const maxCapacity = editMaxCapacity ? parseFloat(editMaxCapacity) : undefined;
+    // マニフェスト番号は数字のみ許可（バリデーション）
+    const manifestNumber = editManifestNumber.replace(/\D/g, '') || undefined;
 
     onUpdate(id, {
       actualTonnage,
       maxCapacity,
-      memo: editMemo || undefined
+      memo: editMemo || undefined,
+      manifestNumber
     });
     setEditingId(null);
   };
@@ -71,6 +83,7 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
     setEditTonnage('');
     setEditMaxCapacity('');
     setEditMemo('');
+    setEditManifestNumber('');
   };
 
   const renderItem = (item: StockItem) => {
@@ -141,6 +154,15 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                 placeholder="メモ（車番など）"
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
               />
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={editManifestNumber}
+                onChange={(e) => setEditManifestNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="マニフェスト伝票番号"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
+              />
               <div className="flex gap-2">
                 <button
                   onClick={() => saveEdit(item.id)}
@@ -193,6 +215,11 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                 {item.maxCapacity && (
                   <span className="text-xs font-bold text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded-full">
                     {item.maxCapacity}t積
+                  </span>
+                )}
+                {item.manifestNumber && (
+                  <span className="text-xs font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full">
+                    M#{item.manifestNumber}
                   </span>
                 )}
                 <span className="text-xs text-slate-500">
@@ -303,10 +330,23 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
         >
           <ArrowLeft size={20} />
         </button>
-        <div onClick={onClose} className="cursor-pointer">
+        <div onClick={onClose} className="cursor-pointer flex-grow">
           <h2 className="text-lg font-black text-white">ストック一覧</h2>
           <p className="text-xs text-slate-500">計量後にOK/NGを付けて学習データに</p>
         </div>
+        {/* Excel出力ボタン */}
+        {items.length > 0 && (
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-all"
+          >
+            <FileSpreadsheet size={18} />
+            <span className="hidden sm:inline">産廃Excel</span>
+            <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
+              {items.filter(i => i.actualTonnage).length}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* コンテンツ */}
@@ -365,6 +405,79 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
           </>
         )}
       </div>
+
+      {/* Excel出力モーダル */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md border border-slate-700">
+            <h3 className="text-lg font-black text-white mb-4">
+              産廃集計表を出力
+            </h3>
+            <p className="text-sm text-slate-400 mb-6">
+              実測トン数が入力された {items.filter(i => i.actualTonnage).length} 件のデータをExcelに出力します
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">廃棄物の種類</label>
+                <input
+                  type="text"
+                  value={exportConfig.wasteType}
+                  onChange={(e) => setExportConfig({ ...exportConfig, wasteType: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">搬出先</label>
+                <input
+                  type="text"
+                  value={exportConfig.destination}
+                  onChange={(e) => setExportConfig({ ...exportConfig, destination: e.target.value })}
+                  placeholder="例: 大林道路株式会社"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">単位</label>
+                <select
+                  value={exportConfig.unit}
+                  onChange={(e) => setExportConfig({ ...exportConfig, unit: e.target.value })}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="ｔ">ｔ（トン）</option>
+                  <option value="㎥">㎥（立方メートル）</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  await exportWasteReportFromStock(
+                    items,
+                    {}, // 工事情報は空（必要に応じて別途設定可能）
+                    `産廃集計表_${new Date().toISOString().split('T')[0]}.xlsx`,
+                    exportConfig.wasteType,
+                    exportConfig.destination,
+                    exportConfig.unit
+                  );
+                  setShowExportModal(false);
+                }}
+                className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <FileSpreadsheet size={18} />
+                Excelをダウンロード
+              </button>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-xl transition-all"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

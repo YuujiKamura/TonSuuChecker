@@ -50,6 +50,7 @@ export interface StockItem {
   actualTonnage?: number;  // ユーザー入力（実測）
   maxCapacity?: number;  // 最大積載量
   memo?: string;
+  manifestNumber?: string;  // マニフェスト伝票番号（数字のみ）
   // AI抽出特徴
   extractedFeatures?: ExtractedFeature[];
   featureRawResponse?: string;  // AIの生レスポンス（デバッグ用）
