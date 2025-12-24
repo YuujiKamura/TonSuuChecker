@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [rawInferences, setRawInferences] = useState<EstimationResult[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentImageUrls, setCurrentImageUrls] = useState<string[]>([]);
+  const [currentBase64Images, setCurrentBase64Images] = useState<string[]>([]);
   const [history, setHistory] = useState<AnalysisHistory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -146,6 +147,7 @@ const App: React.FC = () => {
       setCurrentResult(null);
       setRawInferences([]);
       setCurrentImageUrls(urls);
+      setCurrentBase64Images(base64s);
     }
     
     setError(null);
@@ -242,6 +244,7 @@ const App: React.FC = () => {
     setCurrentResult(null);
     setCurrentId(null);
     setCurrentImageUrls([]);
+    setCurrentBase64Images([]);
     setRawInferences([]);
     setError(null);
     setLoading(false);
@@ -473,9 +476,10 @@ const App: React.FC = () => {
                     <span className="text-[10px] font-black text-blue-500 uppercase">AI CONFIDENCE: {(currentResult.confidenceScore * 100).toFixed(0)}%</span>
                   </div>
                 </div>
-                <AnalysisResult 
-                  result={currentResult} 
-                  imageUrls={currentImageUrls} 
+                <AnalysisResult
+                  result={currentResult}
+                  imageUrls={currentImageUrls}
+                  base64Images={currentBase64Images}
                   actualTonnage={history.find(h => h.id === currentId)?.actualTonnage}
                   onSaveActualTonnage={(v) => setHistory(prev => prev.map(h => h.id === currentId ? {...h, actualTonnage: v} : h))}
                   onUpdateLicensePlate={(p, n) => setHistory(prev => prev.map(h => h.id === currentId ? {...h, result: {...h.result, licensePlate: p, licenseNumber: n}} : h))}
@@ -499,6 +503,14 @@ const App: React.FC = () => {
                         setCurrentResult(item.result);
                         setCurrentId(item.id);
                         setCurrentImageUrls(item.imageUrls);
+                        // data:URLからbase64を抽出
+                        const base64s = item.imageUrls.map(url => {
+                          if (url.startsWith('data:')) {
+                            return url.split(',')[1] || '';
+                          }
+                          return '';
+                        }).filter(b => b);
+                        setCurrentBase64Images(base64s);
                       }
                     }}
                     className={`bg-slate-900/95 backdrop-blur-2xl border border-slate-800 p-3 rounded-2xl flex items-center gap-4 shadow-2xl transition-all ${!loading && !showCamera ? 'cursor-pointer hover:border-blue-500 active:scale-[0.98]' : ''}`}

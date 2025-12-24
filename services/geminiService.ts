@@ -250,3 +250,71 @@ ${maxCapacity ? `最大積載量は ${maxCapacity * 1000}kg です。` : ''}
     return { features: [], rawResponse };
   }
 };
+
+// 会話メッセージの型
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+// 解析後にAIに追加質問する機能
+export const askFollowUp = async (
+  base64Images: string[],
+  analysisResult: EstimationResult,
+  chatHistory: ChatMessage[],
+  userQuestion: string,
+  modelName: string = 'gemini-2.0-flash'
+): Promise<string> => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error('APIキーが設定されていません');
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  // 元の解析結果を文脈として構築
+  const analysisContext = `
+【先ほどの解析結果】
+- 推定重量: ${analysisResult.estimatedTonnage}t
+- 車両タイプ: ${analysisResult.truckType}
+- 積載物: ${analysisResult.materialType}
+- 推定体積: ${analysisResult.estimatedVolumeM3}m³
+- 確信度: ${(analysisResult.confidenceScore * 100).toFixed(0)}%
+- 判断理由: ${analysisResult.reasoning}
+- 材質内訳: ${analysisResult.materialBreakdown.map(m => `${m.material}(${m.percentage}%)`).join(', ')}
+`;
+
+  // 会話履歴をパーツに変換
+  const historyParts = chatHistory.flatMap(msg => [
+    { text: msg.role === 'user' ? `【ユーザーの質問】${msg.content}` : `【AIの回答】${msg.content}` }
+  ]);
+
+  // 画像パーツ
+  const imageParts = base64Images.map(base64 => ({
+    inlineData: { mimeType: 'image/jpeg', data: base64 }
+  }));
+
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents: {
+      parts: [
+        ...imageParts,
+        { text: analysisContext },
+        ...historyParts,
+        { text: `【ユーザーの新しい質問】${userQuestion}\n\n上記の画像と解析結果を踏まえて、質問に日本語で丁寧に回答してください。なぜその推定に至ったかの根拠を詳しく説明してください。` }
+      ],
+    },
+    config: {
+      systemInstruction: `あなたはダンプトラックの積載量推定を行ったAIアシスタントです。
+先ほどこの画像を解析して重量推定を行いました。
+ユーザーからの質問に対して、なぜその判断をしたのか、どの視覚的特徴に基づいているのかを詳しく説明してください。
+専門的な知識も交えながら、わかりやすく回答してください。`,
+      temperature: 0.7,
+    }
+  });
+
+  const text = response.text || '回答を生成できませんでした。';
+  saveCostEntry(modelName, base64Images.length);
+
+  return text;
+};

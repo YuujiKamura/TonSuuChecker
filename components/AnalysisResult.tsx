@@ -1,12 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { EstimationResult } from '../types';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
-import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check } from 'lucide-react';
+import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check, MessageCircle, Send, Loader2, Bot, User } from 'lucide-react';
+import { askFollowUp, ChatMessage } from '../services/geminiService';
 
 interface AnalysisResultProps {
   result: EstimationResult;
   imageUrls: string[];
+  base64Images: string[];
   actualTonnage?: number;
   onSaveActualTonnage: (value: number) => void;
   onUpdateLicensePlate: (plate: string, number: string) => void;
@@ -14,12 +16,46 @@ interface AnalysisResultProps {
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'];
 
-const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, actualTonnage, onSaveActualTonnage, onUpdateLicensePlate }) => {
+const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, actualTonnage, onSaveActualTonnage, onUpdateLicensePlate }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
   const [isEditingPlate, setIsEditingPlate] = useState(false);
   const [tempNumber, setTempNumber] = useState(result.licenseNumber || '');
   const [tempPlate, setTempPlate] = useState(result.licensePlate || '');
+
+  // チャット機能のステート
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [questionInput, setQuestionInput] = useState('');
+  const [isAsking, setIsAsking] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // チャットが更新されたら自動スクロール
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages]);
+
+  const handleAskQuestion = async () => {
+    if (!questionInput.trim() || isAsking) return;
+
+    const question = questionInput.trim();
+    setQuestionInput('');
+    setIsAsking(true);
+
+    // ユーザーの質問を追加
+    setChatMessages(prev => [...prev, { role: 'user', content: question }]);
+
+    try {
+      const answer = await askFollowUp(base64Images, result, chatMessages, question);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: answer }]);
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${err.message}` }]);
+    } finally {
+      setIsAsking(false);
+    }
+  };
 
   const handleSave = () => {
     const val = parseFloat(inputValue);
@@ -188,7 +224,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, actu
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 mb-8">
               <p className="text-slate-600 font-medium text-lg italic leading-relaxed">"{result.reasoning}"</p>
             </div>
-            
+
             <div className="w-full">
               <p className="text-xs font-black text-slate-400 mb-6 uppercase tracking-[0.3em]">Material Composition</p>
               <div className="space-y-4">
@@ -199,8 +235,8 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, actu
                       <span>{item.percentage}%</span>
                     </div>
                     <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full transition-all duration-1000" 
+                      <div
+                        className="h-full transition-all duration-1000"
                         style={{ width: `${item.percentage}%`, backgroundColor: COLORS[index % COLORS.length] }}
                       ></div>
                     </div>
@@ -210,6 +246,117 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, actu
             </div>
           </div>
         </div>
+      </div>
+
+      {/* AIに質問セクション */}
+      <div className="bg-slate-900 rounded-[2.5rem] shadow-xl border border-slate-800 overflow-hidden">
+        <button
+          onClick={() => setShowChat(!showChat)}
+          className="w-full p-6 flex items-center justify-between text-white hover:bg-slate-800 transition-colors"
+        >
+          <div className="flex items-center gap-4">
+            <div className="bg-blue-500/20 p-3 rounded-2xl">
+              <MessageCircle className="text-blue-400" size={28} />
+            </div>
+            <div className="text-left">
+              <h3 className="text-lg font-black uppercase tracking-widest">AIに質問する</h3>
+              <p className="text-sm text-slate-400">なぜこの推定になったか詳しく聞く</p>
+            </div>
+          </div>
+          <div className={`transform transition-transform ${showChat ? 'rotate-180' : ''}`}>
+            <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
+
+        {showChat && (
+          <div className="border-t border-slate-800">
+            {/* 会話履歴 */}
+            <div className="max-h-96 overflow-y-auto p-6 space-y-4">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-8">
+                  <Bot className="mx-auto text-slate-600 mb-4" size={48} />
+                  <p className="text-slate-500 text-sm">
+                    解析結果について質問してみてください
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                    {['なぜこの重量になった？', '材質の判断根拠は？', '体積はどう計算した？'].map((q, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setQuestionInput(q)}
+                        className="text-xs bg-slate-800 text-slate-300 px-4 py-2 rounded-full hover:bg-slate-700 transition-colors"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {chatMessages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {msg.role === 'assistant' && (
+                    <div className="bg-blue-500/20 p-2 rounded-xl h-fit">
+                      <Bot className="text-blue-400" size={20} />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[80%] p-4 rounded-2xl ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-800 text-slate-200'
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  </div>
+                  {msg.role === 'user' && (
+                    <div className="bg-slate-700 p-2 rounded-xl h-fit">
+                      <User className="text-slate-300" size={20} />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {isAsking && (
+                <div className="flex gap-3 justify-start">
+                  <div className="bg-blue-500/20 p-2 rounded-xl h-fit">
+                    <Bot className="text-blue-400" size={20} />
+                  </div>
+                  <div className="bg-slate-800 text-slate-200 p-4 rounded-2xl">
+                    <Loader2 className="animate-spin" size={20} />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* 入力欄 */}
+            <div className="p-4 border-t border-slate-800">
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={questionInput}
+                  onChange={(e) => setQuestionInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleAskQuestion()}
+                  placeholder="質問を入力... (例: なぜ10トンと判断した？)"
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-2xl px-5 py-4 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  disabled={isAsking}
+                />
+                <button
+                  onClick={handleAskQuestion}
+                  disabled={!questionInput.trim() || isAsking}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-6 rounded-2xl transition-all active:scale-95"
+                >
+                  {isAsking ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
