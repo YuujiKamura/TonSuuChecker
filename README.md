@@ -4,6 +4,8 @@
 
 # Run and deploy your AI Studio app
 
+**GitHub Pages:** https://yuujikamura.github.io/TonSuuChecker/
+
 This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/drive/15hSlAAsiqb1mvdbLuXEf-yUGZO451Sai
