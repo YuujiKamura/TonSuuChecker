@@ -45,17 +45,14 @@ workbook.SheetNames.forEach(sheetName => {
     });
   }
 
-  // セル内容
-  console.log('\n--- セル内容 (B1〜I20) ---');
-  for (let row = 1; row <= 20; row++) {
-    for (const col of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']) {
+  // セル内容（広範囲）
+  console.log('\n--- セル内容 (A1〜J50) ---');
+  for (let row = 1; row <= 50; row++) {
+    for (const col of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']) {
       const addr = `${col}${row}`;
       const cell = sheet[addr];
       if (cell) {
         let info = `${addr}: "${cell.v}"`;
-        if (cell.s) {
-          info += ` style=${JSON.stringify(cell.s)}`;
-        }
         console.log(info);
       }
     }

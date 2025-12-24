@@ -305,6 +305,22 @@ const createWorksheet = (
     });
   }
 
+  // 枠外の注記（マニフェスト伝票の取り扱い）
+  const noteStartRow = sumRowIndex + 1;
+  const noteFont: Partial<ExcelJS.Font> = { name: 'ＭＳ ゴシック', size: 10 };
+  const notes = [
+    '　注１　廃棄物の種類毎に搬出量の計を記載すること。',
+    '　注２　監督職員は建設系廃棄物マニフェスト伝票と照合し確認すること。',
+    '　注３　受注者はしゅん工検査時に建設系マニフェスト伝票Ａ、Ｂ2、Ｂ1、Ｄ、Ｅ票を持参し、検査員の',
+    '　　　　指示に応じて提示すること。なお、Ｅ票については、しゅん工検査時点で最終処分業者より返送',
+    '　　　　されているもののみとする。'
+  ];
+  notes.forEach((note, idx) => {
+    const cell = ws.getCell(`B${noteStartRow + idx}`);
+    cell.value = note;
+    cell.font = noteFont;
+  });
+
   return ws;
 };
 
