@@ -12,6 +12,13 @@ interface EntryEditFormProps {
   onViewResult?: (item: StockItem) => void;
 }
 
+// 廃棄物の種類の選択肢
+const WASTE_TYPE_OPTIONS = [
+  'アスファルト殻',
+  'コンクリート無筋',
+  'コンクリート有筋',
+];
+
 const EntryEditForm: React.FC<EntryEditFormProps> = ({
   item,
   isOpen,
@@ -25,6 +32,7 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
   const [memo, setMemo] = useState('');
   const [manifestNumber, setManifestNumber] = useState('');
   const [wasteType, setWasteType] = useState('');
+  const [isCustomWasteType, setIsCustomWasteType] = useState(false);
   const [destination, setDestination] = useState('');
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -36,7 +44,10 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       setMaxCapacity(item.maxCapacity?.toString() || '');
       setMemo(item.memo || '');
       setManifestNumber(item.manifestNumber || '');
-      setWasteType(item.wasteType || '');
+      const savedWasteType = item.wasteType || '';
+      setWasteType(savedWasteType);
+      // 既存の値が選択肢にない場合は自由入力モード
+      setIsCustomWasteType(savedWasteType !== '' && !WASTE_TYPE_OPTIONS.includes(savedWasteType));
       setDestination(item.destination || '');
       setImageBase64(item.base64Images[0] || null);
       setImageUrl(item.imageUrls[0] || null);
@@ -54,7 +65,8 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       actualTonnage: actualTonnage ? parseFloat(actualTonnage) : undefined,
       maxCapacity: maxCapacity ? parseFloat(maxCapacity) : undefined,
       memo: memo || undefined,
-      manifestNumber: manifestNumber.replace(/\D/g, '') || undefined
+      manifestNumber: manifestNumber.replace(/\D/g, '') || undefined,
+      wasteType: wasteType || undefined
     };
     if (imageBase64 && imageUrl) {
       updates.base64Images = [imageBase64];
@@ -116,6 +128,49 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
               placeholder="数字のみ"
               className="w-full bg-slate-800 border border-amber-500/30 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500 font-mono"
             />
+          </div>
+
+          {/* 廃棄物の種類 */}
+          <div>
+            <label className="block text-[10px] text-orange-400 font-bold mb-1 uppercase">廃棄物の種類</label>
+            {isCustomWasteType ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={wasteType}
+                  onChange={(e) => setWasteType(e.target.value)}
+                  placeholder="種類を入力"
+                  className="flex-1 bg-slate-800 border border-orange-500/30 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => { setIsCustomWasteType(false); setWasteType(''); }}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition-all"
+                >
+                  選択
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <select
+                  value={wasteType}
+                  onChange={(e) => setWasteType(e.target.value)}
+                  className="flex-1 bg-slate-800 border border-orange-500/30 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
+                >
+                  <option value="">選択してください</option>
+                  {WASTE_TYPE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => { setIsCustomWasteType(true); setWasteType(''); }}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition-all whitespace-nowrap"
+                >
+                  その他
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 実測値・最大積載量 */}
