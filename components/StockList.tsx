@@ -225,18 +225,25 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
                   alt="Stock"
                 />
               ) : (
-                <div className="w-full h-40 rounded-xl bg-slate-900 border border-slate-600 flex items-center justify-center">
-                  <span className="text-slate-500">画像なし</span>
-                </div>
+                <label
+                  htmlFor="edit-image-input"
+                  className="w-full h-40 rounded-xl bg-slate-900 border border-slate-600 flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
+                >
+                  <Camera size={28} className="text-slate-500 mb-2" />
+                  <span className="text-slate-500">画像を追加</span>
+                </label>
               )}
-              <button
-                onClick={() => editFileInputRef.current?.click()}
-                className="absolute bottom-2 right-2 flex items-center gap-2 px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-white text-sm font-bold rounded-lg transition-all border border-slate-600"
-              >
-                <ImagePlus size={16} />
-                {editImageUrl ? '画像を変更' : '画像を追加'}
-              </button>
+              {editImageUrl && (
+                <label
+                  htmlFor="edit-image-input"
+                  className="absolute bottom-2 right-2 flex items-center gap-2 px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-white text-sm font-bold rounded-lg transition-all border border-slate-600 cursor-pointer"
+                >
+                  <ImagePlus size={16} />
+                  画像を変更
+                </label>
+              )}
               <input
+                id="edit-image-input"
                 type="file"
                 ref={editFileInputRef}
                 onChange={handleEditImageSelect}
@@ -566,7 +573,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
             <div className="space-y-4 mb-6">
               {/* 画像選択 */}
               <div>
-                <label className="block text-sm text-slate-400 mb-2">画像（任意）</label>
+                <span className="block text-sm text-slate-400 mb-2">画像（任意）</span>
                 {newImageUrl ? (
                   <div className="relative">
                     <img
@@ -574,24 +581,25 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
                       className="w-full h-40 object-contain bg-slate-900 rounded-xl border border-slate-600"
                       alt="Preview"
                     />
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-2 right-2 flex items-center gap-2 px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-white text-sm font-bold rounded-lg transition-all border border-slate-600"
+                    <label
+                      htmlFor="new-image-input"
+                      className="absolute bottom-2 right-2 flex items-center gap-2 px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-white text-sm font-bold rounded-lg transition-all border border-slate-600 cursor-pointer"
                     >
                       <ImagePlus size={16} />
                       変更
-                    </button>
+                    </label>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-32 border-2 border-dashed border-slate-600 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-500 hover:text-blue-400 transition-colors"
+                  <label
+                    htmlFor="new-image-input"
+                    className="w-full h-32 border-2 border-dashed border-slate-600 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-500 hover:text-blue-400 transition-colors cursor-pointer"
                   >
                     <Camera size={28} />
                     <span className="text-sm">画像を選択</span>
-                  </button>
+                  </label>
                 )}
                 <input
+                  id="new-image-input"
                   type="file"
                   ref={fileInputRef}
                   onChange={handleNewImageSelect}
