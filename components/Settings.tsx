@@ -101,32 +101,56 @@ const Settings: React.FC<SettingsProps> = ({
             <div className="space-y-6">
               {/* APIキー設定 */}
               <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-4">
                   <Key size={18} className="text-yellow-500" />
-                  <h3 className="text-sm font-bold text-white">Gemini APIキー</h3>
+                  <h3 className="text-sm font-bold text-white">AIキー設定</h3>
                   {hasApiKey && (
                     <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">設定済み</span>
                   )}
                 </div>
 
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="AIza..."
-                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 mb-3 text-sm"
-                />
+                {/* ステップ1: キーを取得 */}
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-5 h-5 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center shrink-0">1</span>
+                    <span className="text-xs font-bold text-slate-300">キーを取得（無料）</span>
+                  </div>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2.5 rounded-xl transition-all"
+                  >
+                    Google AI Studioを開く <ExternalLink size={14} />
+                  </a>
+                </div>
 
-                <label className="flex items-center gap-3 mb-3 p-3 bg-slate-900/50 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-900 transition-colors">
+                {/* ステップ2: キーを貼り付け */}
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-5 h-5 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center shrink-0">2</span>
+                    <span className="text-xs font-bold text-slate-300">コピーしたキーを貼り付け</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="AIza..."
+                    className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+                  />
+                </div>
+
+                {/* 無料枠チェック */}
+                <label className="flex items-center gap-3 mb-4 p-3 bg-green-500/10 rounded-xl border border-green-500/30 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={isGoogleAIStudio}
                     onChange={(e) => setIsGoogleAIStudio(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-500"
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-green-500"
                   />
                   <div className="flex-1">
-                    <span className="text-sm font-bold text-white">Google AI Studio無料枠</span>
-                    <p className="text-xs text-slate-400">料金カウンターを増加させません</p>
+                    <span className="text-sm font-bold text-green-400">無料枠を使用</span>
+                    <p className="text-xs text-slate-400">Google AI Studioは無料で利用可</p>
                   </div>
                 </label>
 
@@ -134,28 +158,19 @@ const Settings: React.FC<SettingsProps> = ({
                   <button
                     onClick={handleSaveApiKey}
                     disabled={!apiKeyInput.trim()}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-bold py-2 rounded-xl transition-all"
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-400 disabled:bg-slate-700 disabled:text-slate-500 text-black text-sm font-bold py-2.5 rounded-xl transition-all"
                   >
                     保存
                   </button>
                   {hasApiKey && (
                     <button
                       onClick={handleClearApiKey}
-                      className="px-4 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-bold py-2 rounded-xl transition-all"
+                      className="px-4 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-bold py-2.5 rounded-xl transition-all"
                     >
                       削除
                     </button>
                   )}
                 </div>
-
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-3"
-                >
-                  Google AI Studioでキーを取得 <ExternalLink size={12} />
-                </a>
               </div>
 
               {/* 解析エンジン */}
