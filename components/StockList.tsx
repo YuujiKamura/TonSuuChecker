@@ -335,18 +335,16 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
           <p className="text-xs text-slate-500">計量後にOK/NGを付けて学習データに</p>
         </div>
         {/* Excel出力ボタン */}
-        {items.length > 0 && (
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-all"
-          >
-            <FileSpreadsheet size={18} />
-            <span className="hidden sm:inline">産廃Excel</span>
-            <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
-              {items.filter(i => i.actualTonnage).length}
-            </span>
-          </button>
-        )}
+        <button
+          onClick={() => setShowExportModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-all"
+        >
+          <FileSpreadsheet size={18} />
+          <span className="hidden sm:inline">産廃Excel</span>
+          <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
+            {items.filter(i => i.actualTonnage).length}
+          </span>
+        </button>
       </div>
 
       {/* コンテンツ */}
