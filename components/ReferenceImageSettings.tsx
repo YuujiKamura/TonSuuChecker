@@ -7,9 +7,10 @@ import { convertPdfToImage, isPdf } from '../services/pdfConverter';
 interface ReferenceImageSettingsProps {
   isOpen: boolean;
   onClose: () => void;
+  embedded?: boolean;
 }
 
-const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen, onClose }) => {
+const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen, onClose, embedded = false }) => {
   const [vehicles, setVehicles] = useState<RegisteredVehicle[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -153,25 +154,14 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-black text-white flex items-center gap-3">
-            <Truck className="text-blue-500" size={24} />
-            車両登録
-          </h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-white">
-            <X size={24} />
-          </button>
-        </div>
+  const content = (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-400">
+        車両を登録すると、解析時にAIが比較参照して車両タイプを判定します
+      </p>
 
-        <p className="text-sm text-slate-400 mb-4">
-          車両を登録すると、解析時にAIが比較参照して車両タイプを判定します
-        </p>
-
-        {/* 登録済み車両一覧 */}
-        <div className="space-y-3 mb-4">
+      {/* 登録済み車両一覧 */}
+      <div className="space-y-3">
           {vehicles.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
               登録車両がありません
@@ -330,11 +320,31 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
           </button>
         )}
 
-        <div className="mt-4 pt-4 border-t border-slate-700">
-          <p className="text-xs text-slate-500">
-            後方から撮影した画像がおすすめです。ナンバープレートと荷台が見える角度で登録してください。
-          </p>
+      <div className="mt-4 pt-4 border-t border-slate-700">
+        <p className="text-xs text-slate-500">
+          後方から撮影した画像がおすすめです。ナンバープレートと荷台が見える角度で登録してください。
+        </p>
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-black text-white flex items-center gap-3">
+            <Truck className="text-blue-500" size={24} />
+            車両登録
+          </h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-white">
+            <X size={24} />
+          </button>
         </div>
+        {content}
       </div>
     </div>
   );

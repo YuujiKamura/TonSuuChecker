@@ -5,8 +5,7 @@ import ImageUploader from './components/ImageUploader';
 import CameraCapture from './components/CameraCapture';
 import CaptureChoice from './components/CaptureChoice';
 import StockList from './components/StockList';
-import SyncSettings from './components/SyncSettings';
-import ReferenceImageSettings from './components/ReferenceImageSettings';
+import Settings from './components/Settings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation } from './services/stockService';
@@ -14,7 +13,7 @@ import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage } from './types';
-import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud, Scale, Truck } from 'lucide-react';
+import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -49,18 +48,15 @@ const App: React.FC = () => {
   
   // APIキー関連
   const [hasApiKey, setHasApiKey] = useState(false);
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
   const [isGoogleAIStudio, setIsGoogleAIStudio] = useState(false);
   const [showCostDashboard, setShowCostDashboard] = useState(false);
   const [todaysCost, setTodaysCost] = useState(0);
-  
+
   // ストック・選択関連
   const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
   const [showStockList, setShowStockList] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
-  const [showSyncSettings, setShowSyncSettings] = useState(false);
-  const [showReferenceSettings, setShowReferenceSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // 最大積載量
   const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
@@ -127,35 +123,6 @@ const App: React.FC = () => {
     setLogs(prev => [newLog, ...prev.slice(0, 49)]);
   };
 
-  const handleSaveApiKey = () => {
-    if (apiKeyInput.trim()) {
-      setApiKey(apiKeyInput.trim(), isGoogleAIStudio);
-      setHasApiKey(true);
-      setShowApiKeyModal(false);
-      setApiKeyInput('');
-      setIsGoogleAIStudio(false);
-    }
-  };
-
-  // APIキーモーダルを開いたときに、既存のキーを読み込む
-  useEffect(() => {
-    if (showApiKeyModal) {
-      const existingKey = getApiKey();
-      if (existingKey) {
-        setApiKeyInput(existingKey);
-        setIsGoogleAIStudio(isGoogleAIStudioKey());
-      } else {
-        setApiKeyInput('');
-        setIsGoogleAIStudio(false);
-      }
-    }
-  }, [showApiKeyModal]);
-
-  const handleClearApiKey = () => {
-    clearApiKey();
-    setHasApiKey(false);
-    setIsGoogleAIStudio(false);
-  };
 
   // 解析開始の統一エントリーポイント
   const requestAnalysis = (base64s: string[], urls: string[], initialMaxCapacity?: number, stockItemId?: string) => {
@@ -186,7 +153,7 @@ const App: React.FC = () => {
   const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false, capacityOverride?: number, userFeedback?: ChatMessage[]) => {
     if (!hasApiKey) {
       setError('APIキーが設定されていません。設定してください。');
-      setShowApiKeyModal(true);
+      setShowSettings(true);
       return;
     }
 
@@ -356,11 +323,9 @@ const App: React.FC = () => {
     // 全てのモーダル・サブ画面を閉じる
     setShowCamera(false);
     setPendingCapture(null);
-    setShowApiKeyModal(false);
+    setShowSettings(false);
     setShowCostDashboard(false);
     setShowStockList(false);
-    setShowSyncSettings(false);
-    setShowReferenceSettings(false);
   };
 
   return (
@@ -416,20 +381,21 @@ const App: React.FC = () => {
         )}
         
         <div className="max-w-4xl mx-auto w-full px-4 pt-4">
-            {/* APIキー状態表示 */}
-            <div className="mb-4 flex items-center gap-3">
+            {/* ツールバー */}
+            <div className="mb-4 flex items-center gap-2 sm:gap-3">
               <button
-                onClick={() => setShowApiKeyModal(true)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold transition-all ${hasApiKey ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 animate-pulse'}`}
+                onClick={() => setShowStockList(true)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
               >
-                <Key size={16} />
-                {hasApiKey ? 'APIキー設定済み' : 'APIキー未設定'}
+                <Archive size={16} />
+                <span className="hidden sm:inline">ストック</span>
+                <span className="bg-slate-700 px-2 py-0.5 rounded-full text-xs">{stockItems.length}</span>
               </button>
               <button
                 onClick={() => setShowCostDashboard(true)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold transition-all ${
-                  isGoogleAIStudio 
-                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' 
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold transition-all ${
+                  isGoogleAIStudio
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
                     : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                 }`}
                 title={isGoogleAIStudio ? '無料枠を使用中' : ''}
@@ -438,33 +404,16 @@ const App: React.FC = () => {
                 {formatCost(todaysCost)}
               </button>
               <button
-                onClick={() => setShowStockList(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
+                onClick={() => setShowSettings(true)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-bold transition-all ml-auto ${
+                  hasApiKey
+                    ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                    : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 animate-pulse'
+                }`}
+                title={hasApiKey ? '設定' : 'APIキー未設定'}
               >
-                <Archive size={16} />
-                ストック ({stockItems.length})
+                <SettingsIcon size={18} />
               </button>
-              <button
-                onClick={() => setShowSyncSettings(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
-              >
-                <Cloud size={16} />
-              </button>
-              <button
-                onClick={() => setShowReferenceSettings(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
-                title="車両登録"
-              >
-                <Truck size={16} />
-              </button>
-              {hasApiKey && (
-                <button
-                  onClick={handleClearApiKey}
-                  className="text-xs text-slate-500 hover:text-red-400 transition-colors ml-auto"
-                >
-                  キーを削除
-                </button>
-              )}
             </div>
             {isRateLimited && (
               <div className="mb-4 bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex items-center gap-4 animate-pulse">
@@ -485,7 +434,7 @@ const App: React.FC = () => {
 
             {!currentResult && !loading && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                <ImageUploader 
+                <ImageUploader
                   onImagesSelected={(imgs) => {
                     if (loading || imgs.length === 0) return;
                     const img = imgs[0];
@@ -493,51 +442,8 @@ const App: React.FC = () => {
                     setPendingCapture({ base64: img.base64, url: dataUrl });
                   }}
                   onCameraOpen={() => setShowCamera(true)}
-                  isLoading={loading} 
+                  isLoading={loading}
                 />
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                  <div className="bg-slate-900 rounded-[2rem] p-8 border border-slate-800">
-                    <h3 className="text-sm font-black flex items-center gap-3 uppercase text-slate-400 mb-6">
-                      <Cpu size={20} className="text-yellow-500" />
-                      解析エンジン
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button 
-                        onClick={() => { setSelectedModel('gemini-3-flash-preview'); localStorage.setItem('tonchecker_model', 'gemini-3-flash-preview'); }}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${selectedModel.includes('flash') ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'}`}
-                      >
-                        <Zap size={24} />
-                        <span className="text-xs font-black uppercase tracking-widest">Flash</span>
-                      </button>
-                      <button 
-                        onClick={() => { setSelectedModel('gemini-3-pro-preview'); localStorage.setItem('tonchecker_model', 'gemini-3-pro-preview'); }}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${selectedModel.includes('pro') ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'}`}
-                      >
-                        <BrainCircuit size={24} />
-                        <span className="text-xs font-black uppercase tracking-widest">Pro</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-900 rounded-[2rem] p-8 border border-slate-800">
-                    <h3 className="text-sm font-black flex items-center gap-3 uppercase text-slate-400 mb-6">
-                      <Gauge size={20} className="text-blue-500" />
-                      推論の深さ (x{ensembleTarget})
-                    </h3>
-                    <input
-                      type="range" min="1" max="5" step="1"
-                      value={ensembleTarget}
-                      onChange={(e) => { const v = parseInt(e.target.value); setEnsembleTarget(v); localStorage.setItem('tonchecker_ensemble_target', v.toString()); }}
-                      className="w-full accent-blue-500 h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer mb-4"
-                    />
-                    <div className="flex justify-between text-xs font-black text-slate-500 uppercase tracking-wider">
-                      <span>高速推論</span>
-                      <span>推奨</span>
-                      <span>最大精度</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -690,106 +596,18 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* APIキー設定モーダル */}
-      {showApiKeyModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-black text-white flex items-center gap-3">
-                <Key className="text-yellow-500" size={24} />
-                Gemini APIキー設定
-              </h2>
-              <button onClick={() => setShowApiKeyModal(false)} className="text-slate-500 hover:text-white">
-                <X size={24} />
-              </button>
-            </div>
-            
-            <p className="text-sm text-slate-400 mb-4">
-              Google AI StudioでAPIキーを取得してください。
-            </p>
-            
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => {
-                setApiKeyInput(e.target.value);
-                // 既存のキーが入力されている場合、ソースが不明なら自動判定を試みる
-                const trimmed = e.target.value.trim();
-                if (trimmed && trimmed.startsWith('AIza') && !localStorage.getItem('gemini_api_key_source')) {
-                  // 既存のキーと同じ場合は、保存されている設定を読み込む
-                  const existingKey = getApiKey();
-                  if (existingKey === trimmed) {
-                    setIsGoogleAIStudio(isGoogleAIStudioKey());
-                  }
-                }
-              }}
-              placeholder="AIza..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 mb-4"
-            />
-            
-            {/* 既存のキーが設定されているが、ソースが不明な場合の警告 */}
-            {getApiKey() && !localStorage.getItem('gemini_api_key_source') && apiKeyInput.trim() === getApiKey() && (
-              <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                <p className="text-xs text-amber-400 font-bold mb-2">
-                  ⚠️ このキーの出所が不明です
-                </p>
-                <p className="text-xs text-slate-400">
-                  既存のキーが設定されていますが、Google AI Studioの無料枠かどうかが不明です。下記で選択してください。
-                </p>
-              </div>
-            )}
-            
-            <label className="flex items-center gap-3 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors">
-              <input
-                type="checkbox"
-                checked={isGoogleAIStudio}
-                onChange={(e) => setIsGoogleAIStudio(e.target.checked)}
-                className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
-              />
-              <div className="flex-1">
-                <span className="text-sm font-bold text-white">Google AI Studioの無料枠を使用</span>
-                <p className="text-xs text-slate-400 mt-1">
-                  このキーがGoogle AI Studioから取得した無料枠の場合は、料金カウンターを増加させません。
-                </p>
-              </div>
-            </label>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={handleSaveApiKey}
-                disabled={!apiKeyInput.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-3 rounded-xl transition-all"
-              >
-                保存
-              </button>
-              <button
-                onClick={() => setShowApiKeyModal(false)}
-                className="px-6 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl transition-all"
-              >
-                キャンセル
-              </button>
-            </div>
-            
-            <a 
-              href="https://aistudio.google.com/app/apikey" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="block text-center text-sm text-blue-400 hover:text-blue-300 mt-4"
-            >
-              Google AI Studioでキーを取得
-            </a>
-          </div>
-        </div>
-      )}
-
-      <SyncSettings
-        isOpen={showSyncSettings}
-        onClose={() => setShowSyncSettings(false)}
-      />
-
-      <ReferenceImageSettings
-        isOpen={showReferenceSettings}
-        onClose={() => setShowReferenceSettings(false)}
+      {/* 設定モーダル */}
+      <Settings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        ensembleTarget={ensembleTarget}
+        onEnsembleChange={setEnsembleTarget}
+        onApiKeyChange={(hasKey, isStudio) => {
+          setHasApiKey(hasKey);
+          setIsGoogleAIStudio(isStudio);
+        }}
       />
 
       <footer className="bg-slate-950 border-t border-slate-900 p-4 text-center z-50">

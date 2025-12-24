@@ -8,6 +8,7 @@ interface SyncSettingsProps {
   isOpen: boolean;
   onClose: () => void;
   onDataFetched?: (items: TaggedRecord[]) => void;
+  embedded?: boolean;
 }
 
 // 新しいGASコードはgas/TonCheckerSync.gsを参照
@@ -100,7 +101,7 @@ function getAllRecords() {
   return { version: '2.0', syncDate: new Date().toISOString(), records };
 }`;
 
-const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetched }) => {
+const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetched, embedded = false }) => {
   const [gasUrl, setGasUrlState] = useState('');
   const [userName, setUserName] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -203,21 +204,8 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl my-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-black text-white flex items-center gap-3">
-            {isConnected ? <Cloud className="text-green-500" size={24} /> : <CloudOff className="text-slate-500" size={24} />}
-            データ共有
-          </h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-white">
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* ユーザー向け：URLを貼るだけ */}
-        <div className="space-y-4">
+  const content = (
+    <div className="space-y-4">
           <div>
             <label className="block text-sm text-slate-400 mb-2">あなたの名前</label>
             <input
@@ -292,52 +280,71 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
           {message && (
             <p className="text-center text-sm text-green-400 py-2">{message}</p>
           )}
-        </div>
 
-        {/* 管理者向けガイド（折りたたみ） */}
-        <div className="mt-6 border-t border-slate-700 pt-4">
-          <button
-            onClick={() => setShowAdminGuide(!showAdminGuide)}
-            className="w-full text-left text-sm text-slate-500 hover:text-slate-300 flex items-center justify-between"
-          >
-            <span>管理者向け：共有URLの作成方法</span>
-            <span>{showAdminGuide ? '▼' : '▶'}</span>
-          </button>
+          {/* 管理者向けガイド（折りたたみ） */}
+          <div className="mt-4 border-t border-slate-700 pt-4">
+            <button
+              onClick={() => setShowAdminGuide(!showAdminGuide)}
+              className="w-full text-left text-sm text-slate-500 hover:text-slate-300 flex items-center justify-between"
+            >
+              <span>管理者向け：共有URLの作成方法</span>
+              <span>{showAdminGuide ? '▼' : '▶'}</span>
+            </button>
 
-          {showAdminGuide && (
-            <div className="mt-4 space-y-4">
-              <div className="p-4 bg-slate-800 rounded-xl text-sm text-slate-400">
-                <p className="font-bold text-white mb-3">手順:</p>
-                <ol className="list-decimal list-inside space-y-2">
-                  <li>
-                    <a
-                      href="https://sheets.new"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:underline inline-flex items-center gap-1"
-                    >
-                      新しいスプレッドシートを作成 <ExternalLink size={12} />
-                    </a>
-                  </li>
-                  <li>メニュー「拡張機能」→「Apps Script」</li>
-                  <li>下のコードをコピーして貼り付け</li>
-                  <li>「デプロイ」→「新しいデプロイ」</li>
-                  <li>種類「ウェブアプリ」を選択</li>
-                  <li>アクセス「全員」に設定してデプロイ</li>
-                  <li>表示されたURLを関係者に共有</li>
-                </ol>
+            {showAdminGuide && (
+              <div className="mt-4 space-y-4">
+                <div className="p-4 bg-slate-800 rounded-xl text-sm text-slate-400">
+                  <p className="font-bold text-white mb-3">手順:</p>
+                  <ol className="list-decimal list-inside space-y-2">
+                    <li>
+                      <a
+                        href="https://sheets.new"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        新しいスプレッドシートを作成 <ExternalLink size={12} />
+                      </a>
+                    </li>
+                    <li>メニュー「拡張機能」→「Apps Script」</li>
+                    <li>下のコードをコピーして貼り付け</li>
+                    <li>「デプロイ」→「新しいデプロイ」</li>
+                    <li>種類「ウェブアプリ」を選択</li>
+                    <li>アクセス「全員」に設定してデプロイ</li>
+                    <li>表示されたURLを関係者に共有</li>
+                  </ol>
+                </div>
+
+                <button
+                  onClick={copyGasCode}
+                  className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all"
+                >
+                  <Copy size={18} />
+                  {copied ? 'コピーしました！' : 'GASコードをコピー'}
+                </button>
               </div>
-
-              <button
-                onClick={copyGasCode}
-                className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all"
-              >
-                <Copy size={18} />
-                {copied ? 'コピーしました！' : 'GASコードをコピー'}
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl my-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-black text-white flex items-center gap-3">
+            {isConnected ? <Cloud className="text-green-500" size={24} /> : <CloudOff className="text-slate-500" size={24} />}
+            データ共有
+          </h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-white">
+            <X size={24} />
+          </button>
+        </div>
+        {content}
       </div>
     </div>
   );
