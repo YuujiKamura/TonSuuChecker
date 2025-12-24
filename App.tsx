@@ -289,9 +289,16 @@ const App: React.FC = () => {
               );
             }
 
+            // 最大積載量: ユーザー指定 > AIの推定値（登録車両マッチ時）
+            const effectiveMaxCapacity = capacityOverride || merged.estimatedMaxCapacity;
+
             if (existingItem) {
               // 既存のアイテムがある場合は、推定結果を追加（ランごとに履歴として保存）
               addEstimation(existingItem.id, merged);
+              // maxCapacityが未設定でAIが推定した場合は更新
+              if (!existingItem.maxCapacity && effectiveMaxCapacity) {
+                updateStockItem(existingItem.id, { maxCapacity: effectiveMaxCapacity });
+              }
             } else {
               // 新規アイテムの場合は作成
               const stockItem: StockItem = {
@@ -299,7 +306,7 @@ const App: React.FC = () => {
                 timestamp: Date.now(),
                 base64Images: base64s,
                 imageUrls: urls,
-                maxCapacity: capacityOverride,  // ユーザー指定値のみ保存（stateフォールバックなし）
+                maxCapacity: effectiveMaxCapacity,  // ユーザー指定 or AI推定値
                 result: merged, // 最新の推定結果（後方互換性）
                 estimations: [merged], // 推定結果の履歴（ランごとに追加）
               };
