@@ -8,11 +8,10 @@ interface ApiKeySetupProps {
 
 const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onComplete, onCancel }) => {
   const [apiKey, setApiKey] = useState('');
-  const [isGoogleAIStudio, setIsGoogleAIStudio] = useState(true);
 
   const handleSubmit = () => {
     if (apiKey.trim()) {
-      onComplete(apiKey.trim(), isGoogleAIStudio);
+      onComplete(apiKey.trim(), true); // 常に無料枠扱い
     }
   };
 
@@ -67,20 +66,6 @@ const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onComplete, onCancel }) => {
             />
           </div>
         </div>
-
-        {/* 無料枠チェック */}
-        <label className="flex items-center gap-3 p-3 bg-green-500/10 rounded-xl border border-green-500/30 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isGoogleAIStudio}
-            onChange={(e) => setIsGoogleAIStudio(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-green-500"
-          />
-          <div>
-            <span className="text-sm font-bold text-green-400">無料枠を使用</span>
-            <p className="text-xs text-slate-400">Google AI Studioは無料で利用できます</p>
-          </div>
-        </label>
 
         {/* ボタン */}
         <div className="flex gap-3">

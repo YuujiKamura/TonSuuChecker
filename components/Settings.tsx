@@ -44,9 +44,9 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleSaveApiKey = () => {
     if (apiKeyInput.trim()) {
-      setApiKey(apiKeyInput.trim(), isGoogleAIStudio);
+      setApiKey(apiKeyInput.trim(), true); // 常に無料枠扱い
       setHasApiKey(true);
-      onApiKeyChange(true, isGoogleAIStudio);
+      onApiKeyChange(true, true);
     }
   };
 
@@ -139,20 +139,6 @@ const Settings: React.FC<SettingsProps> = ({
                     className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
                   />
                 </div>
-
-                {/* 無料枠チェック */}
-                <label className="flex items-center gap-3 mb-4 p-3 bg-green-500/10 rounded-xl border border-green-500/30 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isGoogleAIStudio}
-                    onChange={(e) => setIsGoogleAIStudio(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-green-500"
-                  />
-                  <div className="flex-1">
-                    <span className="text-sm font-bold text-green-400">無料枠を使用</span>
-                    <p className="text-xs text-slate-400">Google AI Studioは無料で利用可</p>
-                  </div>
-                </label>
 
                 <div className="flex gap-2">
                   <button
