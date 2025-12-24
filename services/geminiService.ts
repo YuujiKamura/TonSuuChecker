@@ -23,11 +23,22 @@ async function runSingleInference(
   imageParts: any[],
   learningContext: any[],
   modelName: string,
-  maxCapacity?: number
+  maxCapacity?: number,
+  runIndex: number = 0
 ): Promise<EstimationResult> {
-  const promptText = maxCapacity
-    ? `画像の内容を判定し、重量を推定してください。\n【重要】この車両の最大積載量は${maxCapacity}トンです。この情報を考慮して推定してください。\n\nすべての回答は日本語で行ってください。特にreasoningフィールドは必ず日本語で記述してください。`
-    : "画像の内容を判定し、重量を推定してください。\n\nすべての回答は日本語で行ってください。特にreasoningフィールドは必ず日本語で記述してください。";
+  const basePrompt = maxCapacity
+    ? `画像の内容を判定し、重量を推定してください。\n【重要】この車両の最大積載量は${maxCapacity}トンです。`
+    : "画像の内容を判定し、重量を推定してください。";
+
+  const promptText = `${basePrompt}
+
+【推論ルール】
+- 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること
+- 荷台の埋まり具合、積載物の山の高さ、材質の見た目を根拠として明記すること
+- reasoningには「なぜその体積・重量と判断したか」を具体的な視覚的根拠と共に記述すること
+- 推論ラン#${runIndex + 1}: 毎回独自の視点で分析すること
+
+すべての回答は日本語で行ってください。`;
 
   const response = await ai.models.generateContent({
     model: modelName,
@@ -37,7 +48,7 @@ async function runSingleInference(
     config: {
       systemInstruction: SYSTEM_PROMPT,
       responseMimeType: "application/json",
-      temperature: 0.1,
+      temperature: 0.4,  // 推論のバリエーションを増やす
       topP: 0.95,
       responseSchema: {
         type: Type.OBJECT,
@@ -209,7 +220,7 @@ export const analyzeGaraImageEnsemble = async (
     if (abortSignal?.cancelled) break;
 
     try {
-      const res = await runSingleInference(ai, imageParts, learningContext, modelName, maxCapacity);
+      const res = await runSingleInference(ai, imageParts, learningContext, modelName, maxCapacity, i);
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];
