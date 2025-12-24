@@ -567,6 +567,10 @@ const App: React.FC = () => {
       {showStockList && (
         <StockList
           items={stockItems}
+          onAdd={(item) => {
+            saveStockItem(item);
+            setStockItems(getStockItems());
+          }}
           onUpdate={(id, updates) => {
             updateStockItem(id, updates);
             setStockItems(getStockItems());

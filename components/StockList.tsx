@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StockItem, getJudgmentStatus, isJudged, JudgmentStatus } from '../types';
-import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye, FileSpreadsheet } from 'lucide-react';
+import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye, FileSpreadsheet, Plus, Camera, ImagePlus } from 'lucide-react';
 import { extractFeatures } from '../services/geminiService';
 import { exportWasteReportFromStock } from '../services/excelExporter';
 
 interface StockListProps {
   items: StockItem[];
+  onAdd: (item: StockItem) => void;
   onUpdate: (id: string, updates: Partial<StockItem>) => void;
   onDelete: (id: string) => void;
   onAnalyze: (item: StockItem) => void;
@@ -37,16 +38,27 @@ const loadExportConfig = () => {
   };
 };
 
-const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnalyze, onViewResult, onClose }) => {
+const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete, onAnalyze, onViewResult, onClose }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTonnage, setEditTonnage] = useState('');
   const [editMaxCapacity, setEditMaxCapacity] = useState('');
   const [editMemo, setEditMemo] = useState('');
   const [editManifestNumber, setEditManifestNumber] = useState('');
+  const [editImageBase64, setEditImageBase64] = useState<string | null>(null);
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [showFeatures, setShowFeatures] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportConfig, setExportConfig] = useState(loadExportConfig);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTonnage, setNewTonnage] = useState('');
+  const [newMaxCapacity, setNewMaxCapacity] = useState('');
+  const [newMemo, setNewMemo] = useState('');
+  const [newManifestNumber, setNewManifestNumber] = useState('');
+  const [newImageBase64, setNewImageBase64] = useState<string | null>(null);
+  const [newImageUrl, setNewImageUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   // exportConfigが変更されたらキャッシュに保存
   const updateExportConfig = (updates: Partial<typeof exportConfig>) => {
@@ -92,20 +104,29 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
     setEditMaxCapacity(item.maxCapacity?.toString() || '');
     setEditMemo(item.memo || '');
     setEditManifestNumber(item.manifestNumber || '');
+    setEditImageBase64(item.base64Images[0] || null);
+    setEditImageUrl(item.imageUrls[0] || null);
   };
 
   const saveEdit = (id: string) => {
     const actualTonnage = editTonnage ? parseFloat(editTonnage) : undefined;
     const maxCapacity = editMaxCapacity ? parseFloat(editMaxCapacity) : undefined;
-    // マニフェスト番号は数字のみ許可（バリデーション）
     const manifestNumber = editManifestNumber.replace(/\D/g, '') || undefined;
 
-    onUpdate(id, {
+    const updates: Partial<StockItem> = {
       actualTonnage,
       maxCapacity,
       memo: editMemo || undefined,
       manifestNumber
-    });
+    };
+
+    // 画像が変更された場合
+    if (editImageBase64 && editImageUrl) {
+      updates.base64Images = [editImageBase64];
+      updates.imageUrls = [editImageUrl];
+    }
+
+    onUpdate(id, updates);
     setEditingId(null);
   };
 
@@ -115,6 +136,64 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
     setEditMaxCapacity('');
     setEditMemo('');
     setEditManifestNumber('');
+    setEditImageBase64(null);
+    setEditImageUrl(null);
+  };
+
+  // 画像選択ハンドラー（編集用）
+  const handleEditImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1];
+      setEditImageBase64(base64);
+      setEditImageUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // 画像選択ハンドラー（新規追加用）
+  const handleNewImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1];
+      setNewImageBase64(base64);
+      setNewImageUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // 新規エントリー追加
+  const handleAddEntry = () => {
+    const newItem: StockItem = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      base64Images: newImageBase64 ? [newImageBase64] : [],
+      imageUrls: newImageUrl ? [newImageUrl] : [],
+      actualTonnage: newTonnage ? parseFloat(newTonnage) : undefined,
+      maxCapacity: newMaxCapacity ? parseFloat(newMaxCapacity) : undefined,
+      memo: newMemo || undefined,
+      manifestNumber: newManifestNumber.replace(/\D/g, '') || undefined
+    };
+    onAdd(newItem);
+    resetAddForm();
+  };
+
+  const resetAddForm = () => {
+    setShowAddForm(false);
+    setNewTonnage('');
+    setNewMaxCapacity('');
+    setNewMemo('');
+    setNewManifestNumber('');
+    setNewImageBase64(null);
+    setNewImageUrl(null);
   };
 
   const renderItem = (item: StockItem) => {
@@ -137,12 +216,34 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
         {/* 編集モード：大きい画像とフォーム */}
         {isEditing ? (
           <div className="space-y-4">
-            <img
-              src={item.imageUrls[0]}
-              className="w-full max-h-[70vh] rounded-xl object-contain bg-slate-900 border border-slate-600 cursor-pointer"
-              alt="Stock"
-              onClick={cancelEdit}
-            />
+            {/* 画像表示・変更 */}
+            <div className="relative">
+              {editImageUrl ? (
+                <img
+                  src={editImageUrl}
+                  className="w-full max-h-[50vh] rounded-xl object-contain bg-slate-900 border border-slate-600"
+                  alt="Stock"
+                />
+              ) : (
+                <div className="w-full h-40 rounded-xl bg-slate-900 border border-slate-600 flex items-center justify-center">
+                  <span className="text-slate-500">画像なし</span>
+                </div>
+              )}
+              <button
+                onClick={() => editFileInputRef.current?.click()}
+                className="absolute bottom-2 right-2 flex items-center gap-2 px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-white text-sm font-bold rounded-lg transition-all border border-slate-600"
+              >
+                <ImagePlus size={16} />
+                {editImageUrl ? '画像を変更' : '画像を追加'}
+              </button>
+              <input
+                type="file"
+                ref={editFileInputRef}
+                onChange={handleEditImageSelect}
+                accept="image/*"
+                className="hidden"
+              />
+            </div>
             <div className="space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
                 {judgmentStatus !== 'unknown' && (
@@ -213,12 +314,21 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
         ) : (
           /* 通常表示 */
           <div className="flex items-start gap-4">
-            <img
-              src={item.imageUrls[0]}
-              className={`w-20 h-20 rounded-xl object-cover bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 ${itemIsJudged ? 'opacity-80' : ''}`}
-              alt="Stock"
-              onClick={() => startEdit(item)}
-            />
+            {item.imageUrls[0] ? (
+              <img
+                src={item.imageUrls[0]}
+                className={`w-20 h-20 rounded-xl object-cover bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 ${itemIsJudged ? 'opacity-80' : ''}`}
+                alt="Stock"
+                onClick={() => startEdit(item)}
+              />
+            ) : (
+              <div
+                className={`w-20 h-20 rounded-xl bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 flex items-center justify-center ${itemIsJudged ? 'opacity-80' : ''}`}
+                onClick={() => startEdit(item)}
+              >
+                <Camera size={24} className="text-slate-600" />
+              </div>
+            )}
 
             <div className="flex-grow min-w-0">
               {/* 日時とタグ */}
@@ -311,14 +421,16 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                     <Eye size={16} />
                   </button>
                 ) : null}
-                {/* AI解析ボタン（再解析用） */}
-                <button
-                  onClick={() => onAnalyze(item)}
-                  className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
-                  title="AI解析"
-                >
-                  <Brain size={16} />
-                </button>
+                {/* AI解析ボタン（再解析用） - 画像がある場合のみ */}
+                {item.imageUrls[0] && (
+                  <button
+                    onClick={() => onAnalyze(item)}
+                    className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
+                    title="AI解析"
+                  >
+                    <Brain size={16} />
+                  </button>
+                )}
                 <button
                   onClick={() => onDelete(item.id)}
                   className="p-2 rounded-xl bg-slate-700 border border-slate-600 text-slate-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all active:scale-95"
@@ -354,24 +466,32 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
   return (
     <div className="fixed inset-0 bg-slate-950 z-[110] flex flex-col">
       {/* ヘッダー */}
-      <div className="bg-slate-900 border-b border-slate-800 p-4 flex items-center gap-4">
+      <div className="bg-slate-900 border-b border-slate-800 p-4 flex items-center gap-2 sm:gap-4">
         <button
           onClick={onClose}
-          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
+          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all shrink-0"
         >
           <ArrowLeft size={20} />
         </button>
-        <div onClick={onClose} className="cursor-pointer flex-grow">
+        <div onClick={onClose} className="cursor-pointer flex-grow min-w-0">
           <h2 className="text-lg font-black text-white">ストック一覧</h2>
-          <p className="text-xs text-slate-500">計量後にOK/NGを付けて学習データに</p>
+          <p className="text-xs text-slate-500 hidden sm:block">計量後にOK/NGを付けて学習データに</p>
         </div>
+        {/* 新規追加ボタン */}
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-all shrink-0"
+        >
+          <Plus size={18} />
+          <span className="hidden sm:inline">追加</span>
+        </button>
         {/* Excel出力ボタン */}
         <button
           onClick={() => setShowExportModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-all"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl transition-all shrink-0"
         >
           <FileSpreadsheet size={18} />
-          <span className="hidden sm:inline">産廃Excel</span>
+          <span className="hidden sm:inline">Excel</span>
           <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
             {items.filter(i => i.actualTonnage).length}
           </span>
@@ -434,6 +554,120 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
           </>
         )}
       </div>
+
+      {/* 新規追加モーダル */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md border border-slate-700 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-black text-white mb-4">
+              新規エントリー追加
+            </h3>
+
+            <div className="space-y-4 mb-6">
+              {/* 画像選択 */}
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">画像（任意）</label>
+                {newImageUrl ? (
+                  <div className="relative">
+                    <img
+                      src={newImageUrl}
+                      className="w-full h-40 object-contain bg-slate-900 rounded-xl border border-slate-600"
+                      alt="Preview"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute bottom-2 right-2 flex items-center gap-2 px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-white text-sm font-bold rounded-lg transition-all border border-slate-600"
+                    >
+                      <ImagePlus size={16} />
+                      変更
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-32 border-2 border-dashed border-slate-600 rounded-xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-500 hover:text-blue-400 transition-colors"
+                  >
+                    <Camera size={28} />
+                    <span className="text-sm">画像を選択</span>
+                  </button>
+                )}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleNewImageSelect}
+                  accept="image/*"
+                  className="hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">実測トン数</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={newTonnage}
+                    onChange={(e) => setNewTonnage(e.target.value)}
+                    placeholder="例: 3.5"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">最大積載量</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={newMaxCapacity}
+                    onChange={(e) => setNewMaxCapacity(e.target.value)}
+                    placeholder="例: 4.0"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">メモ（車番など）</label>
+                <input
+                  type="text"
+                  value={newMemo}
+                  onChange={(e) => setNewMemo(e.target.value)}
+                  placeholder="例: ○○建設 4tダンプ"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">マニフェスト番号</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={newManifestNumber}
+                  onChange={(e) => setNewManifestNumber(e.target.value.replace(/\D/g, ''))}
+                  placeholder="数字のみ"
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                onClick={resetAddForm}
+                className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-xl transition-all"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleAddEntry}
+                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={18} />
+                追加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Excel出力モーダル */}
       {showExportModal && (
