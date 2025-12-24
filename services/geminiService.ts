@@ -307,12 +307,13 @@ export const analyzeGaraImageEnsemble = async (
   return results;
 };
 
-// 特徴抽出：正解付き画像から100kg精度推定に有効なパラメータを抽出
+// 特徴抽出：正解付き画像から積載物パラメータを抽出
 export const extractFeatures = async (
   base64Image: string,
   actualTonnage: number,
   tag: 'OK' | 'NG',
-  maxCapacity?: number
+  maxCapacity?: number,
+  vehicleName?: string  // 登録車両名（マッチ済みの場合）
 ): Promise<{ features: ExtractedFeature[]; rawResponse: string }> => {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -321,12 +322,55 @@ export const extractFeatures = async (
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const prompt = `
+  // 車両情報が既知かどうかでプロンプトを分岐
+  const vehicleKnown = !!(maxCapacity && vehicleName);
+
+  const prompt = vehicleKnown ? `
+あなたは積載量推定の専門家です。
+
+【既知データ】
+- 車両: ${vehicleName}
+- 最大積載量: ${maxCapacity}t
+- 実測重量: ${actualTonnage}t（${tag === 'OK' ? '適正積載' : '過積載'}）
+
+【重量計算式】
+重量(t) = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
+
+■ 素材別密度（固定値）
+- 土砂: 1.8 t/m³
+- As殻（アスファルトガラ）: 2.5 t/m³
+- Co殻（コンクリートガラ）: 2.5 t/m³
+- 開粒度As殻: 2.35 t/m³
+
+■ 空隙率: 10〜30%（積込状態により変動）
+
+【タスク】
+車両データは既知なので、積載物のパラメータのみ抽出してください。
+
+【出力形式】JSON配列
+[
+  {
+    "parameterName": "パラメータ名",
+    "value": 数値または文字列,
+    "unit": "単位（あれば）",
+    "description": "このパラメータの意味",
+    "reference": "測定基準"
+  }
+]
+
+【抽出パラメータ】
+- material_type: 積載物の種類（土砂/As殻/Co殻/開粒度As殻/混合）
+- load_height_ratio: 後板高さに対する積載高さの比率
+- apparent_volume_m3: 見かけ体積の推定値（m³）
+- void_ratio: 空隙率の推定値（0.10〜0.30）
+- surface_profile: 表面形状（flat/mounded/peaked）
+
+【検証】
+見かけ体積 × 密度 × (1-空隙率) ≒ ${actualTonnage}t になるか確認
+` : `
 あなたは積載量推定の専門家です。
 この画像は実測 ${actualTonnage}t で、${tag === 'OK' ? '適正積載' : '過積載'}と判定されました。
 ${maxCapacity ? `最大積載量は ${maxCapacity}t です。` : ''}
-
-【重要】すべての回答は日本語で行ってください。
 
 【重量計算式】
 重量(t) = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
@@ -344,8 +388,7 @@ ${maxCapacity ? `最大積載量は ${maxCapacity}t です。` : ''}
 → 画像内のプレート幅ピクセル数を基準に実寸を換算
 
 【タスク】
-この画像から、実測${actualTonnage}tを再現するために必要な視覚的パラメータを抽出してください。
-上記の計算式に当てはめて逆算が可能な形で記録します。
+この画像から、実測${actualTonnage}tを再現するために必要なパラメータを抽出してください。
 
 【出力形式】JSON配列
 [
@@ -369,7 +412,7 @@ ${maxCapacity ? `最大積載量は ${maxCapacity}t です。` : ''}
 - surface_profile: 表面形状（flat/mounded/peaked）
 
 【検証】
-抽出したパラメータで計算: 見かけ体積 × 密度 × (1-空隙率) ≒ ${actualTonnage}t になるか確認
+見かけ体積 × 密度 × (1-空隙率) ≒ ${actualTonnage}t になるか確認
 `;
 
   const response = await ai.models.generateContent({

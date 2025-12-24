@@ -29,7 +29,8 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
         item.base64Images[0],
         item.actualTonnage,
         status as 'OK' | 'NG',
-        item.maxCapacity
+        item.maxCapacity,
+        item.memo  // 車両名（メモに入力されている場合）
       );
       onUpdate(item.id, {
         extractedFeatures: features,
