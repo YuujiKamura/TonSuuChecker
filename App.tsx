@@ -5,6 +5,7 @@ import ImageUploader from './components/ImageUploader';
 import CameraCapture from './components/CameraCapture';
 import CaptureChoice from './components/CaptureChoice';
 import StockList from './components/StockList';
+import ReportView from './components/ReportView';
 import Settings from './components/Settings';
 import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
@@ -15,7 +16,7 @@ import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage } from './types';
-import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck } from 'lucide-react';
+import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -61,6 +62,7 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showReferenceSettings, setShowReferenceSettings] = useState(false);
   const [showApiKeySetup, setShowApiKeySetup] = useState(false);
+  const [showReportView, setShowReportView] = useState(false);
   const [pendingAnalysis, setPendingAnalysis] = useState<{base64s: string[], urls: string[], capacity?: number} | null>(null);
 
   // 最大積載量
@@ -361,7 +363,7 @@ const App: React.FC = () => {
         onCostClick={() => setShowCostDashboard(true)}
       />
       
-      <main className="flex-grow relative overflow-x-hidden overflow-y-auto">
+      <main className="flex-grow min-h-0 relative overflow-x-hidden overflow-y-auto">
         {/* カメラモーダル */}
         {showCamera && (
           <CameraCapture
@@ -411,11 +413,19 @@ const App: React.FC = () => {
             {/* ツールバー */}
             <div className="mb-4 flex items-center gap-2 sm:gap-3">
               <button
+                onClick={() => setShowReportView(true)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-500 transition-all"
+              >
+                <FileSpreadsheet size={16} />
+                <span>集計表</span>
+                <span className="bg-emerald-700 px-2 py-0.5 rounded-full text-xs">{stockItems.filter(i => i.manifestNumber || i.actualTonnage).length}</span>
+              </button>
+              <button
                 onClick={() => setShowStockList(true)}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
               >
                 <Archive size={16} />
-                <span>ストック一覧</span>
+                <span className="hidden sm:inline">ストック</span>
                 <span className="bg-slate-700 px-2 py-0.5 rounded-full text-xs">{stockItems.length}</span>
               </button>
               <button
@@ -423,7 +433,7 @@ const App: React.FC = () => {
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
               >
                 <Truck size={16} />
-                <span>車両登録</span>
+                <span className="hidden sm:inline">車両</span>
               </button>
               <button
                 onClick={() => setShowSettings(true)}
@@ -619,6 +629,44 @@ const App: React.FC = () => {
             }
           }}
           onClose={() => setShowStockList(false)}
+        />
+      )}
+
+      {/* 帳票モード */}
+      {showReportView && (
+        <ReportView
+          items={stockItems}
+          onAdd={(item) => {
+            saveStockItem(item);
+            setStockItems(getStockItems());
+          }}
+          onUpdate={(id, updates) => {
+            updateStockItem(id, updates);
+            setStockItems(getStockItems());
+          }}
+          onDelete={(id) => {
+            if (confirm('このエントリーを削除しますか？')) {
+              deleteStockItem(id);
+              setStockItems(getStockItems());
+            }
+          }}
+          onClose={() => setShowReportView(false)}
+          onAnalyze={(item) => {
+            setShowReportView(false);
+            requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
+          }}
+          onViewResult={(item) => {
+            const latestEstimation = item.estimations && item.estimations.length > 0
+              ? item.estimations[0]
+              : item.result;
+            if (latestEstimation) {
+              setCurrentResult(latestEstimation);
+              setCurrentId(item.id);
+              setCurrentImageUrls(item.imageUrls);
+              setCurrentBase64Images(item.base64Images);
+              setShowReportView(false);
+            }
+          }}
         />
       )}
 

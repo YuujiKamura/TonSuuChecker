@@ -36,9 +36,14 @@ const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onComplete, onCancel }) => {
             <span className="w-6 h-6 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">1</span>
             <span className="text-sm font-bold text-white">キーを取得する</span>
           </div>
-          <p className="text-xs text-slate-400 mb-3">
-            下のボタンからGoogle AI Studioを開き、「キーを作成」してコピーしてください。
-          </p>
+          <div className="text-xs text-slate-400 mb-3 space-y-1.5">
+            <p>下のボタンからGoogle AI Studioを開きます。</p>
+            <div className="bg-slate-900/50 rounded-lg p-2 space-y-1">
+              <p className="text-slate-300">① Googleアカウントでログイン</p>
+              <p className="text-slate-300">②「<span className="text-blue-400 font-bold">APIキーを作成</span>」をクリック</p>
+              <p className="text-slate-300">③ 表示されたキーをコピー</p>
+            </div>
+          </div>
           <a
             href="https://aistudio.google.com/app/apikey"
             target="_blank"
@@ -51,10 +56,13 @@ const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onComplete, onCancel }) => {
 
         {/* ステップ2: キーを貼り付け */}
         <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <span className="w-6 h-6 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">2</span>
             <span className="text-sm font-bold text-white">コピーしたキーを貼り付け</span>
           </div>
+          <p className="text-[10px] text-slate-500 mb-2">
+            キーは <span className="text-yellow-400 font-mono">AIza...</span> で始まる39文字の文字列です
+          </p>
           <div className="flex items-center gap-2">
             <Key size={18} className="text-slate-500 shrink-0" />
             <input
@@ -62,7 +70,7 @@ const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onComplete, onCancel }) => {
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="AIza..."
-              className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
+              className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm font-mono"
             />
           </div>
         </div>

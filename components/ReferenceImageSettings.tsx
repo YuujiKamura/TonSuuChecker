@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Truck, Plus, Trash2, Camera, FileText, Loader2, Pencil } from 'lucide-react';
+import { ArrowLeft, Truck, Plus, Trash2, Camera, FileText, Loader2, Pencil } from 'lucide-react';
 import { getReferenceImages, addVehicle, updateVehicle, deleteVehicle, RegisteredVehicle } from '../services/referenceImages';
 import { analyzeShaken } from '../services/shakenAnalyzer';
 import { convertPdfToImage, isPdf } from '../services/pdfConverter';
@@ -335,14 +335,15 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-black text-white flex items-center gap-3">
-            <Truck className="text-blue-500" size={24} />
-            車両登録
-          </h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-white">
-            <X size={24} />
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all shrink-0"
+          >
+            <ArrowLeft size={20} />
           </button>
+          <Truck className="text-blue-500 shrink-0" size={24} />
+          <h2 className="text-xl font-black text-white">車両登録</h2>
         </div>
         {content}
       </div>

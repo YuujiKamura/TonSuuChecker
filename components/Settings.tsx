@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, Cloud, Truck, Cpu, Gauge, Zap, BrainCircuit, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Key, Cloud, Truck, Cpu, Gauge, Zap, BrainCircuit, ExternalLink } from 'lucide-react';
 import { getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from '../services/geminiService';
 import SyncSettings from './SyncSettings';
 import ReferenceImageSettings from './ReferenceImageSettings';
@@ -64,11 +64,14 @@ const Settings: React.FC<SettingsProps> = ({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
         {/* ヘッダー */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 className="text-lg font-black text-white">設定</h2>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white transition-colors">
-            <X size={24} />
+        <div className="flex items-center gap-3 p-4 border-b border-slate-800">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all shrink-0"
+          >
+            <ArrowLeft size={20} />
           </button>
+          <h2 className="text-lg font-black text-white">設定</h2>
         </div>
 
         {/* タブ */}

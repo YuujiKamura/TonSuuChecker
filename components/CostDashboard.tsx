@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { DollarSign, TrendingUp, Zap, Trash2, X } from 'lucide-react';
+import { DollarSign, TrendingUp, Zap, Trash2, ArrowLeft } from 'lucide-react';
 import { getTotalCost, getTodayCost, getDailyCosts, getModelBreakdown, clearCostHistory, getCostHistory, formatCost, getCurrency } from '../services/costTracker';
 import { isGoogleAIStudioKey } from '../services/geminiService';
 
@@ -58,21 +58,22 @@ const CostDashboard: React.FC<CostDashboardProps> = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-black text-white flex items-center gap-3">
-              <DollarSign className="text-green-500" size={24} />
-              APIコスト履歴
-            </h2>
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all shrink-0"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <DollarSign className="text-green-500 shrink-0" size={24} />
+            <h2 className="text-xl font-black text-white">APIコスト履歴</h2>
             {isFreeTier && (
-              <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full text-xs font-bold text-green-400 flex items-center gap-1">
-                🆓 無料枠使用中
+              <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full text-xs font-bold text-green-400 shrink-0">
+                🆓 無料枠
               </span>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white">
-            <X size={24} />
-          </button>
         </div>
 
         {/* サマリーカード */}
