@@ -217,7 +217,7 @@ const App: React.FC = () => {
         abortSignal,
         isAuto ? 'gemini-flash-lite-latest' : selectedModel,
         getTaggedItems(),
-        isAuto ? undefined : (capacityOverride !== undefined ? capacityOverride : maxCapacity)
+        isAuto ? undefined : capacityOverride  // capacityOverrideを直接使用（stateのフォールバックはしない）
       );
 
       if (activeRequestId.current !== requestId) return;
@@ -290,7 +290,7 @@ const App: React.FC = () => {
                 timestamp: Date.now(),
                 base64Images: base64s,
                 imageUrls: urls,
-                maxCapacity: capacityOverride !== undefined ? capacityOverride : maxCapacity,
+                maxCapacity: capacityOverride,  // ユーザー指定値のみ保存（stateフォールバックなし）
                 result: merged, // 最新の推定結果（後方互換性）
                 estimations: [merged], // 推定結果の履歴（ランごとに追加）
               };
