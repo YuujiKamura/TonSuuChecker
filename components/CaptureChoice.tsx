@@ -19,24 +19,31 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex flex-col">
-      <div className="flex-grow flex items-center justify-center p-4">
-        <div className="relative max-w-2xl w-full">
-          <img
-            src={imageUrl}
-            className="w-full rounded-3xl border-4 border-slate-700 shadow-2xl"
-            alt="Captured"
-          />
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 overflow-y-auto">
+      <div className="min-h-full flex flex-col">
+        {/* 閉じるボタン（固定） */}
+        <div className="sticky top-0 z-10 p-4 flex justify-end">
           <button
             onClick={onCancel}
-            className="absolute top-4 right-4 p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all"
+            className="p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all"
           >
             <X size={24} />
           </button>
         </div>
-      </div>
 
-      <div className="p-6 pb-12 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800">
+        {/* 画像エリア */}
+        <div className="flex-shrink-0 px-4 pb-4">
+          <div className="max-w-2xl mx-auto">
+            <img
+              src={imageUrl}
+              className="w-full max-h-[40vh] object-contain rounded-3xl border-4 border-slate-700 shadow-2xl"
+              alt="Captured"
+            />
+          </div>
+        </div>
+
+        {/* 選択肢エリア */}
+        <div className="flex-1 p-6 pb-12 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800">
         <p className="text-center text-slate-400 text-sm mb-4">この画像をどうしますか？</p>
         
         {/* 最大積載量入力 */}
@@ -102,6 +109,7 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
               </div>
             </button>
           )}
+        </div>
         </div>
       </div>
     </div>
