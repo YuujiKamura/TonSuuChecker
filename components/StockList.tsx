@@ -13,6 +13,30 @@ interface StockListProps {
   onClose: () => void;
 }
 
+// キャッシュキー
+const EXPORT_CONFIG_CACHE_KEY = 'tonsuuChecker_exportConfig';
+
+// キャッシュから読み込み
+const loadExportConfig = () => {
+  try {
+    const cached = localStorage.getItem(EXPORT_CONFIG_CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    console.error('キャッシュ読み込みエラー:', e);
+  }
+  return {
+    wasteType: 'アスファルト殻',
+    destination: '',
+    unit: 'ｔ',
+    projectNumber: '',
+    projectName: '',
+    contractorName: '',
+    siteManager: ''
+  };
+};
+
 const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnalyze, onViewResult, onClose }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTonnage, setEditTonnage] = useState('');
@@ -22,11 +46,18 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [showFeatures, setShowFeatures] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportConfig, setExportConfig] = useState({
-    wasteType: 'アスファルト殻',
-    destination: '',
-    unit: 'ｔ'
-  });
+  const [exportConfig, setExportConfig] = useState(loadExportConfig);
+
+  // exportConfigが変更されたらキャッシュに保存
+  const updateExportConfig = (updates: Partial<typeof exportConfig>) => {
+    const newConfig = { ...exportConfig, ...updates };
+    setExportConfig(newConfig);
+    try {
+      localStorage.setItem(EXPORT_CONFIG_CACHE_KEY, JSON.stringify(newConfig));
+    } catch (e) {
+      console.error('キャッシュ保存エラー:', e);
+    }
+  };
 
   const handleExtractFeatures = async (item: StockItem) => {
     const status = getJudgmentStatus(item);
@@ -407,7 +438,7 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
       {/* Excel出力モーダル */}
       {showExportModal && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md border border-slate-700">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md border border-slate-700 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-black text-white mb-4">
               産廃集計表を出力
             </h3>
@@ -416,12 +447,57 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
             </p>
 
             <div className="space-y-4 mb-6">
+              {/* 工事情報 */}
+              <div className="border-b border-slate-700 pb-4 mb-4">
+                <p className="text-xs text-slate-500 mb-3">工事情報</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">工事番号</label>
+                    <input
+                      type="text"
+                      value={exportConfig.projectNumber}
+                      onChange={(e) => updateExportConfig({ projectNumber: e.target.value })}
+                      placeholder="例: 2024-001"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">受注者名</label>
+                    <input
+                      type="text"
+                      value={exportConfig.contractorName}
+                      onChange={(e) => updateExportConfig({ contractorName: e.target.value })}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs text-slate-400 mb-1">工事名</label>
+                  <input
+                    type="text"
+                    value={exportConfig.projectName}
+                    onChange={(e) => updateExportConfig({ projectName: e.target.value })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs text-slate-400 mb-1">現場代理人</label>
+                  <input
+                    type="text"
+                    value={exportConfig.siteManager}
+                    onChange={(e) => updateExportConfig({ siteManager: e.target.value })}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* 廃棄物情報 */}
               <div>
                 <label className="block text-sm text-slate-400 mb-1">廃棄物の種類</label>
                 <input
                   type="text"
                   value={exportConfig.wasteType}
-                  onChange={(e) => setExportConfig({ ...exportConfig, wasteType: e.target.value })}
+                  onChange={(e) => updateExportConfig({ wasteType: e.target.value })}
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -430,7 +506,7 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                 <input
                   type="text"
                   value={exportConfig.destination}
-                  onChange={(e) => setExportConfig({ ...exportConfig, destination: e.target.value })}
+                  onChange={(e) => updateExportConfig({ destination: e.target.value })}
                   placeholder="例: ○○処理センター"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
                 />
@@ -439,7 +515,7 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                 <label className="block text-sm text-slate-400 mb-1">単位</label>
                 <select
                   value={exportConfig.unit}
-                  onChange={(e) => setExportConfig({ ...exportConfig, unit: e.target.value })}
+                  onChange={(e) => updateExportConfig({ unit: e.target.value })}
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
                 >
                   <option value="ｔ">ｔ（トン）</option>
@@ -453,7 +529,12 @@ const StockList: React.FC<StockListProps> = ({ items, onUpdate, onDelete, onAnal
                 onClick={async () => {
                   await exportWasteReportFromStock(
                     items,
-                    {}, // 工事情報は空（必要に応じて別途設定可能）
+                    {
+                      projectNumber: exportConfig.projectNumber,
+                      projectName: exportConfig.projectName,
+                      contractorName: exportConfig.contractorName,
+                      siteManager: exportConfig.siteManager
+                    },
                     `産廃集計表_${new Date().toISOString().split('T')[0]}.xlsx`,
                     exportConfig.wasteType,
                     exportConfig.destination,

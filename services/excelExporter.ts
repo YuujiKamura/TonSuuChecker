@@ -251,35 +251,54 @@ const createWorksheet = (
     rowIndex++;
   });
 
-  // 合計行
-  let lastDataRow = entries.length > 0 ? rowIndex - 1 : 9; // データがない場合はヘッダーまで
-  if (entries.length > 0) {
-    ws.getRow(rowIndex).height = 21;
+  // 最小20行のデータ行を確保（空行含む）
+  const MIN_DATA_ROWS = 20;
+  const dataRowCount = Math.max(entries.length, MIN_DATA_ROWS);
 
-    // 合計ラベル
-    ws.mergeCells(`B${rowIndex}:F${rowIndex}`);
-    const sumLabelCell = ws.getCell(`B${rowIndex}`);
-    sumLabelCell.value = '合　計';
-    sumLabelCell.font = headerFont;
-    sumLabelCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  // 空行を追加（データがない行にも罫線を適用するため）
+  for (let i = entries.length; i < dataRowCount; i++) {
+    const emptyRowIndex = 10 + i;
+    ws.getRow(emptyRowIndex).height = 21;
 
-    // 合計値
-    const sumCell = ws.getCell(`G${rowIndex}`);
-    sumCell.value = totalAmount;
-    sumCell.numFmt = '#,##0.00';
-    sumCell.font = headerFont;
-    sumCell.alignment = { horizontal: 'right', vertical: 'middle' };
+    // 通番号だけ入れる
+    const cellB = ws.getCell(`B${emptyRowIndex}`);
+    cellB.value = i + 1;
+    cellB.font = dataFont;
+    cellB.alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // 空セル
-    ['H', 'I'].forEach(col => {
-      ws.getCell(`${col}${rowIndex}`).font = headerFont;
+    // 他のセルにもスタイルを適用
+    ['C', 'D', 'E', 'F', 'G', 'H', 'I'].forEach(col => {
+      const cell = ws.getCell(`${col}${emptyRowIndex}`);
+      cell.font = dataFont;
+      cell.alignment = dataAlignment;
     });
-
-    lastDataRow = rowIndex;
   }
 
-  // 最後に罫線を適用（ヘッダー8行目から最終データ行まで）
-  for (let r = 8; r <= lastDataRow; r++) {
+  // 合計行（データ行の下）
+  const sumRowIndex = 10 + dataRowCount;
+  ws.getRow(sumRowIndex).height = 21;
+
+  // 合計ラベル
+  ws.mergeCells(`B${sumRowIndex}:F${sumRowIndex}`);
+  const sumLabelCell = ws.getCell(`B${sumRowIndex}`);
+  sumLabelCell.value = '合　計';
+  sumLabelCell.font = headerFont;
+  sumLabelCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  // 合計値
+  const sumCell = ws.getCell(`G${sumRowIndex}`);
+  sumCell.value = totalAmount;
+  sumCell.numFmt = '#,##0.00';
+  sumCell.font = headerFont;
+  sumCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+  // 空セル
+  ['H', 'I'].forEach(col => {
+    ws.getCell(`${col}${sumRowIndex}`).font = headerFont;
+  });
+
+  // 最後に罫線を適用（ヘッダー8行目から合計行まで）
+  for (let r = 8; r <= sumRowIndex; r++) {
     ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].forEach(col => {
       const cell = ws.getCell(`${col}${r}`);
       cell.border = allBorders;
