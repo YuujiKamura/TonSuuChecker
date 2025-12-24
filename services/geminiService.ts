@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
-import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, getJudgmentStatus } from "../types";
+import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
@@ -21,7 +21,6 @@ const getMode = (arr: any[]) => {
 async function runSingleInference(
   ai: any,
   imageParts: any[],
-  learningContext: any[],
   modelName: string,
   maxCapacity?: number,
   runIndex: number = 0
@@ -81,7 +80,7 @@ ${maxCapacityInstruction}
   const response = await ai.models.generateContent({
     model: modelName,
     contents: {
-      parts: [...learningContext, ...imageParts, { text: promptText }],
+      parts: [...imageParts, { text: promptText }],  // 学習コンテキストなし、純粋な画像推論
     },
     config: {
       systemInstruction: SYSTEM_PROMPT,
@@ -219,11 +218,11 @@ export const detectApiKeySource = async (): Promise<'google_ai_studio' | 'other'
 export const analyzeGaraImageEnsemble = async (
   base64Images: string[],
   targetCount: number,
-  learningData: AnalysisHistory[] = [],
+  _learningData: AnalysisHistory[] = [],  // 未使用（純粋アンサンブルのため）
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview',
-  taggedStock: StockItem[] = [],
+  _taggedStock: StockItem[] = [],  // 未使用（純粋アンサンブルのため）
   maxCapacity?: number
 ): Promise<EstimationResult[]> => {
   const apiKey = getApiKey();
@@ -231,29 +230,9 @@ export const analyzeGaraImageEnsemble = async (
     throw new Error('APIキーが設定されていません');
   }
   const ai = new GoogleGenAI({ apiKey });
-  // 実測データからの学習
-  const historyContext = learningData
-    .filter(h => h.actualTonnage !== undefined)
-    .slice(0, 3)
-    .map(h => ({
-      text: `学習: ${h.result.licenseNumber} -> 実測${h.actualTonnage}t`
-    }));
 
-  // 特徴抽出済みストックからの学習（パラメータベース）
-  const featureContext = taggedStock
-    .filter(s => s.extractedFeatures && s.extractedFeatures.length > 0 && s.actualTonnage)
-    .slice(0, 3)
-    .map(s => {
-      const featureStr = s.extractedFeatures!
-        .map(f => `${f.parameterName}=${f.value}${f.unit || ''}`)
-        .join(', ');
-      const status = getJudgmentStatus(s);
-      return {
-        text: `【参考データ】実測${s.actualTonnage}t（${status === 'OK' ? '適正' : '過積載'}）の特徴: ${featureStr}`
-      };
-    });
-
-  const learningContext = [...historyContext, ...featureContext];
+  // 純粋アンサンブル: 各ランは画像のみから独立して推論
+  // 過去データとの比較は結果表示時に行う（推論には影響させない）
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: { mimeType: 'image/jpeg', data: base64 }
@@ -265,7 +244,7 @@ export const analyzeGaraImageEnsemble = async (
     if (abortSignal?.cancelled) break;
 
     try {
-      const res = await runSingleInference(ai, imageParts, learningContext, modelName, maxCapacity, i);
+      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i);
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];
