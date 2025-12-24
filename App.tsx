@@ -6,6 +6,7 @@ import CameraCapture from './components/CameraCapture';
 import CaptureChoice from './components/CaptureChoice';
 import StockList from './components/StockList';
 import SyncSettings from './components/SyncSettings';
+import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation } from './services/stockService';
@@ -13,7 +14,7 @@ import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from './services/geminiService';
 import { EstimationResult, StockItem } from './types';
-import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud, Scale } from 'lucide-react';
+import { Camera, Eye, Cpu, Zap, BrainCircuit, Gauge, Terminal, RefreshCcw, Activity, ListChecks, AlertCircle, CheckCircle2, Search, ZapOff, Key, X, DollarSign, Archive, Cloud, Scale, Truck } from 'lucide-react';
 
 interface LogEntry {
   id: string;
@@ -59,6 +60,7 @@ const App: React.FC = () => {
   const [showStockList, setShowStockList] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
+  const [showReferenceSettings, setShowReferenceSettings] = useState(false);
 
   // 最大積載量
   const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
@@ -350,6 +352,7 @@ const App: React.FC = () => {
     setShowCostDashboard(false);
     setShowStockList(false);
     setShowSyncSettings(false);
+    setShowReferenceSettings(false);
   };
 
   return (
@@ -438,6 +441,13 @@ const App: React.FC = () => {
                 className="flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
               >
                 <Cloud size={16} />
+              </button>
+              <button
+                onClick={() => setShowReferenceSettings(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 transition-all"
+                title="車両登録"
+              >
+                <Truck size={16} />
               </button>
               {hasApiKey && (
                 <button
@@ -751,9 +761,14 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <SyncSettings 
-        isOpen={showSyncSettings} 
-        onClose={() => setShowSyncSettings(false)} 
+      <SyncSettings
+        isOpen={showSyncSettings}
+        onClose={() => setShowSyncSettings(false)}
+      />
+
+      <ReferenceImageSettings
+        isOpen={showReferenceSettings}
+        onClose={() => setShowReferenceSettings(false)}
       />
 
       <footer className="bg-slate-950 border-t border-slate-900 p-4 text-center z-50">

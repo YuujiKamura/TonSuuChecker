@@ -2,6 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
 import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature } from "../types";
 import { SYSTEM_PROMPT } from "../constants";
+import { getReferenceImages } from './referenceImages';
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
 const checkIsFreeTier = (): boolean => {
@@ -25,6 +26,20 @@ async function runSingleInference(
   maxCapacity?: number,
   runIndex: number = 0
 ): Promise<EstimationResult> {
+  // 参考画像を取得
+  const referenceImages = getReferenceImages();
+  const refImageParts: any[] = [];
+  let refImagePrompt = '';
+
+  if (referenceImages.length > 0) {
+    refImagePrompt = '\n【登録車両】以下は登録済み車両の画像です。解析対象の車両と比較して、最も近い車両を特定し、その最大積載量を参考にしてください。\n';
+    referenceImages.forEach((ref, idx) => {
+      const mimeType = ref.mimeType || 'image/jpeg';
+      refImageParts.push({ inlineData: { mimeType, data: ref.base64 } });
+      refImagePrompt += `- 登録車両${idx + 1}: ${ref.name}（最大積載量: ${ref.maxCapacity}t）\n`;
+    });
+  }
+
   const maxCapacityInstruction = maxCapacity
     ? `【重要】この車両の最大積載量は${maxCapacity}トンです。estimatedMaxCapacityには${maxCapacity}を設定してください。`
     : `【最大積載量の推定 - 実寸法に基づく判定基準】
@@ -53,11 +68,23 @@ async function runSingleInference(
 - キャビン長: 約2.5m（荷台の半分程度）
 - 特徴: 非常に高い車高、巨大なキャビン、後輪ダブルタイヤ
 
-【判別のポイント】
-1. 全幅: 1.7m未満→2t、2.2m程度→4t/8t/10t
-2. 車高: 2m未満→2t、2.5m程度→4t、3m超→8t/10t
-3. 後輪: シングル→2t/4t、ダブル→8t/10t
-4. タイヤ径: 人の膝程度→2t、腰程度→4t、胸程度→10t
+【判別のポイント - ナンバープレート幅を実測して基準にする】
+大型車ナンバープレート実寸: 幅440mm（44cm）
+
+■ 手順
+1. 画像内のナンバープレートの幅をピクセル単位で測定する
+2. そのピクセル数を44cmとして換算係数を求める
+3. 後板（あおり）の高さをピクセルで測定し、実寸に換算する
+
+■ 後板高さによる車両判定
+- 後板32cm以下 → 2tダンプ（ナンバー幅の約0.7倍）
+- 後板33-40cm → 4tダンプ（ナンバー幅の約0.8倍）
+- 後板45cm以上 → 8t/10tダンプ（ナンバー幅の約1.0倍以上）
+
+→ 後板がナンバー幅と同等以上なら8t以上、明らかに低ければ2t/4t
+
+■ その他の視覚的特徴
+- キャビンと荷台の比率: 2tは同程度、大型は荷台が長い
 
 【重要な注意】
 - ナンバープレートの分類番号（100, 130等）は車両サイズや積載量を示さない（希望ナンバーかどうかの区別のみ）
@@ -68,19 +95,38 @@ async function runSingleInference(
 
 ${maxCapacityInstruction}
 
+【重量計算の基準】
+重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
+
+■ 素材別密度（参考値）
+- 土砂: 1.8 t/m³
+- As殻（アスファルトガラ）: 2.5 t/m³
+- Co殻（コンクリートガラ）: 2.5 t/m³
+- 開粒度As殻: 2.35 t/m³
+
+■ 空隙率（10〜30%の範囲で見た目から判断）
+- 細かく砕けている、締まっている → 10〜15%
+- 標準的な状態 → 15〜20%
+- 塊が大きい、ゴロゴロしている → 20〜30%
+
 【推論ルール】
 - 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること
 - 荷台の埋まり具合、積載物の山の高さ、材質の見た目を根拠として明記すること
-- reasoningには「なぜその体積・重量と判断したか」を具体的な視覚的根拠と共に記述すること
+- reasoningには「体積」「適用した密度」「空隙率とその判断理由」を明記すること
 - maxCapacityReasoningには「なぜその最大積載量と判断したか」をキャビン比率・車高などの視覚的根拠で記述すること
 - 推論ラン#${runIndex + 1}: 毎回独自の視点で分析すること
-
+${refImagePrompt}
 すべての回答は日本語で行ってください。`;
 
   const response = await ai.models.generateContent({
     model: modelName,
     contents: {
-      parts: [...imageParts, { text: promptText }],  // 学習コンテキストなし、純粋な画像推論
+      parts: [
+        ...refImageParts,  // 参考画像（あれば）
+        { text: refImageParts.length > 0 ? '【解析対象の画像】' : '' },
+        ...imageParts,  // 解析対象の画像
+        { text: promptText }
+      ],
     },
     config: {
       systemInstruction: SYSTEM_PROMPT,
