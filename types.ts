@@ -51,6 +51,8 @@ export interface StockItem {
   maxCapacity?: number;  // 最大積載量
   memo?: string;
   manifestNumber?: string;  // マニフェスト伝票番号（数字のみ）
+  wasteType?: string;  // 廃棄物の種類（例: アスファルト殻）
+  destination?: string;  // 搬出先（処理施設名）
   // AI抽出特徴
   extractedFeatures?: ExtractedFeature[];
   featureRawResponse?: string;  // AIの生レスポンス（デバッグ用）

@@ -23,6 +23,8 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
   const [maxCapacity, setMaxCapacity] = useState('');
   const [memo, setMemo] = useState('');
   const [manifestNumber, setManifestNumber] = useState('');
+  const [wasteType, setWasteType] = useState('');
+  const [destination, setDestination] = useState('');
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -33,6 +35,8 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       setMaxCapacity(item.maxCapacity?.toString() || '');
       setMemo(item.memo || '');
       setManifestNumber(item.manifestNumber || '');
+      setWasteType(item.wasteType || '');
+      setDestination(item.destination || '');
       setImageBase64(item.base64Images[0] || null);
       setImageUrl(item.imageUrls[0] || null);
     }
