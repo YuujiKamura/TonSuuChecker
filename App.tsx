@@ -209,6 +209,14 @@ const App: React.FC = () => {
 
       if (activeRequestId.current !== requestId) return;
 
+      if (results.length === 0) {
+        // 結果が空の場合（全ての推論が失敗した場合）
+        if (!isAuto) {
+          setError('解析に失敗しました。画像を確認して再度お試しください。');
+        }
+        return;
+      }
+
       if (results.length > 0) {
         const merged = mergeResults(results);
         setIsRateLimited(false); // 成功すれば制限フラグを解除
