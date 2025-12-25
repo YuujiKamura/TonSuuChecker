@@ -83,6 +83,29 @@ export const VOID_RATIOS_PROMPT = Object.entries(VOID_RATIOS)
   .map(([, v]) => `- ${v.desc} → ${Math.round(v.min * 100)}〜${Math.round(v.max * 100)}%`)
   .join('\n');
 
+// バックホウ（油圧ショベル）バケット容量マスタ
+// ※山積容量（新JIS基準: 1:1勾配）
+export interface BucketSpec {
+  capacity: number;      // バケット山積容量 (m³)
+  machineClass: string;  // 機体クラス
+  typicalWeight: number; // 土砂換算重量 (t) ※密度1.8で計算
+}
+
+export const BUCKET_SPECS: Record<string, BucketSpec> = {
+  'コンマ1': { capacity: 0.1, machineClass: '3tクラス', typicalWeight: 0.15 },
+  'コンマ2': { capacity: 0.2, machineClass: '5tクラス', typicalWeight: 0.29 },
+  'コンマ25': { capacity: 0.25, machineClass: '7tクラス', typicalWeight: 0.36 },
+  'コンマ45': { capacity: 0.45, machineClass: '12tクラス', typicalWeight: 0.65 },
+  'コンマ7': { capacity: 0.7, machineClass: '20tクラス', typicalWeight: 1.0 },
+  'コンマ9': { capacity: 0.9, machineClass: '25tクラス', typicalWeight: 1.3 },
+};
+
+// バケット容量をプロンプト用テキストに変換
+export const BUCKET_SPECS_PROMPT = Object.entries(BUCKET_SPECS)
+  .map(([name, spec]) =>
+    `- ${name}（${spec.capacity}m³）: ${spec.machineClass}、土砂一杯で約${spec.typicalWeight}t`
+  ).join('\n');
+
 // 重量計算式プロンプト（共通）
 export const WEIGHT_FORMULA_PROMPT = `重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
 
@@ -111,14 +134,18 @@ export const SYSTEM_PROMPT = `あなたは建設廃棄物（ガラ）の重量�
    - 車種（2t, 4t, 10t等）の最大積載量と、荷台の埋まり具合（立米）、材質の比重を掛け合わせて算出。
 5. **状況認識 (CRITICAL)**:
    - バックホウ・ショベル・ユンボ等の重機が写っている場合は「積込作業中」と認識する。
-   - 積込作業中の場合:
-     - 荷台に実際に載っている量のみを estimatedVolumeM3 / estimatedTonnage に反映する。
-     - バケット内の土砂・ガラは荷台積載量には含めない（別途reasoningで言及可）。
-     - 荷台が空またはほぼ空の場合は estimatedTonnage を 0 または極めて低い値に設定する。
+   - 積込作業中の場合（estimatedVolumeM3 / estimatedTonnage には画像に写っている全体を反映）:
+     - バケット内に土砂・ガラがあれば、それも含めて推定する（写真に写っているものを推定するのが正解）
+     - バケットの規格（コンマ〇〇）を機体サイズから推定し、一杯あたりの容量・重量を計算に含める
+     - 荷台が空でもバケットに積載物があれば、その分を estimatedTonnage に反映する
    - reasoningには以下を必ず明記:
      - 現場の状況（積込作業中、待機中、搬出中など）
-     - 荷台の実際の積載状態（空、少量、半分、満載など）
-     - 重機のバケット内容物がある場合はその観察結果
+     - 「荷台のみ」の推定値と「バケット込み」の推定値を両方記載
+     - バケットの推定規格（例: コンマ45）とその容量
+     - 最終的な estimatedTonnage がどの値を採用したか明記
+
+【バックホウ バケット容量の目安】
+${BUCKET_SPECS_PROMPT}
 
 必ず以下のJSONフォーマットで回答してください。すべての文字列フィールド（truckType, licensePlate, licenseNumber, materialType, reasoning, material等）は日本語で記述してください。
 {
