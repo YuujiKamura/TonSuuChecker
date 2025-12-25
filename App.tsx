@@ -209,14 +209,6 @@ const App: React.FC = () => {
 
       if (activeRequestId.current !== requestId) return;
 
-      if (results.length === 0) {
-        // 結果が空の場合（全ての推論が失敗した場合）
-        if (!isAuto) {
-          setError('解析に失敗しました。画像を確認して再度お試しください。');
-        }
-        return;
-      }
-
       if (results.length > 0) {
         const merged = mergeResults(results);
         setIsRateLimited(false); // 成功すれば制限フラグを解除
@@ -309,13 +301,24 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       if (activeRequestId.current !== requestId) return;
+      const message = err?.message || '';
+
       if (isQuotaError(err)) {
         setIsRateLimited(true);
         addLog("Quota Limit reached. Slowing down...", 'error');
         if (!isAuto) setError(QUOTA_ERROR_MESSAGE);
+      } else if (message.includes('API_KEY_INVALID') || message.includes('API key not valid')) {
+        addLog(`Error: Invalid API Key`, 'error');
+        if (!isAuto) setError('APIキーが無効です。設定から正しいキーを入力してください。');
+      } else if (message.includes('400') || message.includes('INVALID_ARGUMENT')) {
+        addLog(`Error: ${message}`, 'error');
+        if (!isAuto) setError('画像データが不正です。再撮影してください。');
+      } else if (message.includes('fetch') || message.includes('network') || message.includes('Failed to fetch')) {
+        addLog(`Error: Network error`, 'error');
+        if (!isAuto) setError('ネットワークエラーです。接続を確認してください。');
       } else {
-        addLog(`Error: ${err.message}`, 'error');
-        if (!isAuto) setError(`エラー: ${err.message}`);
+        addLog(`Error: ${message}`, 'error');
+        if (!isAuto) setError(`エラー: ${message}`);
       }
     } finally {
       if (activeRequestId.current === requestId) {
