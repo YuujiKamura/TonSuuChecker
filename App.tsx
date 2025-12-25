@@ -99,11 +99,14 @@ const App: React.FC = () => {
   };
 
   const steps = [
-    "画像を読み込み中...",
-    "車両・ナンバーを検知中...",
-    "荷姿・材質を特定中...",
-    "体積から重量を推計中...",
-    "AIアンサンブル統合中..."
+    "画像を解析準備中...",
+    "車両データベースを検索中...",
+    "メーカー・車種を特定中...",
+    "ナンバーから積載量を推定中...",
+    "荷台寸法を測定中...",
+    "積載物・材質を判定中...",
+    "重量を計算中...",
+    "AI推論を統合中..."
   ];
 
   // 履歴はストックから取得（解析結果があるアイテム）
@@ -115,7 +118,7 @@ const App: React.FC = () => {
       setAnalysisStep(0);
       interval = setInterval(() => {
         setAnalysisStep(prev => (prev < steps.length - 1 ? prev + 1 : prev));
-      }, 2000);
+      }, 1500);  // 8ステップ × 1.5秒 = 12秒
     }
     return () => clearInterval(interval);
   }, [loading, steps.length]);
