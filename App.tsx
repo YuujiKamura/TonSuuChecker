@@ -540,17 +540,6 @@ const App: React.FC = () => {
 
             {currentResult && !loading && !isTargetLocked && (
               <div className="pb-32 animate-in fade-in duration-700">
-                <div className="p-4 flex justify-between items-center mb-4">
-                  <button onClick={resetAnalysis} className="text-sm font-black text-slate-400 bg-slate-900 px-6 py-3 rounded-full border border-slate-800 flex items-center gap-3 active:scale-95 transition-all">
-                    <RefreshCcw size={16} /> 別の画像を解析
-                  </button>
-                  <div className="flex flex-col items-end">
-                    <span className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">
-                      ANALYSIS DONE (x{currentResult.ensembleCount})
-                    </span>
-                    <span className="text-[10px] font-black text-blue-500 uppercase">AI CONFIDENCE: {(currentResult.confidenceScore * 100).toFixed(0)}%</span>
-                  </div>
-                </div>
                 <AnalysisResult
                   result={currentResult}
                   imageUrls={currentImageUrls}
