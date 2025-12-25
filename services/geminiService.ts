@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
 import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage } from "../types";
-import { SYSTEM_PROMPT } from "../constants";
+import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT } from "../constants";
 import { getReferenceImages } from './referenceImages';
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
@@ -107,8 +107,17 @@ async function runSingleInference(
 
 ${maxCapacityInstruction}
 
+【車両規格別 荷台容積（基準値）】
+${TRUCK_SPECS_PROMPT}
+※ すり切り=あおり高さまで、山盛り=すり切り×1.3
+
 【重量計算の基準】
 重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
+
+■ 体積の判定方法
+1. 車両規格を特定し、上記の基準容積を参照
+2. 荷台の埋まり具合を目視で判定（例: すり切りの80%、山盛り等）
+3. 基準容積 × 埋まり具合 = 見かけ体積
 
 ■ 素材別密度（参考値）
 - 土砂: 1.8 t/m³
