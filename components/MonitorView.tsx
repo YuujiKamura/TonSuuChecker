@@ -30,7 +30,7 @@ const MonitorView: React.FC<MonitorViewProps> = ({ onDetected, isAnalyzing, isLo
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
         audio: false 
       });
       if (videoRef.current) {
@@ -106,7 +106,7 @@ const MonitorView: React.FC<MonitorViewProps> = ({ onDetected, isAnalyzing, isLo
     
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    const MAX_WIDTH = 800;
+    const MAX_WIDTH = 1280; // CALS 100万画素
     let width = video.videoWidth;
     let height = video.videoHeight;
     if (width > MAX_WIDTH) {
