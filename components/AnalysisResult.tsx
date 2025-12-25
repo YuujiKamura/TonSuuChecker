@@ -67,7 +67,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
   const [showChat, setShowChat] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // 解析IDが変わったら会話履歴を読み込む（ストックデータ優先）
   useEffect(() => {
@@ -91,10 +91,10 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatMessages, analysisId]); // onUpdateChatHistoryは依存から外す（無限ループ防止）
 
-  // チャットが更新されたら自動スクロール
+  // チャットが更新されたら自動スクロール（コンテナ内のみ）
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [chatMessages]);
 
@@ -421,7 +421,10 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
             )}
 
             {/* 会話履歴 */}
-            <div className="max-h-64 overflow-y-auto p-3 space-y-3">
+            <div
+              ref={chatContainerRef}
+              className="max-h-64 overflow-y-auto p-3 space-y-3 overscroll-contain touch-pan-y"
+            >
               {chatMessages.length === 0 && (
                 <div className="text-center py-4">
                   <Bot className="mx-auto text-slate-600 mb-2" size={32} />
@@ -489,7 +492,6 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
                   </div>
                 </div>
               )}
-              <div ref={chatEndRef} />
             </div>
 
             {/* 入力欄 */}
