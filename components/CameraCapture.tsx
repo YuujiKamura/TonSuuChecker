@@ -23,9 +23,14 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, isAna
       // 既存のストリームを停止
       stopCamera();
       
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 960 } },
-        audio: false 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 960 },
+          aspectRatio: { ideal: 4/3 }  // 横長（ランドスケープ）を優先
+        },
+        audio: false
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
