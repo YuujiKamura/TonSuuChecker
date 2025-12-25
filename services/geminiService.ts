@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
 import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage } from "../types";
-import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT } from "../constants";
+import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT } from "../constants";
 import { getReferenceImages } from './referenceImages';
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
@@ -112,23 +112,12 @@ ${TRUCK_SPECS_PROMPT}
 ※ すり切り=あおり高さまで、山盛り=すり切り×1.3
 
 【重量計算の基準】
-重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
+${WEIGHT_FORMULA_PROMPT}
 
 ■ 体積の判定方法
 1. 車両規格を特定し、上記の基準容積を参照
 2. 荷台の埋まり具合を目視で判定（例: すり切りの80%、山盛り等）
 3. 基準容積 × 埋まり具合 = 見かけ体積
-
-■ 素材別密度（参考値）
-- 土砂: 1.8 t/m³
-- As殻（アスファルトガラ）: 2.5 t/m³
-- Co殻（コンクリートガラ）: 2.5 t/m³
-- 開粒度As殻: 2.35 t/m³
-
-■ 空隙率（10〜30%の範囲で見た目から判断）
-- 細かく砕けている、締まっている → 10〜15%
-- 標準的な状態 → 15〜20%
-- 塊が大きい、ゴロゴロしている → 20〜30%
 
 【推論ルール】
 - 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること
@@ -361,15 +350,7 @@ export const extractFeatures = async (
 - 実測重量: ${actualTonnage}t（${tag === 'OK' ? '適正積載' : '過積載'}）
 
 【重量計算式】
-重量(t) = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
-
-■ 素材別密度（固定値）
-- 土砂: 1.8 t/m³
-- As殻（アスファルトガラ）: 2.5 t/m³
-- Co殻（コンクリートガラ）: 2.5 t/m³
-- 開粒度As殻: 2.35 t/m³
-
-■ 空隙率: 10〜30%（積込状態により変動）
+${WEIGHT_FORMULA_PROMPT}
 
 【タスク】
 車両データは既知なので、積載物のパラメータのみ抽出してください。
@@ -400,15 +381,7 @@ export const extractFeatures = async (
 ${maxCapacity ? `最大積載量は ${maxCapacity}t です。` : ''}
 
 【重量計算式】
-重量(t) = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
-
-■ 素材別密度（固定値）
-- 土砂: 1.8 t/m³
-- As殻（アスファルトガラ）: 2.5 t/m³
-- Co殻（コンクリートガラ）: 2.5 t/m³
-- 開粒度As殻: 2.35 t/m³
-
-■ 空隙率: 10〜30%（積込状態により変動）
+${WEIGHT_FORMULA_PROMPT}
 
 【寸法測定の基準】
 大型車ナンバープレート幅: 440mm（44cm）
