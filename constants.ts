@@ -55,6 +55,43 @@ export const TRUCK_SPECS_PROMPT = Object.entries(TRUCK_SPECS)
     `- ${name}ダンプ: 荷台${spec.bedLength}m×${spec.bedWidth}m×${spec.bedHeight}m, すり切り${spec.levelVolume}m³, 山盛り${spec.heapVolume}m³, 最大積載${spec.maxCapacity}t`
   ).join('\n');
 
+// 素材別密度マスタ (t/m³)
+export const MATERIAL_DENSITIES: Record<string, number> = {
+  '土砂': 1.8,
+  'As殻': 2.5,
+  'アスファルトガラ': 2.5,
+  'Co殻': 2.5,
+  'コンクリートガラ': 2.5,
+  '開粒度As殻': 2.35,
+};
+
+// 素材密度をプロンプト用テキストに変換
+export const MATERIAL_DENSITIES_PROMPT = Object.entries(MATERIAL_DENSITIES)
+  .filter(([name]) => !name.includes('ガラ'))  // エイリアスは除外
+  .map(([name, density]) => `- ${name}: ${density} t/m³`)
+  .join('\n');
+
+// 空隙率基準マスタ
+export const VOID_RATIOS = {
+  tight: { min: 0.10, max: 0.15, desc: '細かく砕けている、締まっている' },
+  normal: { min: 0.15, max: 0.20, desc: '標準的な状態' },
+  loose: { min: 0.20, max: 0.30, desc: '塊が大きい、ゴロゴロしている' },
+};
+
+// 空隙率をプロンプト用テキストに変換
+export const VOID_RATIOS_PROMPT = Object.entries(VOID_RATIOS)
+  .map(([, v]) => `- ${v.desc} → ${Math.round(v.min * 100)}〜${Math.round(v.max * 100)}%`)
+  .join('\n');
+
+// 重量計算式プロンプト（共通）
+export const WEIGHT_FORMULA_PROMPT = `重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
+
+■ 素材別密度（参考値）
+${MATERIAL_DENSITIES_PROMPT}
+
+■ 空隙率（10〜30%の範囲で見た目から判断）
+${VOID_RATIOS_PROMPT}`;
+
 export const SYSTEM_PROMPT = `あなたは建設廃棄物（ガラ）の重量推論エキスパートです。
 監視カメラまたは手動撮影された画像から、荷台の荷姿を解析し重量を推定します。
 
