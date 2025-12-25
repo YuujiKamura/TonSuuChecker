@@ -148,6 +148,8 @@ ${userFeedback.map(msg => `${msg.role === 'user' ? 'ユーザー' : 'AI'}: ${msg
       responseMimeType: "application/json",
       temperature: 0.4,  // 推論のバリエーションを増やす
       topP: 0.95,
+      // Google Search Grounding: 車両・重機のスペックを外部検索で取得
+      tools: [{ googleSearch: {} }],
       responseSchema: {
         type: Type.OBJECT,
         properties: {
