@@ -88,7 +88,8 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
       // ストックデータにも保存
       onUpdateChatHistory?.(chatMessages);
     }
-  }, [chatMessages, analysisId, onUpdateChatHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatMessages, analysisId]); // onUpdateChatHistoryは依存から外す（無限ループ防止）
 
   // チャットが更新されたら自動スクロール
   useEffect(() => {
@@ -158,7 +159,10 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
       const answer = await askFollowUp(base64Images, result, chatMessages, question);
       setChatMessages(prev => [...prev, { role: 'assistant', content: answer }]);
     } catch (err: any) {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${err.message}` }]);
+      const errorMessage = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')
+        ? '⚠️ APIの利用制限に達しました。しばらく待ってから再度お試しください。'
+        : `エラー: ${err.message}`;
+      setChatMessages(prev => [...prev, { role: 'assistant', content: errorMessage }]);
     } finally {
       setIsAsking(false);
     }
