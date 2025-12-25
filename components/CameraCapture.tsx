@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Camera, X, RotateCcw } from 'lucide-react';
+import { Camera, X, RotateCcw, Smartphone } from 'lucide-react';
 
 interface CameraCaptureProps {
   onCapture: (base64: string, url: string) => void;
@@ -12,6 +12,20 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, isAna
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isReady, setIsReady] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
+
+  // 画面の向きを監視
+  useEffect(() => {
+    const handleResize = () => {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     startCamera();
@@ -132,6 +146,28 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, isAna
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
           <div className="bg-slate-900 px-8 py-4 rounded-2xl border border-blue-500">
             <span className="text-white font-bold animate-pulse">解析中...</span>
+          </div>
+        </div>
+      )}
+
+      {/* 横向きガイド（縦向きの場合に表示） */}
+      {isPortrait && !isAnalyzing && (
+        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20 pointer-events-none">
+          <div className="flex flex-col items-center gap-4 p-6 rounded-2xl">
+            <div className="relative">
+              <Smartphone size={64} className="text-white animate-pulse" style={{ transform: 'rotate(-90deg)' }} />
+              <div className="absolute -right-2 top-1/2 -translate-y-1/2">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-yellow-400 animate-bounce">
+                  <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+            <p className="text-white text-lg font-bold text-center">
+              スマホを横向きにしてください
+            </p>
+            <p className="text-slate-400 text-sm text-center">
+              横長の写真が撮影できます
+            </p>
           </div>
         </div>
       )}
