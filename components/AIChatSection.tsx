@@ -24,11 +24,22 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevMessageCountRef = useRef(chatMessages.length);
+  const isInitialLoadRef = useRef(true);
 
-  // 会話が更新されたらスクロール
+  // 新しいメッセージが追加されたときだけスクロール（初期読み込み時は除く）
   useEffect(() => {
-    if (messagesEndRef.current && showChat) {
+    const isNewMessage = chatMessages.length > prevMessageCountRef.current;
+    prevMessageCountRef.current = chatMessages.length;
+
+    // 初期読み込み完了後、新しいメッセージが追加されたときだけスクロール
+    if (messagesEndRef.current && showChat && isNewMessage && !isInitialLoadRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    // 初期読み込みフラグをオフにする
+    if (isInitialLoadRef.current && chatMessages.length > 0) {
+      isInitialLoadRef.current = false;
     }
   }, [chatMessages, showChat]);
 
