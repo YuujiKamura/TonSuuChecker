@@ -6,7 +6,9 @@ import ImagePicker from './ImagePicker';
 interface EntryEditFormProps {
   item: StockItem | null;
   isOpen: boolean;
+  isNew?: boolean;  // 新規作成モードかどうか
   onSave: (id: string, updates: Partial<StockItem>) => void;
+  onCreate?: (item: StockItem) => void;  // 新規作成時のコールバック
   onClose: () => void;
   onAnalyze?: (item: StockItem) => void;
   onViewResult?: (item: StockItem) => void;
@@ -22,7 +24,9 @@ const WASTE_TYPE_OPTIONS = [
 const EntryEditForm: React.FC<EntryEditFormProps> = ({
   item,
   isOpen,
+  isNew = false,
   onSave,
+  onCreate,
   onClose,
   onAnalyze,
   onViewResult
@@ -72,7 +76,15 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       updates.base64Images = [imageBase64];
       updates.imageUrls = [imageUrl];
     }
-    onSave(item.id, updates);
+
+    if (isNew && onCreate) {
+      // 新規作成モード: マージしたアイテムを作成して保存
+      const newItem: StockItem = { ...item, ...updates };
+      onCreate(newItem);
+    } else {
+      // 編集モード: 既存アイテムを更新
+      onSave(item.id, updates);
+    }
     onClose();
   };
 
