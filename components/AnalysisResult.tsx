@@ -276,6 +276,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
 
       {/* AIに質問セクション（別コンポーネント） */}
       <AIChatSection
+        key={analysisId}  // analysisId変更時に内部状態をリセット
         result={result}
         base64Images={base64Images}
         chatMessages={chatMessages}
