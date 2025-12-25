@@ -377,7 +377,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
                 )}
                 {item.manifestNumber && (
                   <span className="text-xs font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full">
-                    M#{item.manifestNumber}
+                    {item.manifestNumber}
                   </span>
                 )}
                 <span className="text-xs text-slate-500">
