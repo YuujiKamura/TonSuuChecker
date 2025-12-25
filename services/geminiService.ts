@@ -303,6 +303,7 @@ export const analyzeGaraImageEnsemble = async (
   }));
 
   const results: EstimationResult[] = [];
+  let lastError: Error | null = null;
 
   for (let i = 0; i < targetCount; i++) {
     if (abortSignal?.cancelled) break;
@@ -317,9 +318,15 @@ export const analyzeGaraImageEnsemble = async (
       results.push(res);
       saveCostEntry(modelName, imageParts.length, checkIsFreeTier());
       onProgress(results.length, res);
-    } catch (err) {
+    } catch (err: any) {
       console.error(`推論エラー #${i + 1}:`, err);
+      lastError = err;
     }
+  }
+
+  // 全ての推論が失敗した場合、最後のエラーをスロー
+  if (results.length === 0 && lastError) {
+    throw lastError;
   }
 
   return results;
