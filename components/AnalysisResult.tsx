@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
-import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check } from 'lucide-react';
+import { Truck, Layers, Info, CheckCircle2, Save, Scale, Edit2, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import AIChatSection from './AIChatSection';
 
 interface AnalysisResultProps {
@@ -10,14 +10,13 @@ interface AnalysisResultProps {
   base64Images: string[];
   analysisId: string;
   actualTonnage?: number;
-  initialChatHistory?: ChatMessage[];  // ストックから読み込んだ会話履歴
+  initialChatHistory?: ChatMessage[];
   onSaveActualTonnage: (value: number) => void;
   onUpdateLicensePlate: (plate: string, number: string) => void;
-  onUpdateChatHistory?: (messages: ChatMessage[]) => void;  // 会話履歴をストックに保存
-  onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;  // 指摘を反映して再解析
+  onUpdateChatHistory?: (messages: ChatMessage[]) => void;
+  onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;
 }
 
-// 会話履歴の保存・読み込み
 const CHAT_STORAGE_KEY = 'garaton_chat_history';
 
 const saveChatHistory = (analysisId: string, messages: ChatMessage[]) => {
@@ -40,27 +39,19 @@ const loadChatHistory = (analysisId: string): ChatMessage[] => {
   }
 };
 
-const clearChatHistory = (analysisId: string) => {
-  try {
-    const allChats = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '{}');
-    delete allChats[analysisId];
-    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(allChats));
-  } catch (e) {
-    console.error('Failed to clear chat history', e);
-  }
-};
-
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'];
 
-const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory, onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback }) => {
+const AnalysisResult: React.FC<AnalysisResultProps> = ({
+  result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory,
+  onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback
+}) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
   const [isEditingPlate, setIsEditingPlate] = useState(false);
   const [tempNumber, setTempNumber] = useState(result.licenseNumber || '');
-  const [tempPlate, setTempPlate] = useState(result.licensePlate || '');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [showDetails, setShowDetails] = useState(false);
 
-  // 解析IDが変わったら会話履歴を読み込む
   useEffect(() => {
     if (analysisId) {
       const messages = initialChatHistory?.length ? initialChatHistory : loadChatHistory(analysisId);
@@ -68,7 +59,6 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
     }
   }, [analysisId, initialChatHistory]);
 
-  // チャットメッセージ更新ハンドラ
   const handleUpdateMessages = (messages: ChatMessage[]) => {
     setChatMessages(messages);
     if (analysisId) {
@@ -86,197 +76,178 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
   };
 
   const handlePlateSave = () => {
-    onUpdateLicensePlate(tempPlate, tempNumber);
+    onUpdateLicensePlate('', tempNumber);
     setIsEditingPlate(false);
   };
 
-  const errorRate = actualTonnage 
-    ? ((result.estimatedTonnage - actualTonnage) / actualTonnage) * 100 
+  const errorRate = actualTonnage
+    ? ((result.estimatedTonnage - actualTonnage) / actualTonnage) * 100
     : null;
 
   return (
-    <div className="max-w-4xl mx-auto p-2 sm:p-4 space-y-3 sm:space-y-6 pb-24">
-      {/* 推定重量メイン表示 */}
-      <div className="bg-slate-900 text-white p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="absolute -right-8 -top-8 opacity-10 hidden sm:block">
-          <Activity size={120} />
+    <div className="max-w-4xl mx-auto p-2 sm:p-4 space-y-3 pb-24">
+      {/* ===== メインカード（共有用サマリー） ===== */}
+      <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-800">
+        {/* 写真 */}
+        <div className="relative">
+          {imageUrls.map((url, i) => (
+            <img key={i} src={url} className="w-full aspect-video object-cover" />
+          ))}
+          {/* ナンバー（写真の上に重ねる） */}
+          <div className="absolute top-2 right-2">
+            {isEditingPlate ? (
+              <div className="flex items-center gap-1 bg-black/80 backdrop-blur p-1.5 rounded-lg">
+                <input
+                  type="text"
+                  value={tempNumber}
+                  onChange={(e) => setTempNumber(e.target.value)}
+                  className="text-sm font-bold bg-white rounded px-2 py-1 w-24 outline-none"
+                  autoFocus
+                />
+                <button onClick={handlePlateSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-bold">OK</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsEditingPlate(true)}
+                className="bg-black/80 backdrop-blur text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-black/90 transition-colors"
+              >
+                <span className="text-sm font-bold tracking-wider">{result.licenseNumber || '----'}</span>
+                <Edit2 size={12} className="text-blue-400" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="relative z-10">
-          <div className="flex justify-between items-start mb-1 sm:mb-3">
-            <p className="text-slate-400 text-[10px] sm:text-xs font-black uppercase tracking-wider">AI 推定重量</p>
-            <div className="flex items-center gap-1 sm:gap-2">
-              <span className="bg-slate-800 text-blue-400 text-[10px] px-2 py-0.5 rounded-full border border-slate-700 font-black">
-                x{result.ensembleCount}
-              </span>
-              {errorRate !== null && (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${Math.abs(errorRate) < 5 ? 'bg-green-500' : 'bg-red-500'}`}>
-                  {errorRate > 0 ? '+' : ''}{errorRate.toFixed(1)}%
-                </span>
-              )}
+        {/* 推定値と実測値 */}
+        <div className="p-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* AI推定 */}
+            <div className="flex-1">
+              <p className="text-slate-500 text-[10px] font-bold uppercase mb-1">AI推定</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black text-yellow-500">{result.estimatedTonnage.toFixed(1)}</span>
+                <span className="text-lg font-bold text-slate-500">t</span>
+              </div>
+            </div>
+
+            {/* 誤差表示 */}
+            {errorRate !== null && (
+              <div className={`px-3 py-1 rounded-full text-sm font-black ${Math.abs(errorRate) < 5 ? 'bg-green-500' : Math.abs(errorRate) < 15 ? 'bg-yellow-500' : 'bg-red-500'} text-white`}>
+                {errorRate > 0 ? '+' : ''}{errorRate.toFixed(1)}%
+              </div>
+            )}
+
+            {/* 実測値入力 */}
+            <div className="flex-1">
+              <p className={`text-[10px] font-bold uppercase mb-1 ${isSaved ? 'text-green-400' : 'text-blue-400'}`}>
+                {isSaved ? '実測値' : '実測値を入力'}
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    value={inputValue}
+                    onChange={(e) => { setInputValue(e.target.value); setIsSaved(false); }}
+                    placeholder="0.0"
+                    className={`w-full h-10 px-3 rounded-lg font-black text-xl outline-none transition-all ${
+                      isSaved ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-slate-800 text-white border border-slate-700 focus:border-blue-500'
+                    }`}
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">t</span>
+                </div>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaved || !inputValue}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all active:scale-95 ${
+                    isSaved ? "bg-green-500 text-white" : "bg-blue-600 hover:bg-blue-500 text-white disabled:bg-slate-700 disabled:text-slate-500"
+                  }`}
+                >
+                  {isSaved ? <CheckCircle2 size={18} /> : <Save size={16} />}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-baseline gap-1 sm:gap-2">
-            <span className="text-4xl sm:text-5xl md:text-6xl font-black text-yellow-500 tracking-tighter">
-              {result.estimatedTonnage.toFixed(1)}
+          {/* コンパクトな車両情報 */}
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-800 text-xs">
+            <span className="flex items-center gap-1 text-slate-400">
+              <Truck size={14} className="text-blue-400" />
+              {result.truckType}
             </span>
-            <span className="text-lg sm:text-xl font-black text-slate-400">t</span>
+            <span className="flex items-center gap-1 text-slate-400">
+              <Scale size={14} className="text-purple-400" />
+              {result.estimatedMaxCapacity ? `${result.estimatedMaxCapacity}t積` : '-'}
+            </span>
+            <span className="flex items-center gap-1 text-slate-400">
+              <Layers size={14} className="text-green-400" />
+              {result.estimatedVolumeM3.toFixed(1)}m³
+            </span>
           </div>
+        </div>
+      </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-800">
-            <div className="text-center">
-              <div className="inline-flex bg-slate-800 p-1.5 sm:p-2 rounded-lg mb-1">
-                <Truck className="text-blue-400" size={16} />
-              </div>
-              <p className="text-slate-500 text-[8px] uppercase font-bold">車種</p>
-              <p className="font-bold text-[10px] sm:text-xs leading-tight">{result.truckType}</p>
-            </div>
-            <div className="text-center">
-              <div className="inline-flex bg-slate-800 p-1.5 sm:p-2 rounded-lg mb-1">
-                <Scale className="text-purple-400" size={16} />
-              </div>
-              <p className="text-slate-500 text-[8px] uppercase font-bold">最大積載</p>
-              <p className="font-bold text-[10px] sm:text-xs leading-tight">
-                {result.estimatedMaxCapacity ? `${result.estimatedMaxCapacity}t` : '-'}
+      {/* ===== 詳細情報（折りたたみ） ===== */}
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="w-full p-3 flex items-center justify-between text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <Info size={16} className="text-blue-500" />
+            解析詳細
+          </span>
+          {showDetails ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+
+        {showDetails && (
+          <div className="p-4 pt-0 space-y-4 border-t border-slate-100">
+            {/* AI判断理由 */}
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase mb-2">AI判断理由</p>
+              <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg leading-relaxed">
+                "{result.reasoning}"
               </p>
             </div>
-            <div className="text-center">
-              <div className="inline-flex bg-slate-800 p-1.5 sm:p-2 rounded-lg mb-1">
-                <Layers className="text-green-400" size={16} />
+
+            {/* 最大積載量の推定根拠 */}
+            {result.maxCapacityReasoning && (
+              <div>
+                <p className="text-xs font-bold text-purple-500 uppercase mb-2">最大積載量の根拠</p>
+                <p className="text-sm text-slate-600 bg-purple-50 p-3 rounded-lg">
+                  {result.maxCapacityReasoning}
+                </p>
               </div>
-              <p className="text-slate-500 text-[8px] uppercase font-bold">体積</p>
-              <p className="font-bold text-[10px] sm:text-xs leading-tight">{result.estimatedVolumeM3.toFixed(1)}m³</p>
-            </div>
-          </div>
+            )}
 
-          {/* 最大積載量の推定根拠 */}
-          {result.maxCapacityReasoning && (
-            <div className="mt-3 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
-              <p className="text-[10px] text-purple-400 font-bold mb-0.5">推定根拠</p>
-              <p className="text-[10px] sm:text-xs text-slate-400">{result.maxCapacityReasoning}</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 実測値入力セクション */}
-      <div className="sticky top-1 sm:top-2 z-30">
-        <div className={`p-2 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all shadow-lg ${isSaved ? 'bg-slate-900 border-green-500/50' : 'bg-blue-600 border-white'}`}>
-          <div className="flex items-center gap-2">
-            <Scale size={16} className={isSaved ? 'text-green-400' : 'text-white'} />
-            <span className={`text-[10px] sm:text-xs font-bold uppercase ${isSaved ? 'text-green-400' : 'text-white'}`}>
-              {isSaved ? '保存済み' : '実測重量'}
-            </span>
-            {isSaved && <CheckCircle2 className="text-green-500 ml-auto" size={16} />}
-          </div>
-          <div className="flex gap-2 mt-2">
-            <div className="relative flex-grow">
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={inputValue}
-                onChange={(e) => { setInputValue(e.target.value); setIsSaved(false); }}
-                placeholder="0.0"
-                className={`w-full h-10 sm:h-12 px-3 sm:px-4 rounded-lg sm:rounded-xl border-none outline-none font-black text-xl sm:text-2xl transition-all ${
-                  isSaved ? 'bg-slate-800 text-green-400' : 'bg-white text-slate-900'
-                }`}
-              />
-              <span className={`absolute right-3 top-1/2 -translate-y-1/2 font-bold text-sm ${isSaved ? 'text-green-700' : 'text-slate-300'}`}>
-                t
-              </span>
-            </div>
-            <button
-              onClick={handleSave}
-              disabled={isSaved || !inputValue}
-              className={`w-10 sm:w-14 h-10 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all active:scale-95 ${
-                isSaved ? "bg-green-500 text-white" : "bg-slate-900 text-white hover:bg-black"
-              }`}
-            >
-              {isSaved ? <Check size={18} strokeWidth={4} /> : <Save size={16} />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* 画像と車両情報 */}
-        <div className="bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-lg border border-slate-200">
-          <div className="p-2 sm:p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-            <span className="font-bold text-slate-700 flex items-center gap-1.5 text-xs sm:text-sm uppercase">
-              <CreditCard className="text-blue-600" size={14} />
-              ナンバー
-            </span>
+            {/* 材質構成 */}
             <div>
-              {isEditingPlate ? (
-                <div className="flex items-center gap-1.5 bg-blue-50 p-1 rounded-lg border border-blue-200">
-                  <input
-                    type="text"
-                    value={tempNumber}
-                    onChange={(e) => setTempNumber(e.target.value)}
-                    className="text-xs font-bold border border-blue-300 rounded px-2 py-1 w-20 outline-none uppercase"
-                    autoFocus
-                  />
-                  <button onClick={handlePlateSave} className="bg-blue-600 text-white px-2 py-1 rounded text-[10px] font-bold">OK</button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsEditingPlate(true)}
-                  className="flex items-center gap-1.5 group"
-                >
-                  <div className="bg-slate-900 text-white px-2 py-1 rounded-lg flex items-center gap-1.5 group-hover:bg-black transition-colors">
-                    <span className="text-xs font-bold tracking-wider">{result.licenseNumber || '----'}</span>
-                    <Edit2 size={10} className="text-blue-400" />
-                  </div>
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="p-1.5">
-            {imageUrls.map((url, i) => (
-              <img key={i} src={url} className="w-full h-auto aspect-video object-cover rounded-lg" />
-            ))}
-          </div>
-        </div>
-
-        {/* 推論の根拠と材質 */}
-        <div className="space-y-3">
-          <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg border border-slate-200">
-            <h3 className="text-xs sm:text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5 uppercase">
-              <Info className="text-blue-500" size={14} />
-              AI判断理由
-            </h3>
-            <div className="bg-slate-50 p-2 sm:p-3 rounded-lg border border-slate-100 mb-3">
-              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">"{result.reasoning}"</p>
-            </div>
-
-            <div className="w-full">
-              <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase">材質構成</p>
+              <p className="text-xs font-bold text-slate-500 uppercase mb-2">材質構成</p>
               <div className="space-y-2">
                 {result.materialBreakdown.map((item, index) => (
                   <div key={index}>
-                    <div className="flex justify-between text-[10px] sm:text-xs font-bold text-slate-700 mb-0.5">
+                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-0.5">
                       <span>{item.material}</span>
                       <span>{item.percentage}%</span>
                     </div>
-                    <div className="w-full h-1.5 sm:h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
                         className="h-full transition-all duration-1000"
                         style={{ width: `${item.percentage}%`, backgroundColor: COLORS[index % COLORS.length] }}
-                      ></div>
+                      />
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* AIに質問セクション（別コンポーネント） */}
+      {/* ===== AIに質問 ===== */}
       <AIChatSection
-        key={analysisId}  // analysisId変更時に内部状態をリセット
+        key={analysisId}
         result={result}
         base64Images={base64Images}
         chatMessages={chatMessages}
