@@ -30,6 +30,7 @@ const ReportView: React.FC<ReportViewProps> = ({
   onViewResult
 }) => {
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+  const [isNewItem, setIsNewItem] = useState(false);  // 新規作成モードかどうか
   const [showExportModal, setShowExportModal] = useState(false);
   const [theme, setTheme] = useState(getStoredTheme);
 
@@ -49,7 +50,7 @@ const ReportView: React.FC<ReportViewProps> = ({
   // 合計計算
   const total = exportableItems.reduce((sum, item) => sum + (item.actualTonnage || 0), 0);
 
-  // 新規エントリー追加
+  // 新規エントリー追加（保存は編集フォームで行う）
   const addNewEntry = () => {
     const newItem: StockItem = {
       id: crypto.randomUUID(),
@@ -57,8 +58,8 @@ const ReportView: React.FC<ReportViewProps> = ({
       base64Images: [],
       imageUrls: []
     };
-    onAdd(newItem);
     setEditingItem(newItem);
+    setIsNewItem(true);  // 新規作成モードをオン
   };
 
   // 日付フォーマット（yyyy/mm/dd）
@@ -132,7 +133,7 @@ const ReportView: React.FC<ReportViewProps> = ({
               return (
                 <tr
                   key={item.id}
-                  onClick={() => setEditingItem(item)}
+                  onClick={() => { setEditingItem(item); setIsNewItem(false); }}
                   className={`border-b cursor-pointer ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-gray-200 hover:bg-gray-50'}`}
                 >
                   <td className={`p-2 text-center ${mutedColor}`}>{idx + 1}</td>
@@ -216,11 +217,17 @@ const ReportView: React.FC<ReportViewProps> = ({
       <EntryEditForm
         item={editingItem}
         isOpen={!!editingItem}
+        isNew={isNewItem}
         onSave={(id, updates) => {
           onUpdate(id, updates);
           setEditingItem(null);
         }}
-        onClose={() => setEditingItem(null)}
+        onCreate={(newItem) => {
+          onAdd(newItem);
+          setEditingItem(null);
+          setIsNewItem(false);
+        }}
+        onClose={() => { setEditingItem(null); setIsNewItem(false); }}
         onAnalyze={onAnalyze ? (item) => { onClose(); onAnalyze(item); } : undefined}
         onViewResult={onViewResult ? (item) => { onClose(); onViewResult(item); } : undefined}
       />
