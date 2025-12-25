@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Archive, X, Scale } from 'lucide-react';
+import { Brain, Archive, X, Scale, Trash2 } from 'lucide-react';
 
 interface CaptureChoiceProps {
   imageUrl: string;
@@ -88,6 +88,13 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
                 <span className="text-sm">ストック</span>
               </button>
             )}
+            <button
+              onClick={onCancel}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl bg-red-900/50 hover:bg-red-800/50 text-red-400 font-bold transition-all active:scale-95 border border-red-800/50"
+            >
+              <Trash2 size={28} />
+              <span className="text-sm">廃棄</span>
+            </button>
           </div>
         </div>
       </div>
