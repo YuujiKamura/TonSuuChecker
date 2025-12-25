@@ -9,6 +9,17 @@ const checkIsFreeTier = (): boolean => {
   return localStorage.getItem('gemini_api_key_source') === 'google_ai_studio';
 };
 
+// クォータ制限エラーかどうかを判定（共通関数）
+export const isQuotaError = (err: any): boolean => {
+  const message = err?.message || '';
+  return message.includes('429') ||
+         message.includes('quota') ||
+         message.includes('RESOURCE_EXHAUSTED');
+};
+
+// クォータエラー用のユーザー向けメッセージ
+export const QUOTA_ERROR_MESSAGE = 'APIの利用制限に達しました。しばらくお待ちください。';
+
 const getMode = (arr: any[]) => {
   const filtered = arr.filter(v => v !== null && v !== undefined && v !== '');
   if (filtered.length === 0) return arr[0];

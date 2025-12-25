@@ -14,7 +14,7 @@ import ApiKeySetup from './components/ApiKeySetup';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation } from './services/stockService';
 import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
-import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from './services/geminiService';
+import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage } from './types';
 import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
 
@@ -298,10 +298,10 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       if (activeRequestId.current !== requestId) return;
-      if (err.message?.includes('429')) {
+      if (isQuotaError(err)) {
         setIsRateLimited(true);
         addLog("Quota Limit reached. Slowing down...", 'error');
-        if (!isAuto) setError("APIの利用制限に達しました。しばらくお待ちください。");
+        if (!isAuto) setError(QUOTA_ERROR_MESSAGE);
       } else {
         addLog(`Error: ${err.message}`, 'error');
         if (!isAuto) setError(`エラー: ${err.message}`);

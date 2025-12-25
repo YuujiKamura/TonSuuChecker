@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { Truck, Layers, Info, CheckCircle2, Save, Scale, CreditCard, Edit2, Activity, Check, MessageCircle, Send, Loader2, Bot, User, Copy, CheckCheck, Trash2, RefreshCcw } from 'lucide-react';
-import { askFollowUp } from '../services/geminiService';
+import { askFollowUp, isQuotaError, QUOTA_ERROR_MESSAGE } from '../services/geminiService';
 
 interface AnalysisResultProps {
   result: EstimationResult;
@@ -159,8 +159,8 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({ result, imageUrls, base
       const answer = await askFollowUp(base64Images, result, chatMessages, question);
       setChatMessages(prev => [...prev, { role: 'assistant', content: answer }]);
     } catch (err: any) {
-      const errorMessage = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')
-        ? '⚠️ APIの利用制限に達しました。しばらく待ってから再度お試しください。'
+      const errorMessage = isQuotaError(err)
+        ? `⚠️ ${QUOTA_ERROR_MESSAGE}`
         : `エラー: ${err.message}`;
       setChatMessages(prev => [...prev, { role: 'assistant', content: errorMessage }]);
     } finally {
