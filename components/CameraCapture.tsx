@@ -24,7 +24,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, isAna
       stopCamera();
       
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 960 } },
         audio: false 
       });
       if (videoRef.current) {
@@ -52,7 +52,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, isAna
     const canvas = canvasRef.current;
     const video = videoRef.current;
     
-    const MAX_WIDTH = 800;
+    const MAX_WIDTH = 1280; // CALS 100万画素
     let width = video.videoWidth;
     let height = video.videoHeight;
     
