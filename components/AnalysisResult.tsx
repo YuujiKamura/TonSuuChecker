@@ -47,6 +47,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [showDetails, setShowDetails] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (analysisId) {
@@ -75,13 +76,58 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
     ? ((result.estimatedTonnage - actualTonnage) / actualTonnage) * 100
     : null;
 
+  // フルスクリーン表示
+  if (isFullscreen) {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-black flex flex-col cursor-pointer"
+        onClick={() => setIsFullscreen(false)}
+      >
+        {/* 画像（画面いっぱい） */}
+        <div className="flex-1 relative">
+          {imageUrls[0] && (
+            <img src={imageUrls[0]} className="w-full h-full object-contain" />
+          )}
+        </div>
+        {/* 結果バー（下部） */}
+        <div className="bg-black/90 p-4 flex items-center justify-center gap-6">
+          <div className="flex items-baseline gap-1">
+            <span className="text-xs text-slate-400 font-bold">AI</span>
+            <span className="text-4xl font-black text-yellow-500">{result.estimatedTonnage.toFixed(1)}</span>
+            <span className="text-lg font-bold text-slate-400">t</span>
+          </div>
+          {actualTonnage && (
+            <>
+              <div className="w-px h-8 bg-slate-600" />
+              <div className="flex items-baseline gap-1">
+                <span className="text-xs text-slate-400 font-bold">実測</span>
+                <span className="text-4xl font-black text-green-400">{actualTonnage.toFixed(1)}</span>
+                <span className="text-lg font-bold text-slate-400">t</span>
+              </div>
+              {errorRate !== null && (
+                <div className={`px-3 py-1 rounded text-sm font-black ${Math.abs(errorRate) < 5 ? 'bg-green-500' : Math.abs(errorRate) < 15 ? 'bg-yellow-500' : 'bg-red-500'} text-white`}>
+                  {errorRate > 0 ? '+' : ''}{errorRate.toFixed(0)}%
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-2 sm:p-4 space-y-2 pb-24">
       {/* ===== メインカード ===== */}
       <div className="bg-slate-900 rounded-xl overflow-hidden shadow-xl border border-slate-800">
-        {/* 写真 */}
+        {/* 写真（タップでフルスクリーン） */}
         {imageUrls.map((url, i) => (
-          <img key={i} src={url} className="w-full aspect-video object-cover" />
+          <img
+            key={i}
+            src={url}
+            className="w-full aspect-video object-cover cursor-pointer active:opacity-80"
+            onClick={() => setIsFullscreen(true)}
+          />
         ))}
 
         {/* 推定値と実測値 */}
