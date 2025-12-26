@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
-import { Truck, Layers, Info, CheckCircle2, Save, Scale, Edit2, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import AIChatSection from './AIChatSection';
 
 interface AnalysisResultProps {
@@ -39,16 +39,12 @@ const loadChatHistory = (analysisId: string): ChatMessage[] => {
   }
 };
 
-const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'];
-
 const AnalysisResult: React.FC<AnalysisResultProps> = ({
   result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory,
   onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback
 }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
-  const [isEditingPlate, setIsEditingPlate] = useState(false);
-  const [tempNumber, setTempNumber] = useState(result.licenseNumber || '');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -75,55 +71,20 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   };
 
-  const handlePlateSave = () => {
-    onUpdateLicensePlate('', tempNumber);
-    setIsEditingPlate(false);
-  };
-
   const errorRate = actualTonnage
     ? ((result.estimatedTonnage - actualTonnage) / actualTonnage) * 100
     : null;
 
   return (
     <div className="max-w-4xl mx-auto p-2 sm:p-4 space-y-2 pb-24">
-      {/* ===== メインカード（共有用サマリー） ===== */}
+      {/* ===== メインカード ===== */}
       <div className="bg-slate-900 rounded-xl overflow-hidden shadow-xl border border-slate-800">
-        {/* 写真 + ナンバー + 車両情報 */}
-        <div className="relative">
-          {imageUrls.map((url, i) => (
-            <img key={i} src={url} className="w-full aspect-video object-cover" />
-          ))}
-          {/* 車両情報（左上） */}
-          <div className="absolute top-2 left-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white flex items-center gap-2">
-            <span>{result.truckType}</span>
-            <span className="text-purple-300">{result.estimatedMaxCapacity ? `${result.estimatedMaxCapacity}t積` : ''}</span>
-          </div>
-          {/* ナンバー（右上） */}
-          <div className="absolute top-2 right-2">
-            {isEditingPlate ? (
-              <div className="flex items-center gap-1 bg-black/80 backdrop-blur p-1 rounded">
-                <input
-                  type="text"
-                  value={tempNumber}
-                  onChange={(e) => setTempNumber(e.target.value)}
-                  className="text-sm font-bold bg-white rounded px-2 py-0.5 w-20 outline-none"
-                  autoFocus
-                />
-                <button onClick={handlePlateSave} className="bg-blue-500 text-white px-2 py-0.5 rounded text-xs font-bold">OK</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsEditingPlate(true)}
-                className="bg-black/70 backdrop-blur text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-black/90"
-              >
-                <span className="text-sm font-bold">{result.licenseNumber || '----'}</span>
-                <Edit2 size={10} className="text-blue-400" />
-              </button>
-            )}
-          </div>
-        </div>
+        {/* 写真 */}
+        {imageUrls.map((url, i) => (
+          <img key={i} src={url} className="w-full aspect-video object-cover" />
+        ))}
 
-        {/* 推定値と実測値（横並び・コンパクト） */}
+        {/* 推定値と実測値 */}
         <div className="p-3 flex items-center gap-3">
           {/* AI推定 */}
           <div className="flex items-baseline gap-0.5">
