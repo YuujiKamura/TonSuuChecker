@@ -118,6 +118,49 @@ export const getLatestEstimation = (item: StockItem): EstimationResult | undefin
   return item.result;
 };
 
+// 既存のストックデータを圧縮（初回のみ実行）
+export const compressExistingStock = async (): Promise<void> => {
+  const COMPRESSED_FLAG = 'tonchecker_stock_compressed_v2';
+  if (localStorage.getItem(COMPRESSED_FLAG)) return;
+
+  try {
+    const items = getStockItems();
+    if (items.length === 0) {
+      localStorage.setItem(COMPRESSED_FLAG, 'true');
+      return;
+    }
+
+    console.log(`既存ストック ${items.length}件 を圧縮中...`);
+    const compressedItems: StockItem[] = [];
+
+    for (const item of items) {
+      const compressedImages: string[] = [];
+      for (const img of item.base64Images) {
+        if (img && img.length > 50000) { // 50KB以上なら圧縮
+          const compressed = await compressImage(img, 800, 0.6);
+          compressedImages.push(compressed);
+        } else if (img) {
+          compressedImages.push(img);
+        }
+      }
+
+      compressedItems.push({
+        ...item,
+        base64Images: compressedImages,
+        imageUrls: compressedImages.length > 0
+          ? compressedImages.map(b64 => 'data:image/jpeg;base64,' + b64)
+          : item.imageUrls
+      });
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(compressedItems));
+    localStorage.setItem(COMPRESSED_FLAG, 'true');
+    console.log('ストック圧縮完了');
+  } catch (err) {
+    console.error('ストック圧縮エラー:', err);
+  }
+};
+
 // 既存の履歴データをストックに移行（初回のみ実行）
 export const migrateLegacyHistory = (): void => {
   try {
