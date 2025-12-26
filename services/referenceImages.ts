@@ -1,5 +1,6 @@
-// 車両登録サービス - 複数の車両を登録・管理
+// 車両登録サービス - IndexedDB版
 import { compressImage } from './imageUtils';
+import * as idb from './indexedDBService';
 
 export interface RegisteredVehicle {
   id: string;
@@ -9,84 +10,68 @@ export interface RegisteredVehicle {
   mimeType?: string;      // MIMEタイプ（image/jpeg, application/pdf等）
 }
 
-const STORAGE_KEY = 'tonchecker_registered_vehicles';
-
 // 全登録車両を取得
-export const getReferenceImages = (): RegisteredVehicle[] => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) return [];
-  try {
-    return JSON.parse(stored) as RegisteredVehicle[];
-  } catch {
-    return [];
-  }
+export const getReferenceImages = async (): Promise<RegisteredVehicle[]> => {
+  return idb.getAllVehicles();
 };
 
-// 車両を追加
-export const addVehicle = (vehicle: Omit<RegisteredVehicle, 'id'>): RegisteredVehicle | null => {
-  const vehicles = getReferenceImages();
-  const newVehicle: RegisteredVehicle = {
-    ...vehicle,
-    id: crypto.randomUUID()
-  };
-  vehicles.push(newVehicle);
+// 同期版（後方互換用、キャッシュから取得）
+let vehicleCache: RegisteredVehicle[] | null = null;
+
+export const getReferenceImagesSync = (): RegisteredVehicle[] => {
+  return vehicleCache || [];
+};
+
+// キャッシュを更新
+export const refreshVehicleCache = async (): Promise<RegisteredVehicle[]> => {
+  vehicleCache = await idb.getAllVehicles();
+  return vehicleCache;
+};
+
+// 車両を追加（画像は自動圧縮）
+export const addVehicle = async (vehicle: Omit<RegisteredVehicle, 'id'>): Promise<RegisteredVehicle | null> => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+    let base64 = vehicle.base64;
+    let mimeType = vehicle.mimeType;
+
+    // 画像の場合は圧縮（PDFは除外）
+    if (base64 && mimeType !== 'application/pdf' && base64.length > 50000) {
+      base64 = await compressImage(base64, 800, 0.6);
+      mimeType = 'image/jpeg';
+    }
+
+    const newVehicle: RegisteredVehicle = {
+      ...vehicle,
+      base64,
+      mimeType,
+      id: crypto.randomUUID()
+    };
+
+    await idb.saveVehicle(newVehicle);
+    vehicleCache = null;
     return newVehicle;
   } catch (e) {
-    console.error('車両登録エラー（容量オーバーの可能性）:', e);
+    console.error('車両登録エラー:', e);
     return null;
   }
 };
 
 // 車両を更新
-export const updateVehicle = (id: string, updates: Partial<Omit<RegisteredVehicle, 'id'>>): void => {
-  const vehicles = getReferenceImages();
-  const index = vehicles.findIndex(v => v.id === id);
-  if (index >= 0) {
-    vehicles[index] = { ...vehicles[index], ...updates };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+export const updateVehicle = async (id: string, updates: Partial<Omit<RegisteredVehicle, 'id'>>): Promise<void> => {
+  const vehicle = await idb.getVehicleById(id);
+  if (vehicle) {
+    await idb.saveVehicle({ ...vehicle, ...updates });
+    vehicleCache = null;
   }
 };
 
 // 車両を削除
-export const deleteVehicle = (id: string): void => {
-  const vehicles = getReferenceImages().filter(v => v.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+export const deleteVehicle = async (id: string): Promise<void> => {
+  await idb.deleteVehicleById(id);
+  vehicleCache = null;
 };
 
-// 既存の車両データを圧縮（初回のみ実行）
+// 既存の車両データを圧縮（マイグレーション済みのため空実装）
 export const compressExistingVehicles = async (): Promise<void> => {
-  const COMPRESSED_FLAG = 'tonchecker_vehicles_compressed_v1';
-  if (localStorage.getItem(COMPRESSED_FLAG)) return;
-
-  try {
-    const vehicles = getReferenceImages();
-    if (vehicles.length === 0) {
-      localStorage.setItem(COMPRESSED_FLAG, 'true');
-      return;
-    }
-
-    console.log(`既存車両 ${vehicles.length}件 を圧縮中...`);
-    const compressedVehicles: RegisteredVehicle[] = [];
-
-    for (const vehicle of vehicles) {
-      if (vehicle.base64 && vehicle.base64.length > 50000 && vehicle.mimeType !== 'application/pdf') {
-        const compressed = await compressImage(vehicle.base64, 800, 0.6);
-        compressedVehicles.push({
-          ...vehicle,
-          base64: compressed,
-          mimeType: 'image/jpeg'
-        });
-      } else {
-        compressedVehicles.push(vehicle);
-      }
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(compressedVehicles));
-    localStorage.setItem(COMPRESSED_FLAG, 'true');
-    console.log('車両圧縮完了');
-  } catch (err) {
-    console.error('車両圧縮エラー:', err);
-  }
+  // IndexedDBマイグレーションで処理するため空実装
 };

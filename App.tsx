@@ -11,9 +11,10 @@ import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import ApiKeySetup from './components/ApiKeySetup';
-import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation, compressExistingStock } from './services/stockService';
-import { compressExistingVehicles } from './services/referenceImages';
-import { getTodayCost, formatCost } from './services/costTracker';
+import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, addEstimation, getLatestEstimation, refreshStockCache } from './services/stockService';
+import { refreshVehicleCache } from './services/referenceImages';
+import { getTodayCost, formatCost, refreshCostCache } from './services/costTracker';
+import { migrateFromLocalStorage, requestPersistentStorage } from './services/indexedDBService';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage } from './types';
@@ -74,37 +75,54 @@ const App: React.FC = () => {
 
   // APIキーの状態を初期化時にチェック
   useEffect(() => {
-    const apiKey = getApiKey();
-    setHasApiKey(!!apiKey);
-    
-    // 既存のキーがあるが、ソースが不明な場合は確認を促す
-    if (apiKey && !isGoogleAIStudioKey() && !localStorage.getItem('gemini_api_key_source')) {
-      // ソースが不明な場合は、ユーザーに確認を求めるためにモーダルを表示
-      // ただし、初回起動時は自動的に表示しない（ユーザーが設定を開いたときに確認）
-    } else {
-      setIsGoogleAIStudio(isGoogleAIStudioKey());
-    }
-    
-    // 既存の履歴データをストックに移行（初回のみ）
-    migrateLegacyHistory();
+    const initializeApp = async () => {
+      const apiKey = getApiKey();
+      setHasApiKey(!!apiKey);
 
-    // 既存データの画像を圧縮（初回のみ）
-    Promise.all([
-      compressExistingStock(),
-      compressExistingVehicles()
-    ]).then(() => {
-      setStockItems(getStockItems());
-    });
+      // 既存のキーがあるが、ソースが不明な場合は確認を促す
+      if (apiKey && !isGoogleAIStudioKey() && !localStorage.getItem('gemini_api_key_source')) {
+        // ソースが不明な場合は、ユーザーに確認を求めるためにモーダルを表示
+        // ただし、初回起動時は自動的に表示しない（ユーザーが設定を開いたときに確認）
+      } else {
+        setIsGoogleAIStudio(isGoogleAIStudioKey());
+      }
 
-    setTodaysCost(getTodayCost());
-    setStockItems(getStockItems());
-    // URLパラメータからGAS URLを読み込み
-    initFromUrlParams();
+      // LocalStorage → IndexedDB マイグレーション（初回のみ）
+      await migrateFromLocalStorage();
+
+      // 永続化をリクエスト（モバイルでの自動削除を防ぐ）
+      requestPersistentStorage().then(granted => {
+        if (granted) console.log('永続ストレージが許可されました');
+      });
+
+      // キャッシュを更新してデータを読み込み
+      const [items, cost] = await Promise.all([
+        refreshStockCache(),
+        getTodayCost(),
+        refreshVehicleCache(),
+        refreshCostCache()
+      ]);
+
+      setStockItems(items);
+      setTodaysCost(cost);
+
+      // URLパラメータからGAS URLを読み込み
+      initFromUrlParams();
+    };
+
+    initializeApp();
   }, []);
 
   // コスト更新（解析完了後）
-  const refreshCost = () => {
-    setTodaysCost(getTodayCost());
+  const refreshCost = async () => {
+    const cost = await getTodayCost();
+    setTodaysCost(cost);
+  };
+
+  // ストック更新
+  const refreshStock = async () => {
+    const items = await refreshStockCache();
+    setStockItems(items);
   };
 
   const steps = [
@@ -118,8 +136,10 @@ const App: React.FC = () => {
     "AI推論を統合中..."
   ];
 
-  // 履歴はストックから取得（解析結果があるアイテム）
-  const history = getHistoryItems();
+  // 履歴はstockItemsから取得（解析結果があるアイテム）
+  const history = stockItems.filter(item =>
+    (item.estimations && item.estimations.length > 0) || item.result !== undefined
+  );
 
   useEffect(() => {
     let interval: any;
@@ -198,6 +218,7 @@ const App: React.FC = () => {
       const abortSignal = { get cancelled() { return activeRequestId.current !== requestId; } };
       
       // 自動監視時は Lite モデル (gemini-flash-lite-latest) を優先
+      const taggedItems = await getTaggedItems();
       const results = await analyzeGaraImageEnsemble(
         base64s,
         isAuto ? 1 : ensembleTarget,
@@ -211,7 +232,7 @@ const App: React.FC = () => {
         },
         abortSignal,
         isAuto ? 'gemini-flash-lite-latest' : selectedModel,
-        getTaggedItems(),
+        taggedItems,
         isAuto ? undefined : capacityOverride,  // capacityOverrideを直接使用（stateのフォールバックはしない）
         userFeedback  // ユーザーからの指摘・修正
       );
@@ -260,17 +281,17 @@ const App: React.FC = () => {
         // 解析結果をストックに保存（自動監視の場合は除く）
         if (!isAuto && base64s.length > 0 && merged.isTargetDetected) {
           try {
-            const existingStock = getStockItems();
+            const existingStock = await getStockItems();
             let existingItem: StockItem | undefined;
-            
+
             if (currentId) {
               // currentIdで既存アイテムを検索
               existingItem = existingStock.find(item => item.id === currentId);
             }
-            
+
             if (!existingItem) {
               // currentIdがない場合は、画像URLで既存アイテムを検索
-              existingItem = existingStock.find(item => 
+              existingItem = existingStock.find(item =>
                 item.imageUrls.length === urls.length &&
                 item.imageUrls[0] === urls[0]
               );
@@ -281,10 +302,10 @@ const App: React.FC = () => {
 
             if (existingItem) {
               // 既存のアイテムがある場合は、推定結果を追加（ランごとに履歴として保存）
-              addEstimation(existingItem.id, merged);
+              await addEstimation(existingItem.id, merged);
               // maxCapacityが未設定でAIが推定した場合は更新
               if (!existingItem.maxCapacity && effectiveMaxCapacity) {
-                updateStockItem(existingItem.id, { maxCapacity: effectiveMaxCapacity });
+                await updateStockItem(existingItem.id, { maxCapacity: effectiveMaxCapacity });
               }
             } else {
               // 新規アイテムの場合は作成
@@ -299,7 +320,7 @@ const App: React.FC = () => {
               };
               await saveStockItem(stockItem);
             }
-            setStockItems(getStockItems());
+            await refreshStock();
           } catch (err) {
             console.error('ストック追加エラー:', err);
             // ストック追加に失敗しても解析は続行
@@ -422,7 +443,7 @@ const App: React.FC = () => {
                 imageUrls: [dataUrl],
               };
               await saveStockItem(newItem);
-              setStockItems(getStockItems());
+              await refreshStock();
               setPendingCapture(null);
             }}
             onCancel={() => {
@@ -554,41 +575,41 @@ const App: React.FC = () => {
                   imageUrls={currentImageUrls}
                   base64Images={currentBase64Images}
                   analysisId={currentId || ''}
-                  actualTonnage={getHistoryItems().find(h => h.id === currentId)?.actualTonnage}
-                  initialChatHistory={getStockItems().find(i => i.id === currentId)?.chatHistory}
-                  onSaveActualTonnage={(v) => {
+                  actualTonnage={stockItems.find(h => h.id === currentId)?.actualTonnage}
+                  initialChatHistory={stockItems.find(i => i.id === currentId)?.chatHistory}
+                  onSaveActualTonnage={async (v) => {
                     if (currentId) {
-                      updateStockItem(currentId, { actualTonnage: v });
-                      setStockItems(getStockItems());
+                      await updateStockItem(currentId, { actualTonnage: v });
+                      await refreshStock();
                     }
                   }}
-                  onUpdateLicensePlate={(p, n) => {
+                  onUpdateLicensePlate={async (p, n) => {
                     if (currentId && currentResult) {
                       const updatedResult = { ...currentResult, licensePlate: p, licenseNumber: n };
                       // 最新の推定結果を更新
-                      const item = getStockItems().find(i => i.id === currentId);
+                      const item = stockItems.find(i => i.id === currentId);
                       if (item && item.estimations && item.estimations.length > 0) {
                         // estimations配列の最新（先頭）を更新
                         const updatedEstimations = [...item.estimations];
                         updatedEstimations[0] = updatedResult;
-                        updateStockItem(currentId, { result: updatedResult, estimations: updatedEstimations });
+                        await updateStockItem(currentId, { result: updatedResult, estimations: updatedEstimations });
                       } else {
                         // 後方互換性のため、resultも更新
-                        updateStockItem(currentId, { result: updatedResult });
+                        await updateStockItem(currentId, { result: updatedResult });
                       }
                       setCurrentResult(updatedResult);
-                      setStockItems(getStockItems());
+                      await refreshStock();
                     }
                   }}
-                  onUpdateChatHistory={(messages) => {
+                  onUpdateChatHistory={async (messages) => {
                     if (currentId) {
-                      updateStockItem(currentId, { chatHistory: messages });
-                      setStockItems(getStockItems());
+                      await updateStockItem(currentId, { chatHistory: messages });
+                      await refreshStock();
                     }
                   }}
                   onReanalyzeWithFeedback={async (chatHistory) => {
                     if (!currentId || !currentBase64Images.length) return;
-                    const item = getStockItems().find(i => i.id === currentId);
+                    const item = stockItems.find(i => i.id === currentId);
                     // 再解析を開始（指摘を含めて）
                     startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, chatHistory);
                   }}
@@ -612,15 +633,15 @@ const App: React.FC = () => {
           items={stockItems}
           onAdd={async (item) => {
             await saveStockItem(item);
-            setStockItems(getStockItems());
+            await refreshStock();
           }}
-          onUpdate={(id, updates) => {
-            updateStockItem(id, updates);
-            setStockItems(getStockItems());
+          onUpdate={async (id, updates) => {
+            await updateStockItem(id, updates);
+            await refreshStock();
           }}
-          onDelete={(id) => {
-            deleteStockItem(id);
-            setStockItems(getStockItems());
+          onDelete={async (id) => {
+            await deleteStockItem(id);
+            await refreshStock();
           }}
           onAnalyze={(item) => {
             setShowStockList(false);
@@ -650,16 +671,16 @@ const App: React.FC = () => {
           items={stockItems}
           onAdd={async (item) => {
             await saveStockItem(item);
-            setStockItems(getStockItems());
+            await refreshStock();
           }}
-          onUpdate={(id, updates) => {
-            updateStockItem(id, updates);
-            setStockItems(getStockItems());
+          onUpdate={async (id, updates) => {
+            await updateStockItem(id, updates);
+            await refreshStock();
           }}
-          onDelete={(id) => {
+          onDelete={async (id) => {
             if (confirm('このエントリーを削除しますか？')) {
-              deleteStockItem(id);
-              setStockItems(getStockItems());
+              await deleteStockItem(id);
+              await refreshStock();
             }
           }}
           onClose={() => setShowReportView(false)}

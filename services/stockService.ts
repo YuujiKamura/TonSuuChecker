@@ -1,23 +1,31 @@
 import { StockItem, EstimationResult, isJudged } from '../types';
 import { compressImage } from './imageUtils';
+import * as idb from './indexedDBService';
 
-const STORAGE_KEY = 'tonchecker_stock_v1';
-const LEGACY_HISTORY_KEY = 'garaton_history_v4';
+// ========== ストック取得 ==========
 
-export const getStockItems = (): StockItem[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
+export const getStockItems = async (): Promise<StockItem[]> => {
+  return idb.getAllStock();
 };
 
-// 画像を圧縮してからストックに保存
+// 同期版（後方互換用、キャッシュから取得）
+let stockCache: StockItem[] | null = null;
+
+export const getStockItemsSync = (): StockItem[] => {
+  return stockCache || [];
+};
+
+// キャッシュを更新
+export const refreshStockCache = async (): Promise<StockItem[]> => {
+  stockCache = await idb.getAllStock();
+  return stockCache;
+};
+
+// ========== ストック保存 ==========
+
+// 画像を圧縮してからストックに保存（件数制限なし）
 export const saveStockItem = async (item: StockItem): Promise<boolean> => {
   try {
-    const items = getStockItems();
-
     // base64Imagesを圧縮
     const compressedImages: string[] = [];
     for (const img of item.base64Images) {
@@ -27,16 +35,14 @@ export const saveStockItem = async (item: StockItem): Promise<boolean> => {
       }
     }
 
-    const compressedItem = {
+    const compressedItem: StockItem = {
       ...item,
       base64Images: compressedImages,
       imageUrls: compressedImages.map(b64 => 'data:image/jpeg;base64,' + b64)
     };
 
-    items.unshift(compressedItem);
-    // 最大50件まで保存
-    const toSave = items.slice(0, 50);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    await idb.saveStock(compressedItem);
+    stockCache = null; // キャッシュ無効化
     return true;
   } catch (e) {
     console.error('ストック保存エラー:', e);
@@ -44,160 +50,100 @@ export const saveStockItem = async (item: StockItem): Promise<boolean> => {
   }
 };
 
-export const updateStockItem = (id: string, updates: Partial<StockItem>): void => {
-  const items = getStockItems();
-  const index = items.findIndex(item => item.id === id);
-  if (index !== -1) {
-    items[index] = { ...items[index], ...updates };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+// ========== ストック更新 ==========
+
+export const updateStockItem = async (id: string, updates: Partial<StockItem>): Promise<void> => {
+  const item = await idb.getStockById(id);
+  if (item) {
+    await idb.saveStock({ ...item, ...updates });
+    stockCache = null;
   }
 };
 
-export const deleteStockItem = (id: string): void => {
-  const items = getStockItems().filter(item => item.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+// ========== ストック削除 ==========
+
+export const deleteStockItem = async (id: string): Promise<void> => {
+  await idb.deleteStock(id);
+  stockCache = null;
 };
 
-// 判定済みアイテムを取得（actualTonnageとmaxCapacityが両方ある）
-export const getJudgedItems = (): StockItem[] => {
-  return getStockItems().filter(isJudged);
+// ========== 判定済みアイテム ==========
+
+export const getJudgedItems = async (): Promise<StockItem[]> => {
+  const items = await getStockItems();
+  return items.filter(isJudged);
 };
 
-// 後方互換性のため残す（getJudgedItemsのエイリアス）
-export const getTaggedItems = (): StockItem[] => {
+// 後方互換性のため残す
+export const getTaggedItems = async (): Promise<StockItem[]> => {
   return getJudgedItems();
 };
 
-export const clearAllStock = (): void => {
-  localStorage.removeItem(STORAGE_KEY);
+// ========== 全削除 ==========
+
+export const clearAllStock = async (): Promise<void> => {
+  await idb.clearAllStock();
+  stockCache = null;
 };
 
-// 履歴管理機能（解析結果があるストックアイテムを取得）
-export const getHistoryItems = (): StockItem[] => {
-  return getStockItems().filter(item => 
+// ========== 履歴管理 ==========
+
+export const getHistoryItems = async (): Promise<StockItem[]> => {
+  const items = await getStockItems();
+  return items.filter(item =>
     (item.estimations && item.estimations.length > 0) || item.result !== undefined
   );
 };
 
-// 解析結果付きでストックに保存
-export const saveAnalysisResult = (item: StockItem & { result: EstimationResult }): void => {
-  saveStockItem(item);
+// ========== 解析結果保存 ==========
+
+export const saveAnalysisResult = async (item: StockItem & { result: EstimationResult }): Promise<void> => {
+  await saveStockItem(item);
 };
 
-// 解析結果を更新
-export const updateAnalysisResult = (id: string, result: EstimationResult): void => {
-  updateStockItem(id, { result });
+export const updateAnalysisResult = async (id: string, result: EstimationResult): Promise<void> => {
+  await updateStockItem(id, { result });
 };
 
-// 新しい解析結果を追加（ランごとに履歴として保存）
-export const addEstimation = (id: string, estimation: EstimationResult): void => {
-  const items = getStockItems();
-  const index = items.findIndex(item => item.id === id);
-  if (index !== -1) {
-    const item = items[index];
+// ========== 推定結果追加 ==========
+
+export const addEstimation = async (id: string, estimation: EstimationResult): Promise<void> => {
+  const item = await idb.getStockById(id);
+  if (item) {
     const estimations = item.estimations || [];
-    // 新しい推定結果を先頭に追加（最新が先頭）
     estimations.unshift(estimation);
-    // 最新の推定結果もresultに保存（後方互換性）
-    items[index] = {
+    await idb.saveStock({
       ...item,
       estimations,
       result: estimation,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    });
+    stockCache = null;
   }
 };
 
-// 最新の推定結果を取得
+// ========== 最新推定結果取得 ==========
+
 export const getLatestEstimation = (item: StockItem): EstimationResult | undefined => {
-  // estimations配列が存在する場合は最新（先頭）を返す
   if (item.estimations && item.estimations.length > 0) {
     return item.estimations[0];
   }
-  // 後方互換性のため、resultも確認
   return item.result;
 };
 
-// 既存のストックデータを圧縮（初回のみ実行）
-export const compressExistingStock = async (): Promise<void> => {
-  const COMPRESSED_FLAG = 'tonchecker_stock_compressed_v2';
-  if (localStorage.getItem(COMPRESSED_FLAG)) return;
+// ========== ストック件数取得 ==========
 
-  try {
-    const items = getStockItems();
-    if (items.length === 0) {
-      localStorage.setItem(COMPRESSED_FLAG, 'true');
-      return;
-    }
-
-    console.log(`既存ストック ${items.length}件 を圧縮中...`);
-    const compressedItems: StockItem[] = [];
-
-    for (const item of items) {
-      const compressedImages: string[] = [];
-      for (const img of item.base64Images) {
-        if (img && img.length > 50000) { // 50KB以上なら圧縮
-          const compressed = await compressImage(img, 800, 0.6);
-          compressedImages.push(compressed);
-        } else if (img) {
-          compressedImages.push(img);
-        }
-      }
-
-      compressedItems.push({
-        ...item,
-        base64Images: compressedImages,
-        imageUrls: compressedImages.length > 0
-          ? compressedImages.map(b64 => 'data:image/jpeg;base64,' + b64)
-          : item.imageUrls
-      });
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(compressedItems));
-    localStorage.setItem(COMPRESSED_FLAG, 'true');
-    console.log('ストック圧縮完了');
-  } catch (err) {
-    console.error('ストック圧縮エラー:', err);
-  }
+export const getStockCount = async (): Promise<number> => {
+  return idb.getStockCount();
 };
 
-// 既存の履歴データをストックに移行（初回のみ実行）
+// ========== マイグレーション（レガシー） ==========
+
+// 既存の履歴データをストックに移行（IndexedDBへのマイグレーションで処理済み）
 export const migrateLegacyHistory = (): void => {
-  try {
-    const legacyHistory = localStorage.getItem(LEGACY_HISTORY_KEY);
-    if (!legacyHistory) return;
+  // IndexedDBマイグレーションで処理するため空実装
+};
 
-    const historyData = JSON.parse(legacyHistory);
-    if (!Array.isArray(historyData) || historyData.length === 0) return;
-
-    const existingStock = getStockItems();
-    const existingIds = new Set(existingStock.map(item => item.id));
-
-    // 履歴データをストックに変換
-    const migratedItems: StockItem[] = historyData
-      .filter((h: any) => h.result && !existingIds.has(h.id))
-      .map((h: any) => ({
-        id: h.id,
-        timestamp: h.timestamp,
-        base64Images: [], // 履歴にはbase64Imagesがないため空配列
-        imageUrls: h.imageUrls || [],
-        result: h.result, // 最新の推定結果（後方互換性）
-        estimations: h.result ? [h.result] : [], // 推定結果の履歴
-        actualTonnage: h.actualTonnage,
-        maxCapacity: undefined,
-        memo: h.description,
-      }));
-
-    if (migratedItems.length > 0) {
-      const allItems = [...migratedItems, ...existingStock];
-      // 最大50件まで保持（新しい順）
-      const sorted = allItems.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
-    }
-    
-    // 移行完了後、古い履歴データを削除（再度移行されないように）
-    localStorage.removeItem(LEGACY_HISTORY_KEY);
-  } catch (err) {
-    console.error('履歴データの移行エラー:', err);
-  }
+// 既存のストックデータを圧縮（IndexedDBへのマイグレーションで処理済み）
+export const compressExistingStock = async (): Promise<void> => {
+  // IndexedDBマイグレーションで処理するため空実装
 };

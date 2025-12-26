@@ -26,7 +26,7 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
 
   useEffect(() => {
     if (isOpen) {
-      setVehicles(getReferenceImages());
+      getReferenceImages().then(v => setVehicles(v));
       resetForm();
     }
   }, [isOpen]);
@@ -128,30 +128,32 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
     e.target.value = '';
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!newName.trim() || !newCapacity || !newImage) return;
     setError(null);
 
     if (editingId) {
       // 更新
-      updateVehicle(editingId, {
+      await updateVehicle(editingId, {
         name: newName.trim(),
         maxCapacity: parseFloat(newCapacity),
         base64: newImage,
         mimeType: newImageMime
       });
-      setVehicles(getReferenceImages());
+      const updated = await getReferenceImages();
+      setVehicles(updated);
       resetForm();
     } else {
       // 新規追加
-      const result = addVehicle({
+      const result = await addVehicle({
         name: newName.trim(),
         maxCapacity: parseFloat(newCapacity),
         base64: newImage,
         mimeType: newImageMime
       });
       if (result) {
-        setVehicles(getReferenceImages());
+        const updated = await getReferenceImages();
+        setVehicles(updated);
         resetForm();
       } else {
         setError('保存に失敗しました。画像サイズが大きすぎる可能性があります。');
@@ -159,9 +161,10 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
     }
   };
 
-  const handleDelete = (id: string) => {
-    deleteVehicle(id);
-    setVehicles(getReferenceImages());
+  const handleDelete = async (id: string) => {
+    await deleteVehicle(id);
+    const updated = await getReferenceImages();
+    setVehicles(updated);
   };
 
   if (!isOpen) return null;

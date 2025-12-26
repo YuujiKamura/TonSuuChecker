@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
 import { Save, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import AIChatSection from './AIChatSection';
+import * as chatService from '../services/chatService';
 
 interface AnalysisResultProps {
   result: EstimationResult;
@@ -17,28 +18,6 @@ interface AnalysisResultProps {
   onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;
 }
 
-const CHAT_STORAGE_KEY = 'garaton_chat_history';
-
-const saveChatHistory = (analysisId: string, messages: ChatMessage[]) => {
-  try {
-    const allChats = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '{}');
-    allChats[analysisId] = messages;
-    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(allChats));
-  } catch (e) {
-    console.error('Failed to save chat history', e);
-  }
-};
-
-const loadChatHistory = (analysisId: string): ChatMessage[] => {
-  try {
-    const allChats = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '{}');
-    return allChats[analysisId] || [];
-  } catch (e) {
-    console.error('Failed to load chat history', e);
-    return [];
-  }
-};
-
 const AnalysisResult: React.FC<AnalysisResultProps> = ({
   result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory,
   onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback
@@ -51,15 +30,20 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
 
   useEffect(() => {
     if (analysisId) {
-      const messages = initialChatHistory?.length ? initialChatHistory : loadChatHistory(analysisId);
-      setChatMessages(messages);
+      if (initialChatHistory?.length) {
+        setChatMessages(initialChatHistory);
+      } else {
+        chatService.loadChatHistory(analysisId).then(messages => {
+          setChatMessages(messages);
+        });
+      }
     }
   }, [analysisId, initialChatHistory]);
 
   const handleUpdateMessages = (messages: ChatMessage[]) => {
     setChatMessages(messages);
     if (analysisId) {
-      saveChatHistory(analysisId, messages);
+      chatService.saveChatHistory(analysisId, messages);
     }
     onUpdateChatHistory?.(messages);
   };

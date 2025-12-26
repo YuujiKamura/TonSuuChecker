@@ -1,4 +1,5 @@
-// Gemini API コスト追跡サービス
+// Gemini API コスト追跡サービス - IndexedDB版
+import * as idb from './indexedDBService';
 
 export interface CostEntry {
   id: string;
@@ -34,7 +35,7 @@ const EXCHANGE_RATES: Record<string, number> = {
 // ブラウザの言語から通貨を判定
 export const getCurrency = (): { code: string; symbol: string; rate: number } => {
   const lang = navigator.language || 'en-US';
-  
+
   if (lang.startsWith('ja')) {
     return { code: 'JPY', symbol: '¥', rate: EXCHANGE_RATES['JPY'] };
   } else if (lang.startsWith('en-GB')) {
@@ -49,7 +50,7 @@ export const getCurrency = (): { code: string; symbol: string; rate: number } =>
 export const formatCost = (usdAmount: number): string => {
   const currency = getCurrency();
   const localAmount = usdAmount * currency.rate;
-  
+
   if (currency.code === 'JPY') {
     // 円は小数点なし
     if (localAmount < 1) {
@@ -57,28 +58,32 @@ export const formatCost = (usdAmount: number): string => {
     }
     return currency.symbol + Math.round(localAmount).toLocaleString();
   }
-  
+
   return currency.symbol + localAmount.toFixed(4);
 };
 
-const STORAGE_KEY = 'gemini_api_cost_history';
+// コスト履歴キャッシュ
+let costCache: CostEntry[] | null = null;
 
-export const getCostHistory = (): CostEntry[] => {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return [];
-    }
-  }
-  return [];
+export const getCostHistory = async (): Promise<CostEntry[]> => {
+  if (costCache) return costCache;
+  costCache = await idb.getAllCostHistory();
+  return costCache;
 };
 
-export const saveCostEntry = (model: string, imageCount: number = 1, isFreeTier: boolean = false): CostEntry => {
-  const history = getCostHistory();
+// 同期版（キャッシュから取得）
+export const getCostHistorySync = (): CostEntry[] => {
+  return costCache || [];
+};
+
+export const refreshCostCache = async (): Promise<CostEntry[]> => {
+  costCache = await idb.getAllCostHistory();
+  return costCache;
+};
+
+export const saveCostEntry = async (model: string, imageCount: number = 1, isFreeTier: boolean = false): Promise<CostEntry> => {
   const costPerCall = isFreeTier ? 0 : (COST_PER_CALL[model] || COST_PER_CALL['default']);
-  
+
   const entry: CostEntry = {
     id: crypto.randomUUID(),
     timestamp: Date.now(),
@@ -87,33 +92,30 @@ export const saveCostEntry = (model: string, imageCount: number = 1, isFreeTier:
     estimatedCost: costPerCall * imageCount,
     imageCount
   };
-  
-  history.push(entry);
-  
-  // 最大1000件まで保持
-  const trimmed = history.slice(-1000);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-  
+
+  await idb.saveCostEntry(entry);
+  costCache = null; // キャッシュ無効化
+
   return entry;
 };
 
-export const getTotalCost = (): number => {
-  const history = getCostHistory();
+export const getTotalCost = async (): Promise<number> => {
+  const history = await getCostHistory();
   return history.reduce((sum, entry) => sum + entry.estimatedCost, 0);
 };
 
-export const getTodayCost = (): number => {
-  const history = getCostHistory();
+export const getTodayCost = async (): Promise<number> => {
+  const history = await getCostHistory();
   const today = new Date().toDateString();
   return history
     .filter(entry => new Date(entry.timestamp).toDateString() === today)
     .reduce((sum, entry) => sum + entry.estimatedCost, 0);
 };
 
-export const getDailyCosts = (days: number = 7): DailyCost[] => {
-  const history = getCostHistory();
+export const getDailyCosts = async (days: number = 7): Promise<DailyCost[]> => {
+  const history = await getCostHistory();
   const result: Map<string, DailyCost> = new Map();
-  
+
   // 過去N日分の日付を生成
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date();
@@ -121,7 +123,7 @@ export const getDailyCosts = (days: number = 7): DailyCost[] => {
     const dateStr = date.toISOString().split('T')[0];
     result.set(dateStr, { date: dateStr, totalCost: 0, callCount: 0 });
   }
-  
+
   // 履歴からコストを集計
   history.forEach(entry => {
     const dateStr = new Date(entry.timestamp).toISOString().split('T')[0];
@@ -131,27 +133,28 @@ export const getDailyCosts = (days: number = 7): DailyCost[] => {
       daily.callCount += entry.callCount;
     }
   });
-  
+
   return Array.from(result.values());
 };
 
-export const getModelBreakdown = (): { model: string; cost: number; count: number }[] => {
-  const history = getCostHistory();
+export const getModelBreakdown = async (): Promise<{ model: string; cost: number; count: number }[]> => {
+  const history = await getCostHistory();
   const breakdown: Map<string, { cost: number; count: number }> = new Map();
-  
+
   history.forEach(entry => {
     const existing = breakdown.get(entry.model) || { cost: 0, count: 0 };
     existing.cost += entry.estimatedCost;
     existing.count += entry.callCount;
     breakdown.set(entry.model, existing);
   });
-  
+
   return Array.from(breakdown.entries()).map(([model, data]) => ({
     model,
     ...data
   }));
 };
 
-export const clearCostHistory = (): void => {
-  localStorage.removeItem(STORAGE_KEY);
+export const clearCostHistory = async (): Promise<void> => {
+  await idb.clearCostHistory();
+  costCache = null;
 };

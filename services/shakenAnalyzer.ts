@@ -64,7 +64,7 @@ export const analyzeShaken = async (
     const text = response.text;
     if (!text) return null;
 
-    saveCostEntry('gemini-2.0-flash', 1, localStorage.getItem('gemini_api_key_source') === 'google_ai_studio');
+    await saveCostEntry('gemini-2.0-flash', 1, localStorage.getItem('gemini_api_key_source') === 'google_ai_studio');
 
     return JSON.parse(text) as ShakenResult;
   } catch (err) {

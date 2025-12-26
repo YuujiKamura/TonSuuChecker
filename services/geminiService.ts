@@ -39,7 +39,7 @@ async function runSingleInference(
   userFeedback?: ChatMessage[]
 ): Promise<EstimationResult> {
   // 参考画像を取得
-  const referenceImages = getReferenceImages();
+  const referenceImages = await getReferenceImages();
   const refImageParts: any[] = [];
   let refImagePrompt = '';
 
@@ -317,7 +317,7 @@ export const analyzeGaraImageEnsemble = async (
       }
 
       results.push(res);
-      saveCostEntry(modelName, imageParts.length, checkIsFreeTier());
+      await saveCostEntry(modelName, imageParts.length, checkIsFreeTier());
       onProgress(results.length, res);
     } catch (err: any) {
       console.error(`推論エラー #${i + 1}:`, err);
@@ -440,7 +440,7 @@ ${WEIGHT_FORMULA_PROMPT}
   });
 
   const rawResponse = response.text || '[]';
-  saveCostEntry('gemini-2.0-flash', 1, checkIsFreeTier());
+  await saveCostEntry('gemini-2.0-flash', 1, checkIsFreeTier());
 
   try {
     const features = JSON.parse(rawResponse) as ExtractedFeature[];
@@ -507,7 +507,7 @@ export const askFollowUp = async (
   });
 
   const text = response.text || '回答を生成できませんでした。';
-  saveCostEntry(modelName, base64Images.length, checkIsFreeTier());
+  await saveCostEntry(modelName, base64Images.length, checkIsFreeTier());
 
   return text;
 };
