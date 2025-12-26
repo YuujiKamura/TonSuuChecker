@@ -18,12 +18,19 @@ const CostDashboard: React.FC<CostDashboardProps> = ({ isOpen, onClose }) => {
   const [isFreeTier, setIsFreeTier] = useState(false);
   const currency = getCurrency();
 
-  const refreshData = () => {
-    setTotalCost(getTotalCost());
-    setTodayCost(getTodayCost());
-    setDailyCosts(getDailyCosts(7));
-    setModelBreakdown(getModelBreakdown());
-    setTotalCalls(getCostHistory().length);
+  const refreshData = async () => {
+    const [total, today, daily, breakdown, history] = await Promise.all([
+      getTotalCost(),
+      getTodayCost(),
+      getDailyCosts(7),
+      getModelBreakdown(),
+      getCostHistory()
+    ]);
+    setTotalCost(total);
+    setTodayCost(today);
+    setDailyCosts(daily);
+    setModelBreakdown(breakdown);
+    setTotalCalls(history.length);
     setIsFreeTier(isGoogleAIStudioKey());
   };
 
@@ -33,10 +40,10 @@ const CostDashboard: React.FC<CostDashboardProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (confirm('コスト履歴をすべて削除しますか？')) {
-      clearCostHistory();
-      refreshData();
+      await clearCostHistory();
+      await refreshData();
     }
   };
 
