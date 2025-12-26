@@ -1,14 +1,27 @@
 import React from 'react';
-import { Truck } from 'lucide-react';
+import { Truck, Database } from 'lucide-react';
 
 interface HeaderProps {
   onReset: () => void;
   costDisplay?: string;
   isFreeTier?: boolean;
   onCostClick?: () => void;
+  storageUsed?: number;  // bytes
+  storageQuota?: number; // bytes
 }
 
-const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCostClick }) => {
+// バイト数を読みやすい形式に変換
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCostClick, storageUsed, storageQuota }) => {
+  const storagePercent = storageQuota ? Math.round((storageUsed || 0) / storageQuota * 100) : 0;
+
   return (
     <header className="bg-slate-950/90 backdrop-blur-xl text-white h-16 flex items-center justify-between px-4 sticky top-0 z-[100] border-b border-slate-800 shadow-2xl">
       {/* Logo Area */}
@@ -27,6 +40,26 @@ const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCos
 
       {/* Status indicator (Right side) */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* ストレージ使用量 */}
+        {storageUsed !== undefined && (
+          <div
+            className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full bg-slate-800 text-slate-400"
+            title={`ストレージ: ${formatBytes(storageUsed || 0)} / ${formatBytes(storageQuota || 0)}`}
+          >
+            <Database size={12} />
+            <span>{formatBytes(storageUsed || 0)}</span>
+            {storagePercent > 0 && (
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${
+                    storagePercent > 80 ? 'bg-red-500' : storagePercent > 50 ? 'bg-yellow-500' : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${Math.min(storagePercent, 100)}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
         {/* コスト表示 */}
         {costDisplay && (
           <button

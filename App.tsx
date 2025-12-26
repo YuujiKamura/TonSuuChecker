@@ -14,7 +14,7 @@ import ApiKeySetup from './components/ApiKeySetup';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, addEstimation, getLatestEstimation, refreshStockCache } from './services/stockService';
 import { refreshVehicleCache } from './services/referenceImages';
 import { getTodayCost, formatCost, refreshCostCache } from './services/costTracker';
-import { migrateFromLocalStorage, requestPersistentStorage } from './services/indexedDBService';
+import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage } from './services/indexedDBService';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage } from './types';
@@ -57,6 +57,10 @@ const App: React.FC = () => {
   const [showCostDashboard, setShowCostDashboard] = useState(false);
   const [todaysCost, setTodaysCost] = useState(0);
 
+  // ストレージ使用量
+  const [storageUsed, setStorageUsed] = useState<number>(0);
+  const [storageQuota, setStorageQuota] = useState<number>(0);
+
   // ストック・選択関連
   const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
   const [showStockList, setShowStockList] = useState(false);
@@ -96,15 +100,18 @@ const App: React.FC = () => {
       });
 
       // キャッシュを更新してデータを読み込み
-      const [items, cost] = await Promise.all([
+      const [items, cost, , , usage] = await Promise.all([
         refreshStockCache(),
         getTodayCost(),
         refreshVehicleCache(),
-        refreshCostCache()
+        refreshCostCache(),
+        getIndexedDBUsage()
       ]);
 
       setStockItems(items);
       setTodaysCost(cost);
+      setStorageUsed(usage.used);
+      setStorageQuota(usage.quota);
 
       // URLパラメータからGAS URLを読み込み
       initFromUrlParams();
@@ -123,6 +130,10 @@ const App: React.FC = () => {
   const refreshStock = async () => {
     const items = await refreshStockCache();
     setStockItems(items);
+    // ストレージ使用量も更新
+    const usage = await getIndexedDBUsage();
+    setStorageUsed(usage.used);
+    setStorageQuota(usage.quota);
   };
 
   const steps = [
@@ -405,6 +416,8 @@ const App: React.FC = () => {
         costDisplay={formatCost(todaysCost)}
         isFreeTier={isGoogleAIStudio}
         onCostClick={() => setShowCostDashboard(true)}
+        storageUsed={storageUsed}
+        storageQuota={storageQuota}
       />
       
       <main className="flex-grow min-h-0 relative overflow-x-hidden overflow-y-auto">
