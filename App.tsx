@@ -288,7 +288,7 @@ const App: React.FC = () => {
                 result: merged, // 最新の推定結果（後方互換性）
                 estimations: [merged], // 推定結果の履歴（ランごとに追加）
               };
-              saveStockItem(stockItem);
+              await saveStockItem(stockItem);
             }
             setStockItems(getStockItems());
           } catch (err) {
@@ -404,7 +404,7 @@ const App: React.FC = () => {
               setCurrentBase64Images([base64]);
               startAnalysis([base64], [url], false, capacity);
             }}
-            onStock={currentId ? undefined : () => {
+            onStock={currentId ? undefined : async () => {
               const dataUrl = 'data:image/jpeg;base64,' + pendingCapture.base64;
               const newItem: StockItem = {
                 id: crypto.randomUUID(),
@@ -412,7 +412,7 @@ const App: React.FC = () => {
                 base64Images: [pendingCapture.base64],
                 imageUrls: [dataUrl],
               };
-              saveStockItem(newItem);
+              await saveStockItem(newItem);
               setStockItems(getStockItems());
               setPendingCapture(null);
             }}
@@ -601,8 +601,8 @@ const App: React.FC = () => {
       {showStockList && (
         <StockList
           items={stockItems}
-          onAdd={(item) => {
-            saveStockItem(item);
+          onAdd={async (item) => {
+            await saveStockItem(item);
             setStockItems(getStockItems());
           }}
           onUpdate={(id, updates) => {
@@ -639,8 +639,8 @@ const App: React.FC = () => {
       {showReportView && (
         <ReportView
           items={stockItems}
-          onAdd={(item) => {
-            saveStockItem(item);
+          onAdd={async (item) => {
+            await saveStockItem(item);
             setStockItems(getStockItems());
           }}
           onUpdate={(id, updates) => {

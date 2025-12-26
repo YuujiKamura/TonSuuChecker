@@ -3,6 +3,7 @@ import { ArrowLeft, Truck, Plus, Trash2, Camera, FileText, Loader2, Pencil } fro
 import { getReferenceImages, addVehicle, updateVehicle, deleteVehicle, RegisteredVehicle } from '../services/referenceImages';
 import { analyzeShaken } from '../services/shakenAnalyzer';
 import { convertPdfToImage, isPdf } from '../services/pdfConverter';
+import { compressImage } from '../services/imageUtils';
 
 interface ReferenceImageSettingsProps {
   isOpen: boolean;
@@ -62,29 +63,6 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
         setAnalyzing(false);
       }
     }
-  };
-
-  // 画像を圧縮
-  const compressImage = (base64: string, maxWidth: number = 800): Promise<string> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        if (width > maxWidth) {
-          height = (height * maxWidth) / width;
-          width = maxWidth;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-        resolve(compressed);
-      };
-      img.src = 'data:image/jpeg;base64,' + base64;
-    });
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
