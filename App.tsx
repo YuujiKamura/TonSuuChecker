@@ -11,7 +11,8 @@ import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import ApiKeySetup from './components/ApiKeySetup';
-import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation } from './services/stockService';
+import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, migrateLegacyHistory, addEstimation, getLatestEstimation, compressExistingStock } from './services/stockService';
+import { compressExistingVehicles } from './services/referenceImages';
 import { getTodayCost, formatCost } from './services/costTracker';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
@@ -86,7 +87,15 @@ const App: React.FC = () => {
     
     // 既存の履歴データをストックに移行（初回のみ）
     migrateLegacyHistory();
-    
+
+    // 既存データの画像を圧縮（初回のみ）
+    Promise.all([
+      compressExistingStock(),
+      compressExistingVehicles()
+    ]).then(() => {
+      setStockItems(getStockItems());
+    });
+
     setTodaysCost(getTodayCost());
     setStockItems(getStockItems());
     // URLパラメータからGAS URLを読み込み

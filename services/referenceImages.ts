@@ -1,4 +1,5 @@
 // 車両登録サービス - 複数の車両を登録・管理
+import { compressImage } from './imageUtils';
 
 export interface RegisteredVehicle {
   id: string;
@@ -52,4 +53,40 @@ export const updateVehicle = (id: string, updates: Partial<Omit<RegisteredVehicl
 export const deleteVehicle = (id: string): void => {
   const vehicles = getReferenceImages().filter(v => v.id !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+};
+
+// 既存の車両データを圧縮（初回のみ実行）
+export const compressExistingVehicles = async (): Promise<void> => {
+  const COMPRESSED_FLAG = 'tonchecker_vehicles_compressed_v1';
+  if (localStorage.getItem(COMPRESSED_FLAG)) return;
+
+  try {
+    const vehicles = getReferenceImages();
+    if (vehicles.length === 0) {
+      localStorage.setItem(COMPRESSED_FLAG, 'true');
+      return;
+    }
+
+    console.log(`既存車両 ${vehicles.length}件 を圧縮中...`);
+    const compressedVehicles: RegisteredVehicle[] = [];
+
+    for (const vehicle of vehicles) {
+      if (vehicle.base64 && vehicle.base64.length > 50000 && vehicle.mimeType !== 'application/pdf') {
+        const compressed = await compressImage(vehicle.base64, 800, 0.6);
+        compressedVehicles.push({
+          ...vehicle,
+          base64: compressed,
+          mimeType: 'image/jpeg'
+        });
+      } else {
+        compressedVehicles.push(vehicle);
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(compressedVehicles));
+    localStorage.setItem(COMPRESSED_FLAG, 'true');
+    console.log('車両圧縮完了');
+  } catch (err) {
+    console.error('車両圧縮エラー:', err);
+  }
 };
