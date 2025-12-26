@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Key, Cloud, Truck, Cpu, Gauge, Zap, BrainCircuit, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Key, Cloud, Truck, Cpu, Gauge, Zap, BrainCircuit, ExternalLink, Database } from 'lucide-react';
 import { getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from '../services/geminiService';
 import SyncSettings from './SyncSettings';
 import ReferenceImageSettings from './ReferenceImageSettings';
+import DataExportSettings from './DataExportSettings';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -23,7 +24,7 @@ const Settings: React.FC<SettingsProps> = ({
   onEnsembleChange,
   onApiKeyChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'vehicles'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'vehicles' | 'data'>('general');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [isGoogleAIStudio, setIsGoogleAIStudio] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -95,6 +96,13 @@ const Settings: React.FC<SettingsProps> = ({
           >
             <Truck size={14} className="inline mr-1" />
             車両
+          </button>
+          <button
+            onClick={() => setActiveTab('data')}
+            className={`flex-1 py-3 text-sm font-bold transition-colors ${activeTab === 'data' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Database size={14} className="inline mr-1" />
+            データ
           </button>
         </div>
 
@@ -216,6 +224,10 @@ const Settings: React.FC<SettingsProps> = ({
 
           {activeTab === 'vehicles' && (
             <ReferenceImageSettings isOpen={true} onClose={() => {}} embedded={true} />
+          )}
+
+          {activeTab === 'data' && (
+            <DataExportSettings isOpen={true} onClose={() => {}} embedded={true} />
           )}
         </div>
       </div>
