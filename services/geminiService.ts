@@ -36,7 +36,8 @@ async function runSingleInference(
   modelName: string,
   maxCapacity?: number,
   runIndex: number = 0,
-  userFeedback?: ChatMessage[]
+  userFeedback?: ChatMessage[],
+  taggedStock?: StockItem[]  // 実測値付きの過去データ
 ): Promise<EstimationResult> {
   // 参考画像を取得
   const referenceImages = getReferenceImages();
@@ -50,6 +51,23 @@ async function runSingleInference(
       refImageParts.push({ inlineData: { mimeType, data: ref.base64 } });
       refImagePrompt += `- 登録車両${idx + 1}: ${ref.name}（最大積載量: ${ref.maxCapacity}t）\n`;
     });
+  }
+
+  // 実測値付き過去データのプロンプト生成
+  const taggedStockParts: any[] = [];
+  let taggedStockPrompt = '';
+  if (taggedStock && taggedStock.length > 0) {
+    taggedStockPrompt = '\n【実測データ（学習用）】以下は過去に実測で重量を確認した画像です。推定の参考にしてください。\n';
+    taggedStock.slice(0, 5).forEach((item, idx) => {  // 最大5件
+      if (item.base64Images[0]) {
+        taggedStockParts.push({ inlineData: { mimeType: 'image/jpeg', data: item.base64Images[0] } });
+        const errorInfo = item.result
+          ? `（AI推定: ${item.result.estimatedTonnage.toFixed(1)}t、誤差: ${((item.result.estimatedTonnage - item.actualTonnage!) / item.actualTonnage! * 100).toFixed(0)}%）`
+          : '';
+        taggedStockPrompt += `- 実測データ${idx + 1}: 実測${item.actualTonnage}t、最大積載量${item.maxCapacity}t${item.memo ? `、${item.memo}` : ''}${errorInfo}\n`;
+      }
+    });
+    taggedStockPrompt += '\n※ 上記の実測データを参考に、同様の積載状況の場合は実測値に近い推定を行ってください。\n';
   }
 
   const maxCapacityInstruction = maxCapacity
@@ -121,12 +139,12 @@ ${WEIGHT_FORMULA_PROMPT}
 3. 基準容積 × 埋まり具合 = 見かけ体積
 
 【推論ルール】
-- 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること
 - 荷台の埋まり具合、積載物の山の高さ、材質の見た目を根拠として明記すること
 - reasoningには「体積」「適用した密度」「空隙率とその判断理由」を明記すること
 - maxCapacityReasoningには「なぜその最大積載量と判断したか」をキャビン比率・車高などの視覚的根拠で記述すること
 - 推論ラン#${runIndex + 1}: 毎回独自の視点で分析すること
-${refImagePrompt}
+${taggedStockPrompt ? '- 【重要】実測データがある場合は、類似の積載状況を参考に推定精度を向上させること' : '- 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること'}
+${refImagePrompt}${taggedStockPrompt}
 ${userFeedback && userFeedback.length > 0 ? `
 【ユーザーからの指摘・修正】
 以下は前回の解析結果に対するユーザーからのフィードバックです。これらの指摘を考慮して再解析してください。
@@ -138,8 +156,9 @@ ${userFeedback.map(msg => `${msg.role === 'user' ? 'ユーザー' : 'AI'}: ${msg
     model: modelName,
     contents: {
       parts: [
-        ...refImageParts,  // 参考画像（あれば）
-        { text: refImageParts.length > 0 ? '【解析対象の画像】' : '' },
+        ...refImageParts,  // 参考画像（登録車両）
+        ...(taggedStockParts.length > 0 ? [{ text: '【実測データ画像】' }, ...taggedStockParts] : []),  // 実測データ画像
+        { text: (refImageParts.length > 0 || taggedStockParts.length > 0) ? '【解析対象の画像】' : '' },
         ...imageParts,  // 解析対象の画像
         { text: promptText }
       ],
@@ -282,11 +301,11 @@ export const detectApiKeySource = async (): Promise<'google_ai_studio' | 'other'
 export const analyzeGaraImageEnsemble = async (
   base64Images: string[],
   targetCount: number,
-  _learningData: AnalysisHistory[] = [],  // 未使用（純粋アンサンブルのため）
+  _learningData: AnalysisHistory[] = [],  // 未使用（後方互換性のため残す）
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview',
-  _taggedStock: StockItem[] = [],  // 未使用（純粋アンサンブルのため）
+  taggedStock: StockItem[] = [],  // 実測値付き過去データ（学習用）
   maxCapacity?: number,
   userFeedback?: ChatMessage[]  // ユーザーからの指摘・修正
 ): Promise<EstimationResult[]> => {
@@ -296,8 +315,8 @@ export const analyzeGaraImageEnsemble = async (
   }
   const ai = new GoogleGenAI({ apiKey });
 
-  // 純粋アンサンブル: 各ランは画像のみから独立して推論
-  // 過去データとの比較は結果表示時に行う（推論には影響させない）
+  // 実測データがあれば学習に利用、なければ純粋アンサンブル
+  // 過去データとの比較は結果表示時にも行う
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: { mimeType: 'image/jpeg', data: base64 }
@@ -310,7 +329,7 @@ export const analyzeGaraImageEnsemble = async (
     if (abortSignal?.cancelled) break;
 
     try {
-      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback);
+      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, taggedStock);
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];
