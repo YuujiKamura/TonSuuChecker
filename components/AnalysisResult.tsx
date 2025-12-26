@@ -84,9 +84,9 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
             <>
               <div className="w-px h-8 bg-slate-600" />
               <div className="flex items-baseline gap-1">
-                <span className="text-xs text-slate-400 font-bold">実測</span>
-                <span className="text-7xl font-black text-green-400">{actualTonnage.toFixed(1)}</span>
-                <span className="text-2xl font-bold text-slate-400">t</span>
+                <span className="text-sm sm:text-base text-slate-400 font-bold">実測</span>
+                <span className="text-7xl sm:text-9xl font-black text-green-400">{actualTonnage.toFixed(1)}</span>
+                <span className="text-2xl sm:text-4xl font-bold text-slate-400">t</span>
               </div>
               {errorRate !== null && (
                 <div className={`px-3 py-1 rounded text-sm font-black ${Math.abs(errorRate) < 5 ? 'bg-green-500' : Math.abs(errorRate) < 15 ? 'bg-yellow-500' : 'bg-red-500'} text-white`}>
@@ -131,8 +131,8 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
           )}
 
           {/* 実測値入力 */}
-          <div className="flex-1 flex items-center gap-1">
-            <span className="text-xs text-slate-500 font-bold">実測</span>
+          <div className="flex-1 flex items-center gap-1 sm:gap-2">
+            <span className="text-xs sm:text-sm text-slate-500 font-bold">実測</span>
             <input
               type="number"
               inputMode="decimal"
@@ -140,11 +140,11 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
               value={inputValue}
               onChange={(e) => { setInputValue(e.target.value); setIsSaved(false); }}
               placeholder="0.0"
-              className={`w-28 h-12 px-2 rounded font-bold text-3xl outline-none ${
+              className={`w-28 sm:w-36 h-12 sm:h-16 px-2 rounded font-bold text-4xl sm:text-5xl outline-none ${
                 isSaved ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-slate-800 text-white border border-slate-700'
               }`}
             />
-            <span className="text-slate-500 text-lg font-bold">t</span>
+            <span className="text-slate-500 text-xl sm:text-2xl font-bold">t</span>
             <button
               onClick={handleSave}
               disabled={isSaved || !inputValue}
