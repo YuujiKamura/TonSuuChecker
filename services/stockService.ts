@@ -1,4 +1,5 @@
 import { StockItem, EstimationResult, isJudged } from '../types';
+import { compressImage } from './imageUtils';
 
 const STORAGE_KEY = 'tonchecker_stock_v1';
 const LEGACY_HISTORY_KEY = 'garaton_history_v4';
@@ -12,11 +13,35 @@ export const getStockItems = (): StockItem[] => {
   }
 };
 
-export const saveStockItem = (item: StockItem): void => {
-  const items = getStockItems();
-  items.unshift(item);
-  // 最大50件まで保存
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, 50)));
+// 画像を圧縮してからストックに保存
+export const saveStockItem = async (item: StockItem): Promise<boolean> => {
+  try {
+    const items = getStockItems();
+
+    // base64Imagesを圧縮
+    const compressedImages: string[] = [];
+    for (const img of item.base64Images) {
+      if (img) {
+        const compressed = await compressImage(img, 800, 0.6);
+        compressedImages.push(compressed);
+      }
+    }
+
+    const compressedItem = {
+      ...item,
+      base64Images: compressedImages,
+      imageUrls: compressedImages.map(b64 => 'data:image/jpeg;base64,' + b64)
+    };
+
+    items.unshift(compressedItem);
+    // 最大50件まで保存
+    const toSave = items.slice(0, 50);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    return true;
+  } catch (e) {
+    console.error('ストック保存エラー:', e);
+    return false;
+  }
 };
 
 export const updateStockItem = (id: string, updates: Partial<StockItem>): void => {
