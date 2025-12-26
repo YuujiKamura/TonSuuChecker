@@ -43,13 +43,13 @@ const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCos
         {/* ストレージ使用量 */}
         {storageUsed !== undefined && (
           <div
-            className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full bg-slate-800 text-slate-400"
+            className="flex items-center gap-1 sm:gap-1.5 text-[10px] font-bold px-1.5 sm:px-2 py-1 rounded-full bg-slate-800 text-slate-400"
             title={`ストレージ: ${formatBytes(storageUsed || 0)} / ${formatBytes(storageQuota || 0)}`}
           >
             <Database size={12} />
-            <span>{formatBytes(storageUsed || 0)}</span>
+            <span className="hidden sm:inline">{formatBytes(storageUsed || 0)}</span>
             {storagePercent > 0 && (
-              <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div className="w-8 sm:w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full ${
                     storagePercent > 80 ? 'bg-red-500' : storagePercent > 50 ? 'bg-yellow-500' : 'bg-blue-500'
