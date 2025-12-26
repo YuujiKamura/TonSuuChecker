@@ -26,7 +26,7 @@ export const TRUCK_SPECS: Record<string, TruckSpec> = {
     bedWidth: 2.06,
     bedHeight: 0.34,
     levelVolume: 2.0,
-    heapVolume: 2.6,
+    heapVolume: 2.4,
     soilEquivalent: 2.2
   },
   '増トン': {
