@@ -19,6 +19,7 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
   const [newImage, setNewImage] = useState<string | null>(null);
   const [newImageMime, setNewImageMime] = useState<string>('image/jpeg');
   const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const shakenInputRef = useRef<HTMLInputElement>(null);
 
@@ -37,6 +38,7 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
     setNewImage(null);
     setNewImageMime('image/jpeg');
     setAnalyzing(false);
+    setError(null);
   };
 
   const startEdit = async (vehicle: RegisteredVehicle) => {
@@ -62,6 +64,29 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
     }
   };
 
+  // 画像を圧縮
+  const compressImage = (base64: string, maxWidth: number = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+        resolve(compressed);
+      };
+      img.src = 'data:image/jpeg;base64,' + base64;
+    });
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -77,19 +102,21 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
         setAnalyzing(true);
         try {
           const imageBase64 = await convertPdfToImage(base64);
-          setNewImage(imageBase64);
+          const compressed = await compressImage(imageBase64);
+          setNewImage(compressed);
           setNewImageMime('image/jpeg');
         } catch (err) {
           console.error('PDF変換エラー:', err);
-          // 変換失敗時はそのまま保存
           setNewImage(base64);
           setNewImageMime(mimeType);
         } finally {
           setAnalyzing(false);
         }
       } else {
-        setNewImage(base64);
-        setNewImageMime(mimeType);
+        // 画像も圧縮
+        const compressed = await compressImage(base64);
+        setNewImage(compressed);
+        setNewImageMime('image/jpeg');
       }
     };
     reader.readAsDataURL(file);
@@ -125,6 +152,7 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
 
   const handleSave = () => {
     if (!newName.trim() || !newCapacity || !newImage) return;
+    setError(null);
 
     if (editingId) {
       // 更新
@@ -134,17 +162,23 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
         base64: newImage,
         mimeType: newImageMime
       });
+      setVehicles(getReferenceImages());
+      resetForm();
     } else {
       // 新規追加
-      addVehicle({
+      const result = addVehicle({
         name: newName.trim(),
         maxCapacity: parseFloat(newCapacity),
         base64: newImage,
         mimeType: newImageMime
       });
+      if (result) {
+        setVehicles(getReferenceImages());
+        resetForm();
+      } else {
+        setError('保存に失敗しました。画像サイズが大きすぎる可能性があります。');
+      }
     }
-    setVehicles(getReferenceImages());
-    resetForm();
   };
 
   const handleDelete = (id: string) => {
@@ -293,6 +327,12 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
                 className="hidden"
               />
             </div>
+
+            {error && (
+              <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg">
+                {error}
+              </div>
+            )}
 
             <div className="flex gap-2">
               <button

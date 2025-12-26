@@ -22,15 +22,20 @@ export const getReferenceImages = (): RegisteredVehicle[] => {
 };
 
 // 車両を追加
-export const addVehicle = (vehicle: Omit<RegisteredVehicle, 'id'>): RegisteredVehicle => {
+export const addVehicle = (vehicle: Omit<RegisteredVehicle, 'id'>): RegisteredVehicle | null => {
   const vehicles = getReferenceImages();
   const newVehicle: RegisteredVehicle = {
     ...vehicle,
     id: crypto.randomUUID()
   };
   vehicles.push(newVehicle);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
-  return newVehicle;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+    return newVehicle;
+  } catch (e) {
+    console.error('車両登録エラー（容量オーバーの可能性）:', e);
+    return null;
+  }
 };
 
 // 車両を更新
