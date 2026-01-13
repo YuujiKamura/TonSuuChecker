@@ -1,6 +1,7 @@
 import { StockItem, EstimationResult, isJudged } from '../types';
 import { compressImage } from './imageUtils';
 import * as idb from './indexedDBService';
+import { LOAD_GRADES, getLoadGrade } from '../constants';
 
 // ========== ストック取得 ==========
 
@@ -146,4 +147,60 @@ export const migrateLegacyHistory = (): void => {
 // 既存のストックデータを圧縮（IndexedDBへのマイグレーションで処理済み）
 export const compressExistingStock = async (): Promise<void> => {
   // IndexedDBマイグレーションで処理するため空実装
+};
+
+// ========== 車両クラス判定 ==========
+
+// 最大積載量から車両クラスを判定
+export type TruckClass = '2t' | '4t' | '増トン' | '10t' | 'unknown';
+
+export const getTruckClass = (maxCapacity: number): TruckClass => {
+  if (maxCapacity >= 1.5 && maxCapacity <= 2.5) return '2t';
+  if (maxCapacity >= 3.0 && maxCapacity <= 4.5) return '4t';
+  if (maxCapacity >= 5.0 && maxCapacity <= 8.0) return '増トン';
+  if (maxCapacity >= 9.0 && maxCapacity <= 12.0) return '10t';
+  return 'unknown';
+};
+
+// ========== 等級別データ選択 ==========
+
+export interface GradedStockItem extends StockItem {
+  gradeName: string;    // 等級名
+  loadRatio: number;    // 積載率（%）
+}
+
+// 車両クラスと等級で過去データを選択（各等級から最新1件）
+export const selectStockByGrade = async (targetClass: TruckClass): Promise<GradedStockItem[]> => {
+  const judgedItems = await getJudgedItems();
+
+  // 同じ車両クラスでフィルタ
+  const sameClassItems = judgedItems.filter(item => {
+    if (!item.maxCapacity) return false;
+    return getTruckClass(item.maxCapacity) === targetClass;
+  });
+
+  // 各アイテムに等級情報を付与
+  const gradedItems: GradedStockItem[] = sameClassItems.map(item => {
+    const loadRatio = (item.actualTonnage! / item.maxCapacity!) * 100;
+    const grade = getLoadGrade(item.actualTonnage!, item.maxCapacity!);
+    return {
+      ...item,
+      gradeName: grade.name,
+      loadRatio,
+    };
+  });
+
+  // 各等級から最新1件ずつ選択
+  const result: GradedStockItem[] = [];
+  for (const grade of LOAD_GRADES) {
+    const itemsInGrade = gradedItems
+      .filter(item => item.gradeName === grade.name)
+      .sort((a, b) => b.timestamp - a.timestamp);  // 新しい順
+
+    if (itemsInGrade.length > 0) {
+      result.push(itemsInGrade[0]);
+    }
+  }
+
+  return result;
 };

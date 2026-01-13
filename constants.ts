@@ -109,6 +109,37 @@ export const BUCKET_SPECS_PROMPT = Object.entries(BUCKET_SPECS)
     `- ${name}（${spec.capacity}m³）: ${spec.machineClass}、土砂一杯で約${spec.typicalWeight}t`
   ).join('\n');
 
+// 積載等級の定義（実測値 / 最大積載量）
+export interface LoadGrade {
+  name: string;      // 等級名
+  minRatio: number;  // 下限（%）
+  maxRatio: number;  // 上限（%）
+}
+
+export const LOAD_GRADES: LoadGrade[] = [
+  { name: '軽すぎ', minRatio: 0, maxRatio: 80 },
+  { name: '軽め', minRatio: 80, maxRatio: 90 },
+  { name: 'ちょうど', minRatio: 90, maxRatio: 95 },
+  { name: 'ギリOK', minRatio: 95, maxRatio: 100 },
+  { name: '積みすぎ', minRatio: 100, maxRatio: Infinity },
+];
+
+// 積載率から等級を取得
+export const getLoadGrade = (actualTonnage: number, maxCapacity: number): LoadGrade => {
+  const ratio = (actualTonnage / maxCapacity) * 100;
+  return LOAD_GRADES.find(g => ratio >= g.minRatio && ratio < g.maxRatio) || LOAD_GRADES[LOAD_GRADES.length - 1];
+};
+
+// 等級定義をプロンプト用テキストに変換
+export const LOAD_GRADES_PROMPT = `■ 積載等級（実測値 ÷ 最大積載量）
+${LOAD_GRADES.map(g =>
+  g.maxRatio === Infinity
+    ? `- ${g.name}: ${g.minRatio}%超`
+    : `- ${g.name}: ${g.minRatio}〜${g.maxRatio}%`
+).join('\n')}
+
+※ 過去の実測データは等級別に提供されます。「この見た目で何トンだったか」を参考に推定してください。`;
+
 // 重量計算式プロンプト（共通）
 export const WEIGHT_FORMULA_PROMPT = `重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
 

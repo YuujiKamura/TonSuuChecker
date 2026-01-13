@@ -1,9 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
 import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage, LearningFeedback } from "../types";
-import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT } from "../constants";
+import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT, LOAD_GRADES_PROMPT } from "../constants";
 import { getReferenceImages } from './referenceImages';
 import { getRecentLearningFeedback } from './indexedDBService';
+import { GradedStockItem, selectStockByGrade, getTruckClass, TruckClass } from './stockService';
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
 const checkIsFreeTier = (): boolean => {
@@ -58,21 +59,31 @@ async function runSingleInference(
     });
   }
 
-  // 実測値付き過去データのプロンプト生成
+  // 実測値付き過去データのプロンプト生成（等級別）
   const taggedStockParts: any[] = [];
   let taggedStockPrompt = '';
   if (taggedStock && taggedStock.length > 0) {
-    taggedStockPrompt = '\n【実測データ（学習用）】以下は過去に実測で重量を確認した画像です。推定の参考にしてください。\n';
-    taggedStock.slice(0, 5).forEach((item, idx) => {  // 最大5件
+    // GradedStockItem かどうかをチェック
+    const isGraded = (item: StockItem): item is GradedStockItem =>
+      'gradeName' in item && 'loadRatio' in item;
+
+    taggedStockPrompt = `\n${LOAD_GRADES_PROMPT}\n\n【実測データ（等級別）】同じ車両クラスで過去に実測した画像です。「この見た目で何トンだったか」を参考にしてください。\n`;
+    taggedStock.forEach((item, idx) => {
       if (item.base64Images[0]) {
         taggedStockParts.push({ inlineData: { mimeType: 'image/jpeg', data: item.base64Images[0] } });
-        const errorInfo = item.result
-          ? `（AI推定: ${item.result.estimatedTonnage.toFixed(1)}t、誤差: ${((item.result.estimatedTonnage - item.actualTonnage!) / item.actualTonnage! * 100).toFixed(0)}%）`
-          : '';
-        taggedStockPrompt += `- 実測データ${idx + 1}: 実測${item.actualTonnage}t、最大積載量${item.maxCapacity}t${item.memo ? `、${item.memo}` : ''}${errorInfo}\n`;
+        if (isGraded(item)) {
+          // 等級付きデータ
+          taggedStockPrompt += `- 【${item.gradeName}】実測${item.actualTonnage}t / 最大${item.maxCapacity}t（${item.loadRatio.toFixed(0)}%）${item.memo ? ` ${item.memo}` : ''}\n`;
+        } else {
+          // 従来のデータ（後方互換）
+          const ratio = item.actualTonnage && item.maxCapacity
+            ? ((item.actualTonnage / item.maxCapacity) * 100).toFixed(0)
+            : '?';
+          taggedStockPrompt += `- 実測${item.actualTonnage}t / 最大${item.maxCapacity}t（${ratio}%）${item.memo ? ` ${item.memo}` : ''}\n`;
+        }
       }
     });
-    taggedStockPrompt += '\n※ 上記の実測データを参考に、同様の積載状況の場合は実測値に近い推定を行ってください。\n';
+    taggedStockPrompt += '\n※ 上記の実測データと見比べて、解析対象がどの等級に近いか判断してください。\n';
   }
 
   const maxCapacityInstruction = maxCapacity
@@ -319,7 +330,7 @@ export const analyzeGaraImageEnsemble = async (
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview',
-  taggedStock: StockItem[] = [],  // 実測値付き過去データ（学習用）
+  _taggedStock: StockItem[] = [],  // 未使用（等級別選択に移行）
   maxCapacity?: number,
   userFeedback?: ChatMessage[]  // ユーザーからの指摘・修正
 ): Promise<EstimationResult[]> => {
@@ -328,9 +339,6 @@ export const analyzeGaraImageEnsemble = async (
     throw new Error('APIキーが設定されていません');
   }
   const ai = new GoogleGenAI({ apiKey });
-
-  // 実測データがあれば学習に利用、なければ純粋アンサンブル
-  // 過去データとの比較は結果表示時にも行う
 
   // 過去の学習フィードバックを取得
   let learningFeedback: LearningFeedback[] = [];
@@ -346,15 +354,39 @@ export const analyzeGaraImageEnsemble = async (
 
   const results: EstimationResult[] = [];
   let lastError: Error | null = null;
+  let gradedStock: GradedStockItem[] = [];
+  let detectedTruckClass: TruckClass | null = null;
+
+  // maxCapacityが指定されてる場合は最初から等級別データを取得
+  if (maxCapacity) {
+    detectedTruckClass = getTruckClass(maxCapacity);
+    if (detectedTruckClass !== 'unknown') {
+      gradedStock = await selectStockByGrade(detectedTruckClass);
+      console.log(`等級別データ取得: ${detectedTruckClass}クラス, ${gradedStock.length}件`);
+    }
+  }
 
   for (let i = 0; i < targetCount; i++) {
     if (abortSignal?.cancelled) break;
 
     try {
-      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, taggedStock, learningFeedback);
+      // 1回目は等級別データなしで推論（車両クラス判定のため）
+      // 2回目以降は等級別データありで推論
+      const stockForInference = (i === 0 && !maxCapacity) ? [] : gradedStock;
+
+      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, stockForInference, learningFeedback);
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];
+      }
+
+      // 1回目の結果から車両クラスを判定し、2回目以降用の等級別データを取得
+      if (i === 0 && !maxCapacity && res.estimatedMaxCapacity) {
+        detectedTruckClass = getTruckClass(res.estimatedMaxCapacity);
+        if (detectedTruckClass !== 'unknown') {
+          gradedStock = await selectStockByGrade(detectedTruckClass);
+          console.log(`1回目推論から車両クラス判定: ${detectedTruckClass}（推定${res.estimatedMaxCapacity}t）, 等級別データ${gradedStock.length}件`);
+        }
       }
 
       results.push(res);
