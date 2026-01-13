@@ -16,11 +16,12 @@ interface AnalysisResultProps {
   onUpdateLicensePlate: (plate: string, number: string) => void;
   onUpdateChatHistory?: (messages: ChatMessage[]) => void;
   onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;
+  onSaveAsLearning?: (chatHistory: ChatMessage[], result: EstimationResult) => Promise<void>;
 }
 
 const AnalysisResult: React.FC<AnalysisResultProps> = ({
   result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory,
-  onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback
+  onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback, onSaveAsLearning
 }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
@@ -202,6 +203,9 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
         chatMessages={chatMessages}
         onUpdateMessages={handleUpdateMessages}
         onReanalyzeWithFeedback={onReanalyzeWithFeedback}
+        onSaveAsLearning={onSaveAsLearning}
+        stockId={analysisId}
+        actualTonnage={actualTonnage}
       />
     </div>
   );

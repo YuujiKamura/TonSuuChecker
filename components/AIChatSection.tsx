@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, EstimationResult } from '../types';
-import { MessageCircle, Send, Loader2, Bot, User, Copy, CheckCheck, Trash2, RefreshCcw } from 'lucide-react';
+import { MessageCircle, Send, Loader2, Bot, User, Copy, CheckCheck, Trash2, RefreshCcw, GraduationCap, Check } from 'lucide-react';
 import { askFollowUp, isQuotaError, QUOTA_ERROR_MESSAGE } from '../services/geminiService';
 
 interface AIChatSectionProps {
@@ -9,6 +9,9 @@ interface AIChatSectionProps {
   chatMessages: ChatMessage[];
   onUpdateMessages: (messages: ChatMessage[]) => void;
   onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;
+  onSaveAsLearning?: (chatHistory: ChatMessage[], result: EstimationResult) => Promise<void>;
+  stockId?: string;  // 関連するStockItemのID
+  actualTonnage?: number;  // 実測重量（あれば）
 }
 
 const AIChatSection: React.FC<AIChatSectionProps> = ({
@@ -17,12 +20,17 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
   chatMessages,
   onUpdateMessages,
   onReanalyzeWithFeedback,
+  onSaveAsLearning,
+  stockId,
+  actualTonnage,
 }) => {
   const [questionInput, setQuestionInput] = useState('');
   const [isAsking, setIsAsking] = useState(false);
   const [showChat, setShowChat] = useState(chatMessages.length > 0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [isSavingLearning, setIsSavingLearning] = useState(false);
+  const [savedAsLearning, setSavedAsLearning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(chatMessages.length);
   const isInitialLoadRef = useRef(true);
@@ -86,6 +94,23 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
   const handleClearChat = () => {
     if (confirm('会話履歴を削除しますか？')) {
       onUpdateMessages([]);
+    }
+  };
+
+  const handleSaveAsLearning = async () => {
+    if (!onSaveAsLearning || chatMessages.length === 0) return;
+
+    setIsSavingLearning(true);
+    try {
+      await onSaveAsLearning(chatMessages, result);
+      setSavedAsLearning(true);
+      setTimeout(() => setSavedAsLearning(false), 3000);
+    } catch (err) {
+      console.error('学習データ保存エラー:', err);
+      // エラーは上位コンポーネントで処理される（App.tsxのaddLog）
+      throw err;
+    } finally {
+      setIsSavingLearning(false);
     }
   };
 
@@ -161,8 +186,32 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
                   <button
                     onClick={() => onReanalyzeWithFeedback(chatMessages)}
                     className="flex items-center gap-1 text-[10px] bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 px-2 py-1 rounded transition-colors"
+                    title="指摘を反映して再解析"
                   >
                     <RefreshCcw size={12} />
+                  </button>
+                )}
+                {onSaveAsLearning && chatMessages.length > 0 && (
+                  <button
+                    onClick={handleSaveAsLearning}
+                    disabled={isSavingLearning || savedAsLearning}
+                    className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors ${
+                      savedAsLearning
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400'
+                    }`}
+                    title="この会話を学習データとして保存（今後の解析に反映）"
+                  >
+                    {isSavingLearning ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : savedAsLearning ? (
+                      <Check size={12} />
+                    ) : (
+                      <GraduationCap size={12} />
+                    )}
+                    <span className="hidden sm:inline">
+                      {savedAsLearning ? '保存済' : '学習'}
+                    </span>
                   </button>
                 )}
               </div>

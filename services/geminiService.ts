@@ -1,8 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
-import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage } from "../types";
+import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage, LearningFeedback } from "../types";
 import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT } from "../constants";
 import { getReferenceImages } from './referenceImages';
+import { getRecentLearningFeedback } from './indexedDBService';
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
 const checkIsFreeTier = (): boolean => {
@@ -19,6 +20,9 @@ export const isQuotaError = (err: any): boolean => {
 
 // クォータエラー用のユーザー向けメッセージ
 export const QUOTA_ERROR_MESSAGE = 'APIの利用制限に達しました。しばらくお待ちください。';
+
+// 学習フィードバックの取得件数上限
+const RECENT_LEARNING_FEEDBACK_LIMIT = 10;
 
 const getMode = (arr: any[]) => {
   const filtered = arr.filter(v => v !== null && v !== undefined && v !== '');
@@ -37,7 +41,8 @@ async function runSingleInference(
   maxCapacity?: number,
   runIndex: number = 0,
   userFeedback?: ChatMessage[],
-  taggedStock?: StockItem[]  // 実測値付きの過去データ
+  taggedStock?: StockItem[],  // 実測値付きの過去データ
+  learningFeedback?: LearningFeedback[]  // 学習用フィードバック（過去の指摘）
 ): Promise<EstimationResult> {
   // 参考画像を取得
   const referenceImages = await getReferenceImages();
@@ -149,6 +154,15 @@ ${userFeedback && userFeedback.length > 0 ? `
 【ユーザーからの指摘・修正】
 以下は前回の解析結果に対するユーザーからのフィードバックです。これらの指摘を考慮して再解析してください。
 ${userFeedback.map(msg => `${msg.role === 'user' ? 'ユーザー' : 'AI'}: ${msg.content}`).join('\n')}
+` : ''}
+${learningFeedback && learningFeedback.length > 0 ? `
+【過去の学習データ（重要）】
+以下は過去の解析で得られた重要な指摘・知見です。同様の状況では必ずこれらを考慮してください。
+${learningFeedback.map((fb, idx) => {
+  const typeLabel = fb.feedbackType === 'correction' ? '訂正' : fb.feedbackType === 'insight' ? '知見' : 'ルール';
+  const tonnageInfo = fb.actualTonnage ? `（実測: ${fb.actualTonnage}t` + (fb.aiEstimation != null ? `、AI推定: ${fb.aiEstimation}t` : '') + '）' : '';
+  return `${idx + 1}. [${typeLabel}] ${fb.summary}${tonnageInfo}`;
+}).join('\n')}
 ` : ''}
 すべての回答は日本語で行ってください。`;
 
@@ -318,6 +332,14 @@ export const analyzeGaraImageEnsemble = async (
   // 実測データがあれば学習に利用、なければ純粋アンサンブル
   // 過去データとの比較は結果表示時にも行う
 
+  // 過去の学習フィードバックを取得
+  let learningFeedback: LearningFeedback[] = [];
+  try {
+    learningFeedback = await getRecentLearningFeedback(RECENT_LEARNING_FEEDBACK_LIMIT);
+  } catch (err) {
+    console.warn('学習フィードバックの取得に失敗:', err);
+  }
+
   const imageParts = base64Images.map(base64 => ({
     inlineData: { mimeType: 'image/jpeg', data: base64 }
   }));
@@ -329,7 +351,7 @@ export const analyzeGaraImageEnsemble = async (
     if (abortSignal?.cancelled) break;
 
     try {
-      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, taggedStock);
+      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, taggedStock, learningFeedback);
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];

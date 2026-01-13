@@ -1,6 +1,6 @@
 // IndexedDB サービス - idb ラッパーを使用
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { StockItem, EstimationResult } from '../types';
+import { StockItem, EstimationResult, LearningFeedback } from '../types';
 import { RegisteredVehicle } from './referenceImages';
 
 // DB スキーマ定義
@@ -37,10 +37,15 @@ interface TonCheckerDB extends DBSchema {
     key: string;
     value: any;
   };
+  learningFeedback: {
+    key: string;
+    value: LearningFeedback;
+    indexes: { 'by-timestamp': number; 'by-type': string };
+  };
 }
 
 const DB_NAME = 'TonCheckerDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance: IDBPDatabase<TonCheckerDB> | null = null;
 
@@ -75,6 +80,13 @@ export const getDB = async (): Promise<IDBPDatabase<TonCheckerDB>> => {
       // 設定ストア（キーバリュー形式）
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings');
+      }
+
+      // 学習フィードバックストア（v2で追加）
+      if (!db.objectStoreNames.contains('learningFeedback')) {
+        const feedbackStore = db.createObjectStore('learningFeedback', { keyPath: 'id' });
+        feedbackStore.createIndex('by-timestamp', 'timestamp');
+        feedbackStore.createIndex('by-type', 'feedbackType');
       }
     },
   });
@@ -306,4 +318,49 @@ export const requestPersistentStorage = async (): Promise<boolean> => {
     return navigator.storage.persist();
   }
   return false;
+};
+
+// ========== 学習フィードバック操作 ==========
+
+export const getAllLearningFeedback = async (): Promise<LearningFeedback[]> => {
+  const db = await getDB();
+  const items = await db.getAllFromIndex('learningFeedback', 'by-timestamp');
+  return items.reverse();  // 新しい順
+};
+
+export const getLearningFeedbackById = async (id: string): Promise<LearningFeedback | undefined> => {
+  const db = await getDB();
+  return db.get('learningFeedback', id);
+};
+
+export const saveLearningFeedback = async (feedback: LearningFeedback): Promise<void> => {
+  const db = await getDB();
+  await db.put('learningFeedback', feedback);
+};
+
+export const deleteLearningFeedback = async (id: string): Promise<void> => {
+  const db = await getDB();
+  await db.delete('learningFeedback', id);
+};
+
+export const clearAllLearningFeedback = async (): Promise<void> => {
+  const db = await getDB();
+  await db.clear('learningFeedback');
+};
+
+export const getLearningFeedbackCount = async (): Promise<number> => {
+  const db = await getDB();
+  return db.count('learningFeedback');
+};
+
+// 特定タイプのフィードバックを取得
+export const getLearningFeedbackByType = async (type: 'correction' | 'insight' | 'rule'): Promise<LearningFeedback[]> => {
+  const db = await getDB();
+  return db.getAllFromIndex('learningFeedback', 'by-type', type);
+};
+
+// 解析時に使用するフィードバック一覧を取得（最新N件）
+export const getRecentLearningFeedback = async (limit: number = 10): Promise<LearningFeedback[]> => {
+  const all = await getAllLearningFeedback();
+  return all.slice(0, limit);
 };

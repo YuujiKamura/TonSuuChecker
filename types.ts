@@ -42,6 +42,24 @@ export interface ChatMessage {
   content: string;
 }
 
+// 学習用フィードバック（将来の解析に反映される指摘）
+export interface LearningFeedback {
+  id: string;
+  timestamp: number;
+  // 元の解析情報
+  originalStockId: string;  // 元のStockItemのID
+  truckType?: string;  // 車両タイプ（関連する解析がある場合）
+  materialType?: string;  // 材質タイプ
+  // フィードバック内容
+  feedbackType: 'correction' | 'insight' | 'rule';  // 訂正/知見/ルール
+  summary: string;  // フィードバックの要約（AIプロンプトに含める用）
+  originalMessages: ChatMessage[];  // 元のチャット履歴
+  // 検証情報
+  actualTonnage?: number;  // 実測重量（検証済みの場合）
+  aiEstimation?: number;  // AI推定重量（訂正前）
+  correctedEstimation?: number;  // 訂正後の推定重量（あれば）
+}
+
 export interface StockItem {
   id: string;
   timestamp: number;
