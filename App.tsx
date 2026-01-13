@@ -14,10 +14,10 @@ import ApiKeySetup from './components/ApiKeySetup';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, addEstimation, getLatestEstimation, refreshStockCache } from './services/stockService';
 import { refreshVehicleCache } from './services/referenceImages';
 import { getTodayCost, formatCost, refreshCostCache } from './services/costTracker';
-import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage } from './services/indexedDBService';
+import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage, saveLearningFeedback } from './services/indexedDBService';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
-import { EstimationResult, StockItem, ChatMessage } from './types';
+import { EstimationResult, StockItem, ChatMessage, LearningFeedback } from './types';
 import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
 
 interface LogEntry {
@@ -409,6 +409,36 @@ const App: React.FC = () => {
     }
   };
 
+  // チャット履歴を学習データとして保存
+  const handleSaveAsLearning = async (chatHistory: ChatMessage[], result: EstimationResult) => {
+    if (!currentId || chatHistory.length === 0) return;
+
+    // チャット履歴から要約を生成（ユーザーの指摘を抽出）
+    const userMessages = chatHistory.filter(m => m.role === 'user');
+    const summary = userMessages.map(m => m.content).join(' → ');
+
+    // 実測値があるかどうかで訂正かどうかを判定
+    const stockItem = stockItems.find(i => i.id === currentId);
+    const feedbackType: LearningFeedback['feedbackType'] =
+      stockItem?.actualTonnage ? 'correction' : 'insight';
+
+    const feedback: LearningFeedback = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      originalStockId: currentId,
+      truckType: result.truckType,
+      materialType: result.materialType,
+      feedbackType,
+      summary: summary.length > 200 ? summary.slice(0, 200) + '...' : summary,
+      originalMessages: chatHistory,
+      actualTonnage: stockItem?.actualTonnage,
+      aiEstimation: result.estimatedTonnage,
+    };
+
+    await saveLearningFeedback(feedback);
+    addLog('学習データを保存しました', 'success');
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-200">
       <Header
@@ -627,6 +657,7 @@ const App: React.FC = () => {
                     // 再解析を開始（指摘を含めて）
                     startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, chatHistory);
                   }}
+                  onSaveAsLearning={handleSaveAsLearning}
                 />
               </div>
             )}
