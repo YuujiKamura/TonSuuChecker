@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Brain, Archive, X, Scale, Trash2 } from 'lucide-react';
+import { Brain, Archive, X, Scale, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { SYSTEM_PROMPT, LOAD_GRADES_PROMPT } from '../constants';
 
 interface CaptureChoiceProps {
   imageUrl: string;
@@ -12,6 +13,7 @@ interface CaptureChoiceProps {
 
 const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onStock, onCancel, initialMaxCapacity, source = 'capture' }) => {
   const [customCapacity, setCustomCapacity] = useState<string>(initialMaxCapacity ? initialMaxCapacity.toString() : '');
+  const [showPrompt, setShowPrompt] = useState(false);
 
   const handleAnalyze = () => {
     const capacity = customCapacity && !isNaN(parseFloat(customCapacity)) ? parseFloat(customCapacity) : undefined;
@@ -95,6 +97,32 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
               <Trash2 size={28} />
               <span className="text-sm">廃棄</span>
             </button>
+          </div>
+
+          {/* プロンプト確認 */}
+          <div className="mt-4 bg-slate-900/50 rounded-xl border border-slate-700 overflow-hidden">
+            <button
+              onClick={() => setShowPrompt(!showPrompt)}
+              className="w-full px-3 py-2 flex items-center justify-between text-slate-400 hover:bg-slate-800/50"
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={14} />
+                <span className="text-xs font-bold">AIプロンプト確認</span>
+              </div>
+              {showPrompt ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            {showPrompt && (
+              <div className="px-3 pb-3 space-y-3 max-h-[40vh] overflow-y-auto">
+                <div>
+                  <p className="text-[10px] font-bold text-blue-400 mb-1">システムプロンプト</p>
+                  <pre className="text-[10px] text-slate-400 whitespace-pre-wrap bg-slate-800 p-2 rounded overflow-x-auto">{SYSTEM_PROMPT}</pre>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-green-400 mb-1">等級定義</p>
+                  <pre className="text-[10px] text-slate-400 whitespace-pre-wrap bg-slate-800 p-2 rounded overflow-x-auto">{LOAD_GRADES_PROMPT}</pre>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
