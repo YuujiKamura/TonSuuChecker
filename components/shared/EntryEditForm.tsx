@@ -56,7 +56,7 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       setImageBase64(item.base64Images[0] || null);
       setImageUrl(item.imageUrls[0] || null);
     }
-  }, [item, isOpen]);
+  }, [item?.id, isOpen]);
 
   const handleImageSelect = (base64: string, dataUrl: string) => {
     setImageBase64(base64);

@@ -14,6 +14,7 @@ interface ReferenceImageSettingsProps {
 const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen, onClose, embedded = false }) => {
   const [vehicles, setVehicles] = useState<RegisteredVehicle[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newCapacity, setNewCapacity] = useState('');
@@ -26,7 +27,14 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
 
   useEffect(() => {
     if (isOpen) {
-      getReferenceImages().then(v => setVehicles(v));
+      getReferenceImages().then(v => {
+        // デバッグ情報を生成
+        const info = v.map((vehicle, i) =>
+          `${i+1}. ${vehicle.name}: base64=${vehicle.base64?.length || 0}文字`
+        ).join('\n');
+        setDebugInfo(v.length > 0 ? info : '車両データなし');
+        setVehicles(v);
+      });
       resetForm();
     }
   }, [isOpen]);
@@ -174,6 +182,14 @@ const ReferenceImageSettings: React.FC<ReferenceImageSettingsProps> = ({ isOpen,
       <p className="text-sm text-slate-400">
         車両を登録すると、解析時にAIが比較参照して車両タイプを判定します
       </p>
+
+      {/* デバッグ情報（一時的） */}
+      {debugInfo && (
+        <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-3 text-xs text-yellow-300 whitespace-pre-wrap">
+          <div className="font-bold mb-1">📊 デバッグ情報:</div>
+          {debugInfo}
+        </div>
+      )}
 
       {/* 登録済み車両一覧 */}
       <div className="space-y-3">

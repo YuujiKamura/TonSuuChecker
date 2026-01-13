@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "report": "npx tsx scripts/generateReport.ts",
-    "report:sample": "npx tsx scripts/generateReport.ts --sample"
+    "report:sample": "npx tsx scripts/generateReport.ts --sample",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",
@@ -22,9 +24,14 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.1",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^27.4.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^4.0.17"
   }
 }
