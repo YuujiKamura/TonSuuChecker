@@ -74,14 +74,30 @@ export const MATERIAL_DENSITIES_PROMPT = Object.entries(MATERIAL_DENSITIES)
   .map(([name, density]) => `- ${name}: ${density} t/m³`)
   .join('\n');
 
-// 空隙率基準マスタ
+// 空隙率基準マスタ（見た目による判断用）
 export const VOID_RATIOS = {
   tight: { min: 0.10, max: 0.15, desc: '細かく砕けている、締まっている' },
   normal: { min: 0.15, max: 0.20, desc: '標準的な状態' },
   loose: { min: 0.20, max: 0.30, desc: '塊が大きい、ゴロゴロしている' },
 };
 
-// 空隙率をプロンプト用テキストに変換
+// 素材別空隙率マスタ（素材特性に基づく推奨値）
+export const MATERIAL_VOID_RATIOS: Record<string, { typical: number; range: [number, number]; desc: string }> = {
+  '土砂': { typical: 0.05, range: [0.03, 0.08], desc: '粒子が細かく締まりやすい' },
+  'As殻': { typical: 0.30, range: [0.25, 0.35], desc: '塊状で隙間が多い' },
+  'アスファルトガラ': { typical: 0.30, range: [0.25, 0.35], desc: '塊状で隙間が多い' },
+  'Co殻': { typical: 0.30, range: [0.25, 0.35], desc: '塊状で隙間が多い' },
+  'コンクリートガラ': { typical: 0.30, range: [0.25, 0.35], desc: '塊状で隙間が多い' },
+  '開粒度As殻': { typical: 0.35, range: [0.30, 0.40], desc: '多孔質で空隙が特に多い' },
+};
+
+// 素材別空隙率をプロンプト用テキストに変換
+export const MATERIAL_VOID_RATIOS_PROMPT = Object.entries(MATERIAL_VOID_RATIOS)
+  .filter(([name]) => !name.includes('ガラ'))  // エイリアスは除外
+  .map(([name, v]) => `- ${name}: 標準${Math.round(v.typical * 100)}%（${Math.round(v.range[0] * 100)}〜${Math.round(v.range[1] * 100)}%）← ${v.desc}`)
+  .join('\n');
+
+// 空隙率をプロンプト用テキストに変換（後方互換用）
 export const VOID_RATIOS_PROMPT = Object.entries(VOID_RATIOS)
   .map(([, v]) => `- ${v.desc} → ${Math.round(v.min * 100)}〜${Math.round(v.max * 100)}%`)
   .join('\n');
@@ -143,11 +159,16 @@ ${LOAD_GRADES.map(g =>
 // 重量計算式プロンプト（共通）
 export const WEIGHT_FORMULA_PROMPT = `重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
 
-■ 素材別密度（参考値）
+■ 素材別パラメータ（重要：素材によって密度・空隙率が大きく異なる）
 ${MATERIAL_DENSITIES_PROMPT}
 
-■ 空隙率（10〜30%の範囲で見た目から判断）
-${VOID_RATIOS_PROMPT}`;
+■ 素材別空隙率（必ず素材特性に基づいて適用すること）
+${MATERIAL_VOID_RATIOS_PROMPT}
+
+【計算例】
+- 土砂2.0m³の場合: 2.0 × 1.8 × (1-0.05) = 3.42t
+- As殻2.0m³の場合: 2.0 × 2.5 × (1-0.30) = 3.50t
+- ガラは密度が高いが空隙率も高いため、土砂と同程度の重量になることが多い`;
 
 export const SYSTEM_PROMPT = `あなたは建設廃棄物（ガラ）の重量推論エキスパートです。
 監視カメラまたは手動撮影された画像から、荷台の荷姿を解析し重量を推定します。
