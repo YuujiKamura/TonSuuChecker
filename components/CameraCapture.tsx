@@ -131,24 +131,22 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, isAna
         </div>
       </div>
 
-      {/* シャッターボタン */}
-      <div className="absolute bottom-0 left-0 right-0 p-8 flex justify-center bg-gradient-to-t from-black/80 to-transparent">
-        <button
-          onClick={capturePhoto}
-          disabled={!isReady || isAnalyzing}
-          className={"w-20 h-20 rounded-full border-4 border-white flex items-center justify-center transition-all " + (isAnalyzing ? "opacity-50" : "hover:scale-105 active:scale-95")}
-        >
-          <div className={"w-16 h-16 rounded-full " + (isAnalyzing ? "bg-gray-500 animate-pulse" : "bg-white")} />
-        </button>
-      </div>
-
-      {isAnalyzing && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+      {/* シャッターボタン / 解析中表示 */}
+      <div className="absolute bottom-0 left-0 right-0 p-8 flex flex-col items-center gap-4 bg-gradient-to-t from-black/90 to-transparent">
+        {isAnalyzing ? (
           <div className="bg-slate-900 px-8 py-4 rounded-2xl border border-blue-500">
             <span className="text-white font-bold animate-pulse">解析中...</span>
           </div>
-        </div>
-      )}
+        ) : (
+          <button
+            onClick={capturePhoto}
+            disabled={!isReady}
+            className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+          >
+            <div className="w-16 h-16 rounded-full bg-white" />
+          </button>
+        )}
+      </div>
 
       {/* 横向きガイド（縦向きの場合に表示） */}
       {isPortrait && !isAnalyzing && (

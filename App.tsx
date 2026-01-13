@@ -539,36 +539,37 @@ const App: React.FC = () => {
             {(loading || isTargetLocked) && (
               <div className="py-8 animate-in fade-in duration-500">
                 <div className="max-w-2xl mx-auto space-y-6">
+                  {/* 画像エリア */}
                   <div className={`relative aspect-video rounded-[2.5rem] overflow-hidden bg-slate-900 border-4 shadow-2xl transition-colors duration-500 ${isTargetLocked ? 'border-red-600' : 'border-slate-800'}`}>
                     {currentImageUrls[0] && (
-                      <img 
-                        src={currentImageUrls[0]} 
-                        className={`w-full h-full object-cover transition-opacity duration-500 ${isTargetLocked ? 'opacity-80' : 'opacity-60'}`}
+                      <img
+                        src={currentImageUrls[0]}
+                        className="w-full h-full object-cover"
                         alt="Target"
                       />
                     )}
-                    
+
+                    {/* スクリーン効果オーバーレイ */}
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
-                    <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
                       <div className={`w-full h-20 bg-gradient-to-b from-transparent to-transparent absolute top-0 animate-[scan-vertical_3s_ease-in-out_infinite] ${isTargetLocked ? 'via-red-500/50' : 'via-blue-500/30'}`}></div>
                     </div>
+                  </div>
 
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-slate-950/20">
-                      <div className={`backdrop-blur-xl border p-8 rounded-3xl shadow-2xl transition-all duration-500 ${isTargetLocked ? 'bg-red-950/80 border-red-500 scale-110' : 'bg-slate-950/80 border-blue-500/30'}`}>
-                        <div className="flex items-center justify-center gap-4 mb-6">
-                           <Activity className={`${isTargetLocked ? 'text-red-500 animate-bounce' : 'text-blue-500 animate-pulse'}`} size={40} />
-                           <div className="h-8 w-px bg-slate-700"></div>
-                           <h2 className="text-xl md:text-3xl font-black tracking-widest text-white uppercase">
-                            {isTargetLocked ? "TARGET LOCKED ON" : steps[analysisStep]}
-                           </h2>
-                        </div>
-                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all duration-1000 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`} 
-                            style={{ width: isTargetLocked ? '100%' : `${((analysisStep + 1) / steps.length) * 100}%` }}
-                          ></div>
-                        </div>
-                      </div>
+                  {/* ステータステキストエリア（画像の下に分離配置） */}
+                  <div className={`mt-4 p-6 rounded-3xl border shadow-2xl transition-all duration-500 ${isTargetLocked ? 'bg-red-950/80 border-red-500' : 'bg-slate-900/90 border-blue-500/30'}`}>
+                    <div className="flex items-center justify-center gap-4 mb-4">
+                      <Activity className={`${isTargetLocked ? 'text-red-500 animate-bounce' : 'text-blue-500 animate-pulse'}`} size={32} />
+                      <div className="h-6 w-px bg-slate-700"></div>
+                      <h2 className="text-lg md:text-2xl font-black tracking-widest text-white uppercase">
+                        {isTargetLocked ? "TARGET LOCKED ON" : steps[analysisStep]}
+                      </h2>
+                    </div>
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-1000 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`}
+                        style={{ width: isTargetLocked ? '100%' : `${((analysisStep + 1) / steps.length) * 100}%` }}
+                      ></div>
                     </div>
                   </div>
 
