@@ -1,3 +1,6 @@
+// ビルド時に埋め込まれるコミットハッシュ
+declare const __COMMIT_HASH__: string;
+
 import React from 'react';
 import { Truck, Database } from 'lucide-react';
 
@@ -33,7 +36,10 @@ const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCos
           <Truck className="text-slate-900" size={20} />
         </div>
         <div>
-          <h1 className="text-sm font-black tracking-tight leading-none">トン数チェッカー</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-sm font-black tracking-tight leading-none">トン数チェッカー</h1>
+            <span className="text-[9px] text-slate-500 font-mono">{__COMMIT_HASH__}</span>
+          </div>
           <p className="text-[8px] text-slate-500 font-black uppercase tracking-widest mt-0.5">Weight AI Agent</p>
         </div>
       </div>

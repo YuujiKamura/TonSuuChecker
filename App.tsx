@@ -1,6 +1,3 @@
-// ビルド時に埋め込まれるコミットハッシュ
-declare const __COMMIT_HASH__: string;
-
 import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
@@ -509,10 +506,6 @@ const App: React.FC = () => {
         <div className="max-w-4xl mx-auto w-full px-4 pt-4">
             {/* ツールバー */}
             <div className="mb-4 flex items-center gap-2 sm:gap-3">
-              <div className="flex items-baseline gap-2 mr-2 sm:mr-4">
-                <span className="text-sm sm:text-base font-black text-white">トン数チェッカー</span>
-                <span className="text-[10px] text-slate-500 font-mono">{__COMMIT_HASH__}</span>
-              </div>
               <button
                 onClick={() => setShowReportView(true)}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border text-sm font-bold bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-500 transition-all"
