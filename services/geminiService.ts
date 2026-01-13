@@ -21,6 +21,9 @@ export const isQuotaError = (err: any): boolean => {
 // クォータエラー用のユーザー向けメッセージ
 export const QUOTA_ERROR_MESSAGE = 'APIの利用制限に達しました。しばらくお待ちください。';
 
+// 学習フィードバックの取得件数上限
+const RECENT_LEARNING_FEEDBACK_LIMIT = 10;
+
 const getMode = (arr: any[]) => {
   const filtered = arr.filter(v => v !== null && v !== undefined && v !== '');
   if (filtered.length === 0) return arr[0];
@@ -157,7 +160,7 @@ ${learningFeedback && learningFeedback.length > 0 ? `
 以下は過去の解析で得られた重要な指摘・知見です。同様の状況では必ずこれらを考慮してください。
 ${learningFeedback.map((fb, idx) => {
   const typeLabel = fb.feedbackType === 'correction' ? '訂正' : fb.feedbackType === 'insight' ? '知見' : 'ルール';
-  const tonnageInfo = fb.actualTonnage ? `（実測: ${fb.actualTonnage}t、AI推定: ${fb.aiEstimation}t）` : '';
+  const tonnageInfo = fb.actualTonnage ? `（実測: ${fb.actualTonnage}t` + (fb.aiEstimation != null ? `、AI推定: ${fb.aiEstimation}t` : '') + '）' : '';
   return `${idx + 1}. [${typeLabel}] ${fb.summary}${tonnageInfo}`;
 }).join('\n')}
 ` : ''}
@@ -329,10 +332,10 @@ export const analyzeGaraImageEnsemble = async (
   // 実測データがあれば学習に利用、なければ純粋アンサンブル
   // 過去データとの比較は結果表示時にも行う
 
-  // 過去の学習フィードバックを取得（最新10件）
+  // 過去の学習フィードバックを取得
   let learningFeedback: LearningFeedback[] = [];
   try {
-    learningFeedback = await getRecentLearningFeedback(10);
+    learningFeedback = await getRecentLearningFeedback(RECENT_LEARNING_FEEDBACK_LIMIT);
   } catch (err) {
     console.warn('学習フィードバックの取得に失敗:', err);
   }

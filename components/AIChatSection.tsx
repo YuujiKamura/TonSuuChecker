@@ -107,7 +107,8 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
       setTimeout(() => setSavedAsLearning(false), 3000);
     } catch (err) {
       console.error('学習データ保存エラー:', err);
-      alert('学習データの保存に失敗しました');
+      // エラーは上位コンポーネントで処理される（App.tsxのaddLog）
+      throw err;
     } finally {
       setIsSavingLearning(false);
     }

@@ -20,6 +20,9 @@ import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiK
 import { EstimationResult, StockItem, ChatMessage, LearningFeedback } from './types';
 import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
 
+// 学習フィードバック要約の最大文字数
+const FEEDBACK_SUMMARY_MAX_LENGTH = 200;
+
 interface LogEntry {
   id: string;
   message: string;
@@ -413,30 +416,35 @@ const App: React.FC = () => {
   const handleSaveAsLearning = async (chatHistory: ChatMessage[], result: EstimationResult) => {
     if (!currentId || chatHistory.length === 0) return;
 
-    // チャット履歴から要約を生成（ユーザーの指摘を抽出）
-    const userMessages = chatHistory.filter(m => m.role === 'user');
-    const summary = userMessages.map(m => m.content).join(' → ');
+    try {
+      // チャット履歴から要約を生成（ユーザーの指摘を抽出）
+      const userMessages = chatHistory.filter(m => m.role === 'user');
+      const summary = userMessages.map(m => m.content).join(' → ');
 
-    // 実測値があるかどうかで訂正かどうかを判定
-    const stockItem = stockItems.find(i => i.id === currentId);
-    const feedbackType: LearningFeedback['feedbackType'] =
-      stockItem?.actualTonnage ? 'correction' : 'insight';
+      // 実測値があるかどうかで訂正かどうかを判定
+      const stockItem = stockItems.find(i => i.id === currentId);
+      const feedbackType: LearningFeedback['feedbackType'] =
+        stockItem?.actualTonnage ? 'correction' : 'insight';
 
-    const feedback: LearningFeedback = {
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      originalStockId: currentId,
-      truckType: result.truckType,
-      materialType: result.materialType,
-      feedbackType,
-      summary: summary.length > 200 ? summary.slice(0, 200) + '...' : summary,
-      originalMessages: chatHistory,
-      actualTonnage: stockItem?.actualTonnage,
-      aiEstimation: result.estimatedTonnage,
-    };
+      const feedback: LearningFeedback = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        originalStockId: currentId,
+        truckType: result.truckType,
+        materialType: result.materialType,
+        feedbackType,
+        summary: summary.length > FEEDBACK_SUMMARY_MAX_LENGTH ? summary.slice(0, FEEDBACK_SUMMARY_MAX_LENGTH) + '...' : summary,
+        originalMessages: chatHistory,
+        actualTonnage: stockItem?.actualTonnage,
+        aiEstimation: result.estimatedTonnage,
+      };
 
-    await saveLearningFeedback(feedback);
-    addLog('学習データを保存しました', 'success');
+      await saveLearningFeedback(feedback);
+      addLog('学習データを保存しました', 'success');
+    } catch (err: any) {
+      addLog(`学習データ保存エラー: ${err?.message || '不明なエラー'}`, 'error');
+      throw err;  // 上位コンポーネントにも伝播
+    }
   };
 
   return (
