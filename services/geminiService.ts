@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
-import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage, LearningFeedback } from "../types";
+import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage, LearningFeedback, AnalysisProgress } from "../types";
 import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT, LOAD_GRADES_PROMPT } from "../constants";
 import { getReferenceImages } from './referenceImages';
 import { getRecentLearningFeedback } from './indexedDBService';
@@ -337,8 +337,15 @@ export const analyzeGaraImageEnsemble = async (
   modelName: string = 'gemini-3-flash-preview',
   _taggedStock: StockItem[] = [],  // 未使用（等級別選択に移行）
   maxCapacity?: number,
-  userFeedback?: ChatMessage[]  // ユーザーからの指摘・修正
+  userFeedback?: ChatMessage[],  // ユーザーからの指摘・修正
+  onDetailedProgress?: (progress: AnalysisProgress) => void  // 詳細な進捗通知
 ): Promise<EstimationResult[]> => {
+  const notifyProgress = (progress: AnalysisProgress) => {
+    onDetailedProgress?.(progress);
+  };
+
+  notifyProgress({ phase: 'preparing', detail: '解析を準備中...' });
+
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('APIキーが設定されていません');
@@ -346,12 +353,15 @@ export const analyzeGaraImageEnsemble = async (
   const ai = new GoogleGenAI({ apiKey });
 
   // 過去の学習フィードバックを取得
+  notifyProgress({ phase: 'loading_references', detail: '学習データを読み込み中...' });
   let learningFeedback: LearningFeedback[] = [];
   try {
     learningFeedback = await getRecentLearningFeedback(RECENT_LEARNING_FEEDBACK_LIMIT);
   } catch (err) {
     console.warn('学習フィードバックの取得に失敗:', err);
   }
+
+  notifyProgress({ phase: 'loading_references', detail: '登録車両データを読み込み中...' });
 
   const imageParts = base64Images.map(base64 => ({
     inlineData: { mimeType: 'image/jpeg', data: base64 }
@@ -364,15 +374,28 @@ export const analyzeGaraImageEnsemble = async (
 
   // maxCapacityが指定されてる場合は最初から等級別データを取得
   if (maxCapacity) {
+    notifyProgress({ phase: 'loading_stock', detail: `${maxCapacity}tクラスの実測データを取得中...` });
     detectedTruckClass = getTruckClass(maxCapacity);
     if (detectedTruckClass !== 'unknown') {
       gradedStock = await selectStockByGrade(detectedTruckClass);
       console.log(`等級別データ取得: ${detectedTruckClass}クラス, ${gradedStock.length}件`);
+      if (gradedStock.length > 0) {
+        notifyProgress({ phase: 'loading_stock', detail: `実測データ ${gradedStock.length}件を参照` });
+      }
     }
   }
 
   for (let i = 0; i < targetCount; i++) {
     if (abortSignal?.cancelled) break;
+
+    notifyProgress({
+      phase: 'inference',
+      detail: targetCount > 1
+        ? `AI推論を実行中... (${i + 1}/${targetCount}回目)`
+        : 'AI推論を実行中...',
+      current: i + 1,
+      total: targetCount
+    });
 
     try {
       // 1回目は等級別データなしで推論（車両クラス判定のため）
@@ -389,6 +412,12 @@ export const analyzeGaraImageEnsemble = async (
       if (i === 0 && !maxCapacity && res.estimatedMaxCapacity) {
         detectedTruckClass = getTruckClass(res.estimatedMaxCapacity);
         if (detectedTruckClass !== 'unknown') {
+          notifyProgress({
+            phase: 'loading_stock',
+            detail: `${detectedTruckClass}クラスの実測データを取得中...`,
+            current: i + 1,
+            total: targetCount
+          });
           gradedStock = await selectStockByGrade(detectedTruckClass);
           console.log(`1回目推論から車両クラス判定: ${detectedTruckClass}（推定${res.estimatedMaxCapacity}t）, 等級別データ${gradedStock.length}件`);
         }
@@ -407,6 +436,13 @@ export const analyzeGaraImageEnsemble = async (
   if (results.length === 0 && lastError) {
     throw lastError;
   }
+
+  // 複数推論の場合は統合フェーズを通知
+  if (results.length > 1) {
+    notifyProgress({ phase: 'merging', detail: `${results.length}件の推論結果を統合中...` });
+  }
+
+  notifyProgress({ phase: 'done', detail: '解析完了' });
 
   return results;
 };

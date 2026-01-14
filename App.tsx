@@ -16,7 +16,7 @@ import { getTodayCost, formatCost, refreshCostCache } from './services/costTrack
 import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage, saveLearningFeedback } from './services/indexedDBService';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
-import { EstimationResult, StockItem, ChatMessage, LearningFeedback } from './types';
+import { EstimationResult, StockItem, ChatMessage, LearningFeedback, AnalysisProgress } from './types';
 import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
 
 // 学習フィードバック要約の最大文字数
@@ -51,7 +51,7 @@ const App: React.FC = () => {
   const [currentBase64Images, setCurrentBase64Images] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [analysisStep, setAnalysisStep] = useState(0);
+  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
   
   // APIキー関連
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -138,32 +138,19 @@ const App: React.FC = () => {
     setStorageQuota(usage.quota);
   };
 
-  const steps = [
-    "画像を解析準備中...",
-    "車両データベースを検索中...",
-    "メーカー・車種を特定中...",
-    "ナンバーから積載量を推定中...",
-    "荷台寸法を測定中...",
-    "積載物・材質を判定中...",
-    "重量を計算中...",
-    "AI推論を統合中..."
-  ];
-
   // 履歴はstockItemsから取得（解析結果があるアイテム）
   const history = stockItems.filter(item =>
     (item.estimations && item.estimations.length > 0) || item.result !== undefined
   );
 
+  // loading開始時に進捗をリセット
   useEffect(() => {
-    let interval: any;
     if (loading) {
-      setAnalysisStep(0);
-      interval = setInterval(() => {
-        setAnalysisStep(prev => (prev < steps.length - 1 ? prev + 1 : prev));
-      }, 1500);  // 8ステップ × 1.5秒 = 12秒
+      setAnalysisProgress({ phase: 'preparing', detail: '解析を開始中...' });
+    } else {
+      setAnalysisProgress(null);
     }
-    return () => clearInterval(interval);
-  }, [loading, steps.length]);
+  }, [loading]);
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
     const newLog: LogEntry = {
@@ -247,7 +234,12 @@ const App: React.FC = () => {
         isAuto ? 'gemini-flash-lite-latest' : selectedModel,
         taggedItems,
         isAuto ? undefined : capacityOverride,  // capacityOverrideを直接使用（stateのフォールバックはしない）
-        userFeedback  // ユーザーからの指摘・修正
+        userFeedback,  // ユーザーからの指摘・修正
+        // 詳細な進捗通知
+        !isAuto ? (progress) => {
+          if (activeRequestId.current !== requestId) return;
+          setAnalysisProgress(progress);
+        } : undefined
       );
 
       if (activeRequestId.current !== requestId) return;
@@ -599,13 +591,30 @@ const App: React.FC = () => {
                       <Activity className={`${isTargetLocked ? 'text-red-500 animate-bounce' : 'text-blue-500 animate-pulse'}`} size={32} />
                       <div className="h-6 w-px bg-slate-700"></div>
                       <h2 className="text-lg md:text-2xl font-black tracking-widest text-white uppercase">
-                        {isTargetLocked ? "TARGET LOCKED ON" : steps[analysisStep]}
+                        {isTargetLocked ? "TARGET LOCKED ON" : (analysisProgress?.detail || '解析中...')}
                       </h2>
                     </div>
                     <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                       <div
-                        className={`h-full transition-all duration-1000 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`}
-                        style={{ width: isTargetLocked ? '100%' : `${((analysisStep + 1) / steps.length) * 100}%` }}
+                        className={`h-full transition-all duration-500 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`}
+                        style={{ width: isTargetLocked ? '100%' : (() => {
+                          if (!analysisProgress) return '10%';
+                          const phaseWeights: Record<string, number> = {
+                            preparing: 10,
+                            loading_references: 20,
+                            loading_stock: 30,
+                            inference: 40,
+                            merging: 90,
+                            done: 100
+                          };
+                          const basePercent = phaseWeights[analysisProgress.phase] || 10;
+                          // 推論フェーズの場合は進捗に応じて増加
+                          if (analysisProgress.phase === 'inference' && analysisProgress.total && analysisProgress.current) {
+                            const inferenceProgress = (analysisProgress.current / analysisProgress.total) * 50; // 40-90%の範囲
+                            return `${basePercent + inferenceProgress}%`;
+                          }
+                          return `${basePercent}%`;
+                        })() }}
                       ></div>
                     </div>
                   </div>
