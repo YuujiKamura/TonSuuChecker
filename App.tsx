@@ -627,6 +627,7 @@ const App: React.FC = () => {
                   base64Images={currentBase64Images}
                   analysisId={currentId || ''}
                   actualTonnage={stockItems.find(h => h.id === currentId)?.actualTonnage}
+                  maxCapacity={stockItems.find(h => h.id === currentId)?.maxCapacity}
                   initialChatHistory={stockItems.find(i => i.id === currentId)?.chatHistory}
                   onSaveActualTonnage={async (v) => {
                     if (currentId) {
