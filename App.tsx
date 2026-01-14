@@ -308,8 +308,8 @@ const App: React.FC = () => {
             if (existingItem) {
               // 既存のアイテムがある場合は、推定結果を追加（ランごとに履歴として保存）
               await addEstimation(existingItem.id, merged);
-              // maxCapacityが未設定でAIが推定した場合は更新
-              if (!existingItem.maxCapacity && effectiveMaxCapacity) {
+              // maxCapacityを最新の推論結果で更新（再解析時は常に更新）
+              if (effectiveMaxCapacity) {
                 await updateStockItem(existingItem.id, { maxCapacity: effectiveMaxCapacity });
               }
             } else {
