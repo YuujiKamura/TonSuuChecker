@@ -94,3 +94,11 @@ export const getJudgmentStatus = (item: StockItem): JudgmentStatus => {
 export const isJudged = (item: StockItem): boolean => {
   return item.actualTonnage !== undefined && item.maxCapacity !== undefined;
 };
+
+// 解析進捗の詳細状態
+export interface AnalysisProgress {
+  phase: 'preparing' | 'loading_references' | 'loading_stock' | 'inference' | 'merging' | 'done';
+  detail: string;
+  current?: number;  // 現在の推論回数
+  total?: number;    // 目標推論回数
+}
