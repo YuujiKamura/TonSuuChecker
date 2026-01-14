@@ -4,6 +4,7 @@ import { EstimationResult, ChatMessage } from '../types';
 import { Save, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import AIChatSection from './AIChatSection';
 import * as chatService from '../services/chatService';
+import { getLoadGrade, LoadGrade } from '../constants';
 
 interface AnalysisResultProps {
   result: EstimationResult;
@@ -11,6 +12,7 @@ interface AnalysisResultProps {
   base64Images: string[];
   analysisId: string;
   actualTonnage?: number;
+  maxCapacity?: number;
   initialChatHistory?: ChatMessage[];
   onSaveActualTonnage: (value: number) => void;
   onUpdateLicensePlate: (plate: string, number: string) => void;
@@ -19,8 +21,20 @@ interface AnalysisResultProps {
   onSaveAsLearning?: (chatHistory: ChatMessage[], result: EstimationResult) => Promise<void>;
 }
 
+// 等級名に応じた背景色クラスを返す
+const getGradeColorClass = (gradeName: string): string => {
+  switch (gradeName) {
+    case '軽すぎ': return 'bg-blue-500';
+    case '軽め': return 'bg-cyan-500';
+    case 'ちょうど': return 'bg-green-500';
+    case 'ギリOK': return 'bg-yellow-500';
+    case '積みすぎ': return 'bg-red-500';
+    default: return 'bg-slate-500';
+  }
+};
+
 const AnalysisResult: React.FC<AnalysisResultProps> = ({
-  result, imageUrls, base64Images, analysisId, actualTonnage, initialChatHistory,
+  result, imageUrls, base64Images, analysisId, actualTonnage, maxCapacity, initialChatHistory,
   onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback, onSaveAsLearning
 }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
@@ -61,6 +75,15 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
     ? ((result.estimatedTonnage - actualTonnage) / actualTonnage) * 100
     : null;
 
+  // 等級の計算（実測値と最大積載量が両方ある場合）
+  const effectiveMaxCapacity = maxCapacity || result.estimatedMaxCapacity;
+  const loadGrade = (actualTonnage && effectiveMaxCapacity)
+    ? getLoadGrade(actualTonnage, effectiveMaxCapacity)
+    : null;
+  const loadRatio = (actualTonnage && effectiveMaxCapacity)
+    ? (actualTonnage / effectiveMaxCapacity) * 100
+    : null;
+
   // フルスクリーン表示
   if (isFullscreen) {
     return (
@@ -92,6 +115,13 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
               {errorRate !== null && (
                 <div className={`px-3 py-1 rounded text-sm font-black ${Math.abs(errorRate) < 5 ? 'bg-green-500' : Math.abs(errorRate) < 15 ? 'bg-yellow-500' : 'bg-red-500'} text-white`}>
                   {errorRate > 0 ? '+' : ''}{errorRate.toFixed(0)}%
+                </div>
+              )}
+              {/* 等級表示 */}
+              {loadGrade && (
+                <div className={`px-4 py-2 rounded-lg ${getGradeColorClass(loadGrade.name)} text-white`}>
+                  <div className="text-2xl sm:text-3xl font-black">{loadGrade.name}</div>
+                  <div className="text-xs opacity-80">{loadRatio?.toFixed(0)}%</div>
                 </div>
               )}
             </>
@@ -157,6 +187,23 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
             </button>
           </div>
         </div>
+
+        {/* 等級表示バー */}
+        {loadGrade && (
+          <div className={`px-3 py-2 flex items-center justify-between ${getGradeColorClass(loadGrade.name)}`}>
+            <div className="flex items-center gap-2">
+              <span className="text-white text-lg font-black">{loadGrade.name}</span>
+              <span className="text-white/70 text-xs">
+                積載率 {loadRatio?.toFixed(0)}%
+              </span>
+            </div>
+            {effectiveMaxCapacity && (
+              <span className="text-white/70 text-xs">
+                最大{effectiveMaxCapacity}t
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ===== 詳細情報（折りたたみ） ===== */}
