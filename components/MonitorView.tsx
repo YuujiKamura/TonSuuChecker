@@ -119,8 +119,9 @@ const MonitorView: React.FC<MonitorViewProps> = ({ onDetected, isAnalyzing, isLo
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, width, height);
 
-    const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-    const url = canvas.toDataURL('image/jpeg', 0.5);
+    // base64は高品質（バックアップ用）、urlは表示用で軽量化
+    const base64 = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+    const url = canvas.toDataURL('image/jpeg', 0.6);
 
     setFlash(true);
     setTimeout(() => setFlash(false), 100);

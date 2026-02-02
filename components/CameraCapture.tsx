@@ -87,8 +87,9 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, isAna
     
     ctx.drawImage(video, 0, 0, width, height);
     
-    const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-    const url = canvas.toDataURL('image/jpeg', 0.8);
+    // 高品質保存（95%）- バックアップ用の元画像品質を維持
+    const base64 = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+    const url = canvas.toDataURL('image/jpeg', 0.95);
     
     onCapture(base64, url);
   };
