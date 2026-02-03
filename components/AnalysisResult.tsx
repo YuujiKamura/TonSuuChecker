@@ -43,6 +43,23 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
   const [showDetails, setShowDetails] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // analysisId が変わったときに内部状態をリセット
+  useEffect(() => {
+    // チャット履歴を即座にクリア（古いデータが表示されないようにする）
+    setChatMessages([]);
+    // 詳細表示を閉じる
+    setShowDetails(false);
+    // フルスクリーンを解除
+    setIsFullscreen(false);
+  }, [analysisId]);
+
+  // actualTonnage プロップが変わったときに入力値を同期
+  useEffect(() => {
+    setInputValue(actualTonnage?.toString() || '');
+    setIsSaved(!!actualTonnage);
+  }, [actualTonnage, analysisId]);
+
+  // チャット履歴のロード
   useEffect(() => {
     if (analysisId) {
       if (initialChatHistory?.length) {

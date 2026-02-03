@@ -54,11 +54,8 @@ export const saveStockItem = async (item: StockItem): Promise<boolean> => {
 // ========== ストック更新 ==========
 
 export const updateStockItem = async (id: string, updates: Partial<StockItem>): Promise<void> => {
-  const item = await idb.getStockById(id);
-  if (item) {
-    await idb.saveStock({ ...item, ...updates });
-    stockCache = null;
-  }
+  await idb.updateStockAtomic(id, (item) => ({ ...item, ...updates }));
+  stockCache = null;
 };
 
 // ========== ストック削除 ==========
@@ -109,17 +106,16 @@ export const updateAnalysisResult = async (id: string, result: EstimationResult)
 // ========== 推定結果追加 ==========
 
 export const addEstimation = async (id: string, estimation: EstimationResult): Promise<void> => {
-  const item = await idb.getStockById(id);
-  if (item) {
+  await idb.updateStockAtomic(id, (item) => {
     const estimations = item.estimations || [];
     estimations.unshift(estimation);
-    await idb.saveStock({
+    return {
       ...item,
       estimations,
       result: estimation,
-    });
-    stockCache = null;
-  }
+    };
+  });
+  stockCache = null;
 };
 
 // ========== 最新推定結果取得 ==========

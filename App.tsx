@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
 import CameraCapture from './components/CameraCapture';
@@ -45,11 +45,13 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('tonchecker_model');
     return (saved as 'gemini-3-flash-preview' | 'gemini-3-pro-preview') || 'gemini-3-flash-preview';
   });
-  const [currentResult, setCurrentResult] = useState<EstimationResult | null>(null);
   const [rawInferences, setRawInferences] = useState<EstimationResult[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [currentImageUrls, setCurrentImageUrls] = useState<string[]>([]);
-  const [currentBase64Images, setCurrentBase64Images] = useState<string[]>([]);
+
+  // 解析中（stockItems に保存前）の一時的な結果・画像を保持
+  const [pendingResult, setPendingResult] = useState<EstimationResult | null>(null);
+  const [pendingImageUrls, setPendingImageUrls] = useState<string[]>([]);
+  const [pendingBase64Images, setPendingBase64Images] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
@@ -68,6 +70,32 @@ const App: React.FC = () => {
   const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
   const [showStockList, setShowStockList] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+
+  // stockItems から派生する状態（useMemo）
+  const currentItem = useMemo(() => {
+    if (!currentId) return null;
+    return stockItems.find(s => s.id === currentId) ?? null;
+  }, [currentId, stockItems]);
+
+  // currentResult: pendingResult があればそれを優先、なければ stockItems から派生
+  const currentResult = useMemo(() => {
+    if (pendingResult) return pendingResult;
+    if (!currentItem) return null;
+    return currentItem.estimations?.[0] ?? currentItem.result ?? null;
+  }, [pendingResult, currentItem]);
+
+  // currentImageUrls: pending があればそれを優先、なければ stockItems から派生
+  const currentImageUrls = useMemo(() => {
+    if (pendingImageUrls.length > 0) return pendingImageUrls;
+    return currentItem?.imageUrls ?? [];
+  }, [pendingImageUrls, currentItem]);
+
+  // currentBase64Images: pending があればそれを優先、なければ stockItems から派生
+  const currentBase64Images = useMemo(() => {
+    if (pendingBase64Images.length > 0) return pendingBase64Images;
+    return currentItem?.base64Images ?? [];
+  }, [pendingBase64Images, currentItem]);
+
   const [showSettings, setShowSettings] = useState(false);
   const [showReferenceSettings, setShowReferenceSettings] = useState(false);
   const [showApiKeySetup, setShowApiKeySetup] = useState(false);
@@ -185,8 +213,8 @@ const App: React.FC = () => {
       return;
     }
 
-    setCurrentImageUrls([firstUrl]);
-    setCurrentBase64Images([firstBase64]);
+    setPendingImageUrls([firstUrl]);
+    setPendingBase64Images([firstBase64]);
     setPendingCapture({ base64: firstBase64, url: firstUrl });
   };
 
@@ -206,10 +234,10 @@ const App: React.FC = () => {
       setMonitorGuidance(null);
     } else {
       setLoading(true);
-      setCurrentResult(null);
+      setPendingResult(null);  // 解析開始時に pending をリセット
       setRawInferences([]);
-      setCurrentImageUrls(urls);
-      setCurrentBase64Images(base64s);
+      setPendingImageUrls(urls);
+      setPendingBase64Images(base64s);
     }
     
     setError(null);
@@ -279,10 +307,9 @@ const App: React.FC = () => {
 
         // currentIdが既に設定されている場合は既存のストックアイテムとして扱う
         const itemId = currentId || crypto.randomUUID();
-        setCurrentResult(merged);
+        setPendingResult(merged);  // 保存前の一時的な結果を pending に設定
         setCurrentId(itemId);
         setRawInferences(results);
-        setCurrentImageUrls(urls);
         
         // 解析結果をストックに保存（自動監視の場合は除く）
         if (!isAuto && base64s.length > 0 && merged.isTargetDetected) {
@@ -337,12 +364,16 @@ const App: React.FC = () => {
               await saveStockItem(stockItem);
             }
             await refreshStock();
+            // stockItems が更新されたので pending をクリア（useMemo で派生される）
+            setPendingResult(null);
+            setPendingImageUrls([]);
+            setPendingBase64Images([]);
           } catch (err) {
             console.error('ストック追加エラー:', err);
             // ストック追加に失敗しても解析は続行
           }
         }
-        
+
         refreshCost();
       }
     } catch (err: any) {
@@ -377,10 +408,11 @@ const App: React.FC = () => {
 
   const resetAnalysis = () => {
     activeRequestId.current = 0;
-    setCurrentResult(null);
     setCurrentId(null);
-    setCurrentImageUrls([]);
-    setCurrentBase64Images([]);
+    // pending state をクリア（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
+    setPendingResult(null);
+    setPendingImageUrls([]);
+    setPendingBase64Images([]);
     setRawInferences([]);
     setError(null);
     setLoading(false);
@@ -483,8 +515,7 @@ const App: React.FC = () => {
               const { base64, url } = pendingCapture!;
               setPendingCapture(null);
               setMaxCapacity(capacity);
-              setCurrentImageUrls([url]);
-              setCurrentBase64Images([base64]);
+              // startAnalysis 内で pending state を設定するのでここでは不要
               startAnalysis([base64], [url], false, capacity);
             }}
             onStock={currentId ? undefined : async () => {
@@ -672,7 +703,7 @@ const App: React.FC = () => {
                         // 後方互換性のため、resultも更新
                         await updateStockItem(currentId, { result: updatedResult });
                       }
-                      setCurrentResult(updatedResult);
+                      // refreshStock で stockItems が更新され、useMemo で currentResult が派生される
                       await refreshStock();
                     }
                   }}
@@ -725,15 +756,15 @@ const App: React.FC = () => {
             requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
           }}
           onViewResult={(item) => {
-            // 解析結果ページを表示
-            const latestEstimation = item.estimations && item.estimations.length > 0 
-              ? item.estimations[0] 
-              : item.result;
+            // setCurrentId のみで OK（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
+            const latestItem = stockItems.find(s => s.id === item.id) ?? item;
+            const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              setCurrentResult(latestEstimation);
-              setCurrentId(item.id);
-              setCurrentImageUrls(item.imageUrls);
-              setCurrentBase64Images(item.base64Images);
+              // pending をクリアして stockItems からの派生を有効にする
+              setPendingResult(null);
+              setPendingImageUrls([]);
+              setPendingBase64Images([]);
+              setCurrentId(latestItem.id);
               setShowStockList(false);
             }
           }}
@@ -765,14 +796,15 @@ const App: React.FC = () => {
             requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
           }}
           onViewResult={(item) => {
-            const latestEstimation = item.estimations && item.estimations.length > 0
-              ? item.estimations[0]
-              : item.result;
+            // setCurrentId のみで OK（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
+            const latestItem = stockItems.find(s => s.id === item.id) ?? item;
+            const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              setCurrentResult(latestEstimation);
-              setCurrentId(item.id);
-              setCurrentImageUrls(item.imageUrls);
-              setCurrentBase64Images(item.base64Images);
+              // pending をクリアして stockItems からの派生を有効にする
+              setPendingResult(null);
+              setPendingImageUrls([]);
+              setPendingBase64Images([]);
+              setCurrentId(latestItem.id);
               setShowReportView(false);
             }
           }}
@@ -790,6 +822,15 @@ const App: React.FC = () => {
         onApiKeyChange={(hasKey, isStudio) => {
           setHasApiKey(hasKey);
           setIsGoogleAIStudio(isStudio);
+        }}
+        onDataChanged={() => {
+          // インポート後にデータを再読み込みし、選択状態をリセット
+          refreshStock();
+          setCurrentId(null);
+          // pending もクリア
+          setPendingResult(null);
+          setPendingImageUrls([]);
+          setPendingBase64Images([]);
         }}
       />
 

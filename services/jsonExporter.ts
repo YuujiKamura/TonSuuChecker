@@ -5,6 +5,36 @@ import * as idb from './indexedDBService';
 import { StockItem } from '../types';
 import { RegisteredVehicle } from './referenceImages';
 
+// StockItem の最小限の検証
+const validateStockItem = (item: unknown): item is StockItem => {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+
+  // 必須フィールドの検証
+  if (typeof obj.id !== 'string' || !obj.id) return false;
+  if (typeof obj.timestamp !== 'number') return false;
+
+  // オプショナルフィールドの型検証
+  if (obj.actualTonnage !== undefined && typeof obj.actualTonnage !== 'number') return false;
+  if (obj.maxCapacity !== undefined && typeof obj.maxCapacity !== 'number') return false;
+  if (obj.base64Images !== undefined && !Array.isArray(obj.base64Images)) return false;
+  if (obj.imageUrls !== undefined && !Array.isArray(obj.imageUrls)) return false;
+  if (obj.estimations !== undefined && !Array.isArray(obj.estimations)) return false;
+
+  return true;
+};
+
+// RegisteredVehicle の検証
+const validateVehicle = (vehicle: unknown): vehicle is RegisteredVehicle => {
+  if (!vehicle || typeof vehicle !== 'object') return false;
+  const obj = vehicle as Record<string, unknown>;
+
+  if (typeof obj.id !== 'string' || !obj.id) return false;
+  if (typeof obj.licensePlate !== 'string') return false;
+
+  return true;
+};
+
 // エクスポートデータの型定義
 export interface ExportData {
   version: number;
@@ -173,6 +203,13 @@ export const importFromJson = async (
     // ストックデータのインポート
     if (data.stock && Array.isArray(data.stock)) {
       for (const item of data.stock) {
+        // バリデーション
+        if (!validateStockItem(item)) {
+          console.warn('Invalid stock item skipped:', item);
+          result.errors.push(`Invalid stock item: ${JSON.stringify(item).slice(0, 100)}`);
+          continue;
+        }
+
         const exists = existingStockIds.has(item.id);
 
         if (options.mergeStrategy === 'skip' && exists) {
@@ -192,6 +229,13 @@ export const importFromJson = async (
     // 車両データのインポート
     if (data.vehicles && Array.isArray(data.vehicles)) {
       for (const vehicle of data.vehicles) {
+        // バリデーション
+        if (!validateVehicle(vehicle)) {
+          console.warn('Invalid vehicle skipped:', vehicle);
+          result.errors.push(`Invalid vehicle: ${JSON.stringify(vehicle).slice(0, 100)}`);
+          continue;
+        }
+
         const exists = existingVehicleIds.has(vehicle.id);
 
         if (options.mergeStrategy === 'skip' && exists) {
