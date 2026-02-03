@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StockItem } from '../types';
 import { FileSpreadsheet, Plus, ArrowLeft, Trash2, Eye, Brain, Sun, Moon } from 'lucide-react';
 import { countExportableEntries } from '../services/excelExporter';
@@ -30,8 +30,16 @@ const ReportView: React.FC<ReportViewProps> = ({
   onAnalyze,
   onViewResult
 }) => {
-  const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isNewItem, setIsNewItem] = useState(false);  // 新規作成モードかどうか
+  const [newItemData, setNewItemData] = useState<StockItem | null>(null);  // 新規作成時の一時データ
+
+  // 編集中のアイテムを派生状態として取得（常に最新のitemsから参照）
+  const currentEditingItem = useMemo(() => {
+    if (isNewItem && newItemData) return newItemData;
+    if (!editingItemId) return null;
+    return items.find(i => i.id === editingItemId) ?? null;
+  }, [editingItemId, items, isNewItem, newItemData]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [theme, setTheme] = useState(getStoredTheme);
 
@@ -60,7 +68,7 @@ const ReportView: React.FC<ReportViewProps> = ({
       base64Images: [],
       imageUrls: []
     };
-    setEditingItem(newItem);
+    setNewItemData(newItem);
     setIsNewItem(true);  // 新規作成モードをオン
   };
 
@@ -131,7 +139,7 @@ const ReportView: React.FC<ReportViewProps> = ({
               return (
                 <tr
                   key={item.id}
-                  onClick={() => { setEditingItem(item); setIsNewItem(false); }}
+                  onClick={() => { setEditingItemId(item.id); setIsNewItem(false); }}
                   className={`border-b cursor-pointer ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-gray-200 hover:bg-gray-50'}`}
                 >
                   <td className={`p-2 text-center ${mutedColor}`}>{idx + 1}</td>
@@ -216,19 +224,19 @@ const ReportView: React.FC<ReportViewProps> = ({
 
       {/* 編集モーダル */}
       <EntryEditForm
-        item={editingItem}
-        isOpen={!!editingItem}
+        item={currentEditingItem}
+        isOpen={!!currentEditingItem}
         isNew={isNewItem}
         onSave={(id, updates) => {
           onUpdate(id, updates);
-          setEditingItem(null);
+          setEditingItemId(null);
         }}
         onCreate={(newItem) => {
           onAdd(newItem);
-          setEditingItem(null);
+          setNewItemData(null);
           setIsNewItem(false);
         }}
-        onClose={() => { setEditingItem(null); setIsNewItem(false); }}
+        onClose={() => { setEditingItemId(null); setNewItemData(null); setIsNewItem(false); }}
         onAnalyze={onAnalyze ? (item) => { onClose(); onAnalyze(item); } : undefined}
         onViewResult={onViewResult ? (item) => { onClose(); onViewResult(item); } : undefined}
       />

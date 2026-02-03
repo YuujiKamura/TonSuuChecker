@@ -37,7 +37,8 @@ export const convertPdfToImage = async (pdfBase64: string): Promise<string> => {
   // PDFをCanvasに描画
   await page.render({
     canvasContext: context,
-    viewport: viewport
+    viewport: viewport,
+    canvas: canvas
   }).promise;
 
   // CanvasをJPEGのbase64に変換

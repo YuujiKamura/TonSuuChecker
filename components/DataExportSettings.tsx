@@ -113,8 +113,16 @@ const DataExportSettings: React.FC<DataExportSettingsProps> = ({
       const result = await importFromJson(importFile, { mergeStrategy });
       setImportResult(result);
 
-      if (result.success && onDataChanged) {
-        onDataChanged();
+      if (result.success) {
+        // データ件数を再取得（エクスポートセクションの表示を更新）
+        const stock = await idb.getAllStock();
+        const vehicles = await idb.getAllVehicles();
+        setDataStats({ stock: stock.length, vehicles: vehicles.length });
+
+        // 親コンポーネントに通知（UI側のstateをリセット）
+        if (onDataChanged) {
+          onDataChanged();
+        }
       }
     } catch (err) {
       console.error('インポートエラー:', err);
@@ -332,6 +340,11 @@ const DataExportSettings: React.FC<DataExportSettingsProps> = ({
                     <div className="text-xs text-slate-400">
                       案件 {importResult.stockImported}件、車両 {importResult.vehiclesImported}件をインポートしました
                     </div>
+                    {onDataChanged && (
+                      <div className="text-xs text-green-300 mt-2">
+                        データリストが更新されました
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>

@@ -13,6 +13,7 @@ interface SettingsProps {
   ensembleTarget: number;
   onEnsembleChange: (value: number) => void;
   onApiKeyChange: (hasKey: boolean, isGoogleAIStudio: boolean) => void;
+  onDataChanged?: () => void; // インポート後にデータを再読み込みするためのコールバック
 }
 
 const Settings: React.FC<SettingsProps> = ({
@@ -23,6 +24,7 @@ const Settings: React.FC<SettingsProps> = ({
   ensembleTarget,
   onEnsembleChange,
   onApiKeyChange,
+  onDataChanged,
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'vehicles' | 'data'>('general');
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -227,7 +229,7 @@ const Settings: React.FC<SettingsProps> = ({
           )}
 
           {activeTab === 'data' && (
-            <DataExportSettings isOpen={true} onClose={() => {}} embedded={true} />
+            <DataExportSettings isOpen={true} onClose={() => {}} embedded={true} onDataChanged={onDataChanged} />
           )}
         </div>
       </div>
