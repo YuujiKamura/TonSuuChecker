@@ -63,6 +63,7 @@ export interface LearningFeedback {
 export interface StockItem {
   id: string;
   timestamp: number;
+  photoTakenAt?: number;  // EXIFから取得した撮影日時（Unixタイムスタンプ、ミリ秒）
   base64Images: string[];
   imageUrls: string[];
   actualTonnage?: number;  // ユーザー入力（実測）

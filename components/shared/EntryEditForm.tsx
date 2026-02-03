@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StockItem } from '../../types';
 import { X } from 'lucide-react';
 import ImagePicker from './ImagePicker';
+import { getEffectiveDateTime, formatDateTime } from '../../services/exifUtils';
 
 interface EntryEditFormProps {
   item: StockItem | null;
@@ -40,6 +41,7 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
   const [destination, setDestination] = useState('');
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [photoTakenAt, setPhotoTakenAt] = useState<number | undefined>(undefined);
 
   // アイテムが変更されたらフォームをリセット
   useEffect(() => {
@@ -55,12 +57,16 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       setDestination(item.destination || '');
       setImageBase64(item.base64Images[0] || null);
       setImageUrl(item.imageUrls[0] || null);
+      setPhotoTakenAt(item.photoTakenAt);
     }
   }, [item?.id, isOpen]);
 
-  const handleImageSelect = (base64: string, dataUrl: string) => {
+  const handleImageSelect = (base64: string, dataUrl: string, extractedPhotoTakenAt?: number) => {
     setImageBase64(base64);
     setImageUrl(dataUrl);
+    if (extractedPhotoTakenAt !== undefined) {
+      setPhotoTakenAt(extractedPhotoTakenAt);
+    }
   };
 
   const handleSave = () => {
@@ -75,6 +81,10 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
     if (imageBase64 && imageUrl) {
       updates.base64Images = [imageBase64];
       updates.imageUrls = [imageUrl];
+      // EXIF撮影日時を保存
+      if (photoTakenAt !== undefined) {
+        updates.photoTakenAt = photoTakenAt;
+      }
     }
 
     if (isNew && onCreate) {
@@ -125,8 +135,9 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
           </div>
 
           {/* 日時 */}
-          <p className="text-[10px] text-slate-500">
-            {new Date(item.timestamp).toLocaleString()}
+          <p className="text-[10px] text-slate-500" title={item.photoTakenAt ? '撮影日時（EXIF）' : '登録日時'}>
+            {formatDateTime(getEffectiveDateTime(item))}
+            {item.photoTakenAt && <span className="ml-1 text-cyan-400">📷</span>}
           </p>
 
           {/* マニフェスト番号 */}

@@ -4,6 +4,7 @@ import { FileSpreadsheet, Plus, ArrowLeft, Trash2, Eye, Brain, Sun, Moon } from 
 import { countExportableEntries } from '../services/excelExporter';
 import EntryEditForm from './shared/EntryEditForm';
 import ExportConfigModal from './shared/ExportConfigModal';
+import { getEffectiveDateTime, formatDateTime } from '../services/exifUtils';
 
 // テーマ設定
 const THEME_KEY = 'tonsuuChecker_theme';
@@ -43,9 +44,10 @@ const ReportView: React.FC<ReportViewProps> = ({
   const isDark = theme === 'dark';
 
   // 出力対象アイテム（マニフェスト番号 or 実測値あり）
+  // photoTakenAt（撮影日時）優先、なければtimestamp（登録日時）でソート
   const exportableItems = items
     .filter(item => item.manifestNumber || item.actualTonnage)
-    .sort((a, b) => a.timestamp - b.timestamp);
+    .sort((a, b) => getEffectiveDateTime(a) - getEffectiveDateTime(b));
 
   // 合計計算
   const total = exportableItems.reduce((sum, item) => sum + (item.actualTonnage || 0), 0);
@@ -62,11 +64,7 @@ const ReportView: React.FC<ReportViewProps> = ({
     setIsNewItem(true);  // 新規作成モードをオン
   };
 
-  // 日付フォーマット（yyyy/mm/dd）
-  const formatDate = (timestamp: number) => {
-    const d = new Date(timestamp);
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-  };
+  // 日時フォーマット - exifUtilsのformatDateTimeを使用
 
   // 廃棄物の種類の略称マップ（モバイル用）
   const wasteTypeShortMap: Record<string, string> = {
@@ -115,7 +113,7 @@ const ReportView: React.FC<ReportViewProps> = ({
                 <span className="hidden sm:inline">廃棄物の種類</span>
                 <span className="sm:hidden">種類</span>
               </th>
-              <th className={`p-2 text-left border-b w-28 whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>交付日</th>
+              <th className={`p-2 text-left border-b whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>撮影日時</th>
               <th className={`p-2 text-left border-b whitespace-nowrap ${isDark ? 'border-slate-700' : 'border-gray-300'}`}>
                 <span className="hidden sm:inline">マニフェスト伝票番号</span>
                 <span className="sm:hidden">伝票No</span>
@@ -141,7 +139,10 @@ const ReportView: React.FC<ReportViewProps> = ({
                     <span className="hidden sm:inline">{item.wasteType || '-'}</span>
                     <span className="sm:hidden">{getShortWasteType(item.wasteType)}</span>
                   </td>
-                  <td className={`p-2 ${textColor}`}>{formatDate(item.timestamp)}</td>
+                  <td className={`p-2 whitespace-nowrap ${textColor}`} title={item.photoTakenAt ? '撮影日時（EXIF）' : '登録日時'}>
+                    {formatDateTime(getEffectiveDateTime(item))}
+                    {item.photoTakenAt && <span className="ml-1 text-cyan-400 text-xs">📷</span>}
+                  </td>
                   <td className={`p-2 font-mono ${item.manifestNumber ? textColor : mutedColor}`}>{item.manifestNumber || '-'}</td>
                   <td className={`p-2 text-right ${item.actualTonnage ? textColor : mutedColor}`}>{item.actualTonnage?.toFixed(2) || '-'}</td>
                   <td className={`p-2 ${textColor}`}>
