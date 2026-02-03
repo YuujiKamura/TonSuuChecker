@@ -14,6 +14,7 @@ import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTagg
 import { refreshVehicleCache } from './services/referenceImages';
 import { getTodayCost, formatCost, refreshCostCache } from './services/costTracker';
 import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage, saveLearningFeedback } from './services/indexedDBService';
+import { extractPhotoTakenAt } from './services/exifUtils';
 import { initFromUrlParams } from './services/sheetSync';
 import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage, LearningFeedback, AnalysisProgress } from './types';
@@ -312,11 +313,21 @@ const App: React.FC = () => {
               if (effectiveMaxCapacity) {
                 await updateStockItem(existingItem.id, { maxCapacity: effectiveMaxCapacity });
               }
+              // 既存アイテムにphotoTakenAtがない場合は抽出を試みる
+              if (!existingItem.photoTakenAt && base64s[0]) {
+                const photoTakenAt = await extractPhotoTakenAt(base64s[0]);
+                if (photoTakenAt) {
+                  await updateStockItem(existingItem.id, { photoTakenAt });
+                }
+              }
             } else {
               // 新規アイテムの場合は作成
+              // EXIFから撮影日時を抽出
+              const photoTakenAt = base64s[0] ? await extractPhotoTakenAt(base64s[0]) : undefined;
               const stockItem: StockItem = {
                 id: itemId,
                 timestamp: Date.now(),
+                photoTakenAt,  // EXIFから取得した撮影日時
                 base64Images: base64s,
                 imageUrls: urls,
                 maxCapacity: effectiveMaxCapacity,  // ユーザー指定 or AI推定値
@@ -478,9 +489,12 @@ const App: React.FC = () => {
             }}
             onStock={currentId ? undefined : async () => {
               const dataUrl = 'data:image/jpeg;base64,' + pendingCapture.base64;
+              // EXIFから撮影日時を抽出
+              const photoTakenAt = await extractPhotoTakenAt(pendingCapture.base64);
               const newItem: StockItem = {
                 id: crypto.randomUUID(),
                 timestamp: Date.now(),
+                photoTakenAt,  // EXIFから取得した撮影日時
                 base64Images: [pendingCapture.base64],
                 imageUrls: [dataUrl],
               };

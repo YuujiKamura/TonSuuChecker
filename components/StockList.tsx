@@ -3,6 +3,7 @@ import { StockItem } from '../types';
 import { Trash2, Brain, ArrowLeft, Sparkles, Loader2, Eye, FileSpreadsheet, Plus, Camera, ImagePlus, FolderOpen } from 'lucide-react';
 import { extractFeatures } from '../services/geminiService';
 import { exportWasteReportFromStock, countExportableEntries } from '../services/excelExporter';
+import { extractPhotoTakenAt, getEffectiveDateTime, formatDateTime } from '../services/exifUtils';
 
 interface StockListProps {
   items: StockItem[];
@@ -57,6 +58,8 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
   const [newManifestNumber, setNewManifestNumber] = useState('');
   const [newImageBase64, setNewImageBase64] = useState<string | null>(null);
   const [newImageUrl, setNewImageUrl] = useState<string | null>(null);
+  const [newPhotoTakenAt, setNewPhotoTakenAt] = useState<number | undefined>(undefined);
+  const [editPhotoTakenAt, setEditPhotoTakenAt] = useState<number | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,6 +107,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
     setEditManifestNumber(item.manifestNumber || '');
     setEditImageBase64(item.base64Images[0] || null);
     setEditImageUrl(item.imageUrls[0] || null);
+    setEditPhotoTakenAt(item.photoTakenAt);
   };
 
   const saveEdit = (id: string) => {
@@ -122,6 +126,10 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
     if (editImageBase64 && editImageUrl) {
       updates.base64Images = [editImageBase64];
       updates.imageUrls = [editImageUrl];
+      // 新しい画像のEXIF撮影日時を保存
+      if (editPhotoTakenAt !== undefined) {
+        updates.photoTakenAt = editPhotoTakenAt;
+      }
     }
 
     onUpdate(id, updates);
@@ -136,33 +144,40 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
     setEditManifestNumber('');
     setEditImageBase64(null);
     setEditImageUrl(null);
+    setEditPhotoTakenAt(undefined);
   };
 
   // 画像選択ハンドラー（編集用）
-  const handleEditImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(',')[1];
       setEditImageBase64(base64);
       setEditImageUrl(dataUrl);
+      // EXIFから撮影日時を抽出
+      const photoTakenAt = await extractPhotoTakenAt(file);
+      setEditPhotoTakenAt(photoTakenAt);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
   // 画像選択ハンドラー（新規追加用）
-  const handleNewImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNewImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(',')[1];
       setNewImageBase64(base64);
       setNewImageUrl(dataUrl);
+      // EXIFから撮影日時を抽出
+      const photoTakenAt = await extractPhotoTakenAt(file);
+      setNewPhotoTakenAt(photoTakenAt);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -173,6 +188,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
     const newItem: StockItem = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
+      photoTakenAt: newPhotoTakenAt,  // EXIFから取得した撮影日時
       base64Images: newImageBase64 ? [newImageBase64] : [],
       imageUrls: newImageUrl ? [newImageUrl] : [],
       actualTonnage: newTonnage ? parseFloat(newTonnage) : undefined,
@@ -192,6 +208,7 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
     setNewManifestNumber('');
     setNewImageBase64(null);
     setNewImageUrl(null);
+    setNewPhotoTakenAt(undefined);
   };
 
   const renderItem = (item: StockItem) => {
@@ -273,8 +290,9 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
             </div>
             <div className="space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-slate-500">
-                  {new Date(item.timestamp).toLocaleString()}
+                <span className="text-xs text-slate-500" title={item.photoTakenAt ? '撮影日時（EXIF）' : '登録日時'}>
+                  {formatDateTime(getEffectiveDateTime(item))}
+                  {item.photoTakenAt && <span className="ml-1 text-cyan-400">📷</span>}
                 </span>
               </div>
               <div className="flex gap-4 flex-wrap">
@@ -380,8 +398,9 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
                     {item.manifestNumber}
                   </span>
                 )}
-                <span className="text-xs text-slate-500">
-                  {new Date(item.timestamp).toLocaleString()}
+                <span className="text-xs text-slate-500" title={item.photoTakenAt ? '撮影日時（EXIF）' : '登録日時'}>
+                  {formatDateTime(getEffectiveDateTime(item))}
+                  {item.photoTakenAt && <span className="ml-1 text-cyan-400">📷</span>}
                 </span>
               </div>
 

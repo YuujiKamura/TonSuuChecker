@@ -1,8 +1,9 @@
 import React, { useRef } from 'react';
 import { Camera, FolderOpen } from 'lucide-react';
+import { extractPhotoTakenAt } from '../../services/exifUtils';
 
 interface ImagePickerProps {
-  onImageSelect: (base64: string, dataUrl: string) => void;
+  onImageSelect: (base64: string, dataUrl: string, photoTakenAt?: number) => void;
   compact?: boolean;  // コンパクトモード（アイコンのみ）
   disabled?: boolean;
 }
@@ -11,15 +12,17 @@ const ImagePicker: React.FC<ImagePickerProps> = ({ onImageSelect, compact = fals
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(',')[1];
-      onImageSelect(base64, dataUrl);
+      // EXIFから撮影日時を抽出
+      const photoTakenAt = await extractPhotoTakenAt(file);
+      onImageSelect(base64, dataUrl, photoTakenAt);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
