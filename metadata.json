@@ -1,0 +1,7 @@
+{
+  "name": "トン数チェッカー",
+  "description": "荷姿からトン数を類推するAIエージェント。手動撮影および自動監視に対応。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
