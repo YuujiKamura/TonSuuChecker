@@ -604,11 +604,19 @@ const createPhotoReportWorksheet = async (
 
     // メタデータ配置（B列: ラベル、C列: 値）
     // 配置する行: 2行目、4行目、6行目、8行目（各ブロック内）
+    // 備考欄に車番・最大積載量・メモをまとめて記載
+    const licensePlate = item.result?.licensePlate || item.estimations?.[0]?.licensePlate || '';
+    const remarksParts: string[] = [];
+    if (licensePlate) remarksParts.push(`車番: ${licensePlate}`);
+    if (item.maxCapacity) remarksParts.push(`最大積載量: ${item.maxCapacity}t`);
+    if (item.memo) remarksParts.push(item.memo);
+    const remarksText = remarksParts.join(' / ');
+
     const metaRows = [
       { row: startRow + 1, label: '日時', value: formatDateTime(item.photoTakenAt || item.timestamp) },
       { row: startRow + 3, label: '伝票', value: item.manifestNumber || '' },
       { row: startRow + 5, label: '実測', value: item.actualTonnage ? `${item.actualTonnage} t` : '' },
-      { row: startRow + 7, label: '備考', value: item.memo || '' }
+      { row: startRow + 7, label: '備考', value: remarksText }
     ];
 
     metaRows.forEach(({ row, label, value }) => {
