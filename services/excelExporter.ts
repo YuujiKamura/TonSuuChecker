@@ -494,7 +494,7 @@ const photoReportBorders: Partial<ExcelJS.Borders> = {
 
 // ラベルセルスタイル
 const labelCellStyle: Partial<ExcelJS.Style> = {
-  font: { name: 'ＭＳ ゴシック', size: 10, bold: true },
+  font: { name: 'ＭＳ ゴシック', size: 10 },
   alignment: { horizontal: 'center', vertical: 'middle' },
   fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } },
   border: photoReportBorders
