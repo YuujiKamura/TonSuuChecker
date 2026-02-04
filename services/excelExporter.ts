@@ -17,6 +17,7 @@
 
 import { StockItem } from '../types';
 import ExcelJS from 'exceljs';
+import { cropImageToAspectRatio } from './imageUtils';
 
 // 産廃データのエントリー型
 export interface WasteEntry {
@@ -523,11 +524,11 @@ const formatDateTime = (timestamp: number | undefined): string => {
 /**
  * 写真付きレポート用ワークシートを作成
  */
-const createPhotoReportWorksheet = (
+const createPhotoReportWorksheet = async (
   workbook: ExcelJS.Workbook,
   sheetName: string,
   items: StockItem[]
-): ExcelJS.Worksheet => {
+): Promise<ExcelJS.Worksheet> => {
   const ws = workbook.addWorksheet(sheetName);
 
   // 列幅設定
@@ -552,8 +553,9 @@ const createPhotoReportWorksheet = (
     }
   };
 
-  // 各アイテムを配置
-  items.forEach((item, index) => {
+  // 各アイテムを配置（全エントリーを出力）
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
     const blockIndex = index % PHOTOS_PER_PAGE;
     const startRow = blockIndex * PHOTO_ROWS + 1;
 
@@ -582,8 +584,11 @@ const createPhotoReportWorksheet = (
           base64Data = base64Data.split(',')[1];
         }
 
+        // 4:3（CALS規格）でクリッピング
+        const croppedBase64 = await cropImageToAspectRatio(base64Data, 4 / 3, 800, 0.8);
+
         const imageId = workbook.addImage({
-          base64: base64Data,
+          base64: croppedBase64,
           extension: 'jpeg'
         });
 
@@ -645,7 +650,7 @@ const createPhotoReportWorksheet = (
     if ((index + 1) % PHOTOS_PER_PAGE === 0 && index < items.length - 1) {
       ws.getRow(startRow + PHOTO_ROWS - 1).addPageBreak();
     }
-  });
+  }
 
   return ws;
 };
@@ -686,14 +691,14 @@ export const generatePhotoReport = async (
     dateGroups.get(dateKey)!.push(item);
   });
 
-  // 日付ごとにシートを作成
+  // 日付ごとにシートを作成（全エントリーを出力）
   const sortedDates = Array.from(dateGroups.keys()).sort();
-  sortedDates.forEach((dateKey) => {
+  for (const dateKey of sortedDates) {
     const groupItems = dateGroups.get(dateKey)!;
     const date = new Date(dateKey);
     const sheetName = `${date.getMonth() + 1}月${date.getDate()}日`;
-    createPhotoReportWorksheet(workbook, sheetName, groupItems);
-  });
+    await createPhotoReportWorksheet(workbook, sheetName, groupItems);
+  }
 
   return workbook;
 };
