@@ -615,11 +615,15 @@ const createPhotoReportWorksheet = async (
     if (item.maxCapacity) remarksParts.push(`最大積載量: ${item.maxCapacity}t`);
     const remarksText = remarksParts.join(' / ');
 
+    // AI推定値を取得
+    const aiEstimation = item.result?.estimatedTonnage || item.estimations?.[0]?.estimatedTonnage;
+
     const metaRows = [
       { row: startRow + 1, label: '日時', value: formatDateTime(item.photoTakenAt || item.timestamp) },
       { row: startRow + 3, label: '伝票', value: item.manifestNumber || '' },
       { row: startRow + 5, label: '実測', value: item.actualTonnage ? `${item.actualTonnage} t` : '' },
-      { row: startRow + 7, label: '備考', value: remarksText }
+      { row: startRow + 7, label: 'AI推定', value: aiEstimation ? `${aiEstimation.toFixed(1)} t` : '' },
+      { row: startRow + 9, label: '備考', value: remarksText }
     ];
 
     metaRows.forEach(({ row, label, value }) => {
