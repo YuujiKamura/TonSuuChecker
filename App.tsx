@@ -719,6 +719,12 @@ const App: React.FC = () => {
                     // 再解析を開始（指摘を含めて）
                     startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, chatHistory);
                   }}
+                  onReanalyzeWithoutFeedback={() => {
+                    if (!currentId || !currentBase64Images.length) return;
+                    const item = stockItems.find(i => i.id === currentId);
+                    // 指摘を無視して再解析（AIの純粋な推論）
+                    startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, undefined);
+                  }}
                   onSaveAsLearning={handleSaveAsLearning}
                 />
               </div>
