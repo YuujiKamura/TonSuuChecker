@@ -689,7 +689,7 @@ export const generatePhotoReport = async (
 
   if (itemsWithPhotos.length === 0) {
     // 画像がない場合は空のシートを作成
-    const ws = workbook.addWorksheet('写真レポート');
+    const ws = workbook.addWorksheet('積載量管理写真');
     ws.getCell('A1').value = '写真データがありません';
     return workbook;
   }
@@ -724,7 +724,7 @@ export const generatePhotoReport = async (
 export const exportPhotoReportFromStock = async (
   items: StockItem[],
   config: ExportConfig,
-  filename: string = '写真レポート.xlsx'
+  filename: string = '積載量管理写真.xlsx'
 ): Promise<void> => {
   const workbook = await generatePhotoReport(items, config);
   await downloadExcel(workbook, filename);

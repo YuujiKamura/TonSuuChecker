@@ -278,7 +278,7 @@ const ReportView: React.FC<ReportViewProps> = ({
               contractorName: config.contractorName,
               siteManager: config.siteManager
             },
-            `写真付き産廃集計表_${new Date().toISOString().split('T')[0]}.xlsx`
+            `積載量管理写真_${new Date().toISOString().split('T')[0]}.xlsx`
           );
         }}
       />
