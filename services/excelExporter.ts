@@ -605,11 +605,14 @@ const createPhotoReportWorksheet = async (
     // メタデータ配置（B列: ラベル、C列: 値）
     // 配置する行: 2行目、4行目、6行目、8行目（各ブロック内）
     // 備考欄に車番・最大積載量・メモをまとめて記載
-    const licensePlate = item.result?.licensePlate || item.estimations?.[0]?.licensePlate || '';
+    // 車番は memo に手動入力されている場合と、AI解析結果の licensePlate/licenseNumber がある
+    const aiLicensePlate = item.result?.licensePlate || item.estimations?.[0]?.licensePlate || '';
+    const aiLicenseNumber = item.result?.licenseNumber || item.estimations?.[0]?.licenseNumber || '';
+    // memoが車番として使われている（UIで「車番」表示）ため、memoを車番として扱う
+    const vehicleNumber = item.memo || aiLicensePlate || aiLicenseNumber || '';
     const remarksParts: string[] = [];
-    if (licensePlate) remarksParts.push(`車番: ${licensePlate}`);
+    if (vehicleNumber) remarksParts.push(`車番: ${vehicleNumber}`);
     if (item.maxCapacity) remarksParts.push(`最大積載量: ${item.maxCapacity}t`);
-    if (item.memo) remarksParts.push(item.memo);
     const remarksText = remarksParts.join(' / ');
 
     const metaRows = [
