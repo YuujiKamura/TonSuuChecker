@@ -9,6 +9,7 @@ interface AIChatSectionProps {
   chatMessages: ChatMessage[];
   onUpdateMessages: (messages: ChatMessage[]) => void;
   onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;
+  onReanalyzeWithoutFeedback?: () => void;  // 指摘を無視して再解析
   onSaveAsLearning?: (chatHistory: ChatMessage[], result: EstimationResult) => Promise<void>;
   stockId?: string;  // 関連するStockItemのID
   actualTonnage?: number;  // 実測重量（あれば）
@@ -20,6 +21,7 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
   chatMessages,
   onUpdateMessages,
   onReanalyzeWithFeedback,
+  onReanalyzeWithoutFeedback,
   onSaveAsLearning,
   stockId,
   actualTonnage,
@@ -189,6 +191,17 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
                     title="指摘を反映して再解析"
                   >
                     <RefreshCcw size={12} />
+                    <span>反映</span>
+                  </button>
+                )}
+                {onReanalyzeWithoutFeedback && (
+                  <button
+                    onClick={onReanalyzeWithoutFeedback}
+                    className="flex items-center gap-1 text-[10px] bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 px-2 py-1 rounded transition-colors"
+                    title="指摘を無視して再解析（AIの純粋な推論）"
+                  >
+                    <RefreshCcw size={12} />
+                    <span>無視</span>
                   </button>
                 )}
                 {onSaveAsLearning && chatMessages.length > 0 && (

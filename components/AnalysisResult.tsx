@@ -18,6 +18,7 @@ interface AnalysisResultProps {
   onUpdateLicensePlate: (plate: string, number: string) => void;
   onUpdateChatHistory?: (messages: ChatMessage[]) => void;
   onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;
+  onReanalyzeWithoutFeedback?: () => void;  // 指摘を無視して再解析
   onSaveAsLearning?: (chatHistory: ChatMessage[], result: EstimationResult) => Promise<void>;
 }
 
@@ -35,7 +36,7 @@ const getGradeColorClass = (gradeName: string): string => {
 
 const AnalysisResult: React.FC<AnalysisResultProps> = ({
   result, imageUrls, base64Images, analysisId, actualTonnage, maxCapacity, initialChatHistory,
-  onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback, onSaveAsLearning
+  onSaveActualTonnage, onUpdateLicensePlate, onUpdateChatHistory, onReanalyzeWithFeedback, onReanalyzeWithoutFeedback, onSaveAsLearning
 }) => {
   const [inputValue, setInputValue] = useState(actualTonnage?.toString() || '');
   const [isSaved, setIsSaved] = useState(!!actualTonnage);
@@ -267,6 +268,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
         chatMessages={chatMessages}
         onUpdateMessages={handleUpdateMessages}
         onReanalyzeWithFeedback={onReanalyzeWithFeedback}
+        onReanalyzeWithoutFeedback={onReanalyzeWithoutFeedback}
         onSaveAsLearning={onSaveAsLearning}
         stockId={analysisId}
         actualTonnage={actualTonnage}
