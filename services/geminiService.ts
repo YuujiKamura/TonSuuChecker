@@ -190,15 +190,25 @@ ${refImagePrompt}${taggedStockPrompt}
 ${userFeedback && userFeedback.length > 0 ? `
 【ユーザーからの指摘・修正】
 以下は前回の解析結果に対するユーザーからのフィードバックです。これらの指摘を考慮して再解析してください。
-${userFeedback.map(msg => `${msg.role === 'user' ? 'ユーザー' : 'AI'}: ${msg.content}`).join('\n')}
+※ 数値は参考程度に。自身の推論で判断すること。
+${userFeedback.map(msg => {
+  // ユーザーメッセージから実測値と思われる数値をマスク
+  const content = msg.role === 'user'
+    ? msg.content.replace(/(\d+\.?\d*)\s*(t|トン|kg|キロ)/gi, '[数値]$2')
+    : msg.content;
+  return `${msg.role === 'user' ? 'ユーザー' : 'AI'}: ${content}`;
+}).join('\n')}
 ` : ''}
 ${learningFeedback && learningFeedback.length > 0 ? `
 【過去の学習データ（重要）】
 以下は過去の解析で得られた重要な指摘・知見です。同様の状況では必ずこれらを考慮してください。
 ${learningFeedback.map((fb, idx) => {
   const typeLabel = fb.feedbackType === 'correction' ? '訂正' : fb.feedbackType === 'insight' ? '知見' : 'ルール';
-  const tonnageInfo = fb.actualTonnage ? `（実測: ${fb.actualTonnage}t` + (fb.aiEstimation != null ? `、AI推定: ${fb.aiEstimation}t` : '') + '）' : '';
-  return `${idx + 1}. [${typeLabel}] ${fb.summary}${tonnageInfo}`;
+  // 具体的な数値は教えず、傾向のみを伝える
+  const directionHint = fb.actualTonnage && fb.aiEstimation
+    ? (fb.actualTonnage > fb.aiEstimation ? '（AI推定は過小傾向だった）' : fb.actualTonnage < fb.aiEstimation ? '（AI推定は過大傾向だった）' : '')
+    : '';
+  return `${idx + 1}. [${typeLabel}] ${fb.summary}${directionHint}`;
 }).join('\n')}
 ` : ''}
 すべての回答は日本語で行ってください。`;
@@ -401,13 +411,23 @@ export const analyzeGaraImageEnsemble = async (
 
   // maxCapacityが指定されてる場合は最初から等級別データを取得
   if (maxCapacity) {
-    notifyProgress({ phase: 'loading_stock', detail: `${maxCapacity}tクラスの実測データを取得中...` });
     detectedTruckClass = getTruckClass(maxCapacity);
     if (detectedTruckClass !== 'unknown') {
+      notifyProgress({
+        phase: 'loading_stock',
+        detail: `${detectedTruckClass}クラスの実測データを取得中...`,
+        current: 0,
+        total: targetCount
+      });
       gradedStock = await selectStockByGrade(detectedTruckClass);
       console.log(`等級別データ取得: ${detectedTruckClass}クラス, ${gradedStock.length}件`);
       if (gradedStock.length > 0) {
-        notifyProgress({ phase: 'loading_stock', detail: `実測データ ${gradedStock.length}件を参照` });
+        notifyProgress({
+          phase: 'loading_stock',
+          detail: `実測データ ${gradedStock.length}件を参照`,
+          current: 0,
+          total: targetCount
+        });
       }
     }
   }
@@ -419,7 +439,7 @@ export const analyzeGaraImageEnsemble = async (
       phase: 'inference',
       detail: targetCount > 1
         ? `AI推論を実行中... (${i + 1}/${targetCount}回目)`
-        : 'AI推論を実行中...',
+        : `AI推論を実行中...${gradedStock.length > 0 ? ` (参照データ${gradedStock.length}件)` : ''}`,
       current: i + 1,
       total: targetCount
     });
@@ -441,12 +461,26 @@ export const analyzeGaraImageEnsemble = async (
         if (detectedTruckClass !== 'unknown') {
           notifyProgress({
             phase: 'loading_stock',
+            detail: `車両クラス判定: ${detectedTruckClass}（推定${res.estimatedMaxCapacity}t）`,
+            current: i + 1,
+            total: targetCount
+          });
+          notifyProgress({
+            phase: 'loading_stock',
             detail: `${detectedTruckClass}クラスの実測データを取得中...`,
             current: i + 1,
             total: targetCount
           });
           gradedStock = await selectStockByGrade(detectedTruckClass);
           console.log(`1回目推論から車両クラス判定: ${detectedTruckClass}（推定${res.estimatedMaxCapacity}t）, 等級別データ${gradedStock.length}件`);
+          if (gradedStock.length > 0) {
+            notifyProgress({
+              phase: 'loading_stock',
+              detail: `実測データ ${gradedStock.length}件を参照`,
+              current: i + 1,
+              total: targetCount
+            });
+          }
         }
       }
 
