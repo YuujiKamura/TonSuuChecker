@@ -654,6 +654,15 @@ const App: React.FC = () => {
 
                   {/* ステータステキストエリア（画像の下に分離配置） */}
                   <div className={`mt-4 p-6 rounded-3xl border shadow-2xl transition-all duration-500 ${isTargetLocked ? 'bg-red-950/80 border-red-500' : 'bg-slate-900/90 border-blue-500/30'}`}>
+                    {/* モデル・推論回数表示 */}
+                    <div className="flex items-center justify-center gap-3 mb-3 text-xs">
+                      <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded font-mono">
+                        {selectedModel === 'gemini-3-pro-preview' ? 'PRO' : 'Flash'}
+                      </span>
+                      <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded">
+                        推論 x{ensembleTarget}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-center gap-4 mb-4">
                       <Activity className={`${isTargetLocked ? 'text-red-500 animate-bounce' : 'text-blue-500 animate-pulse'}`} size={32} />
                       <div className="h-6 w-px bg-slate-700"></div>
