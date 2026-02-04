@@ -9,7 +9,6 @@ interface AIChatSectionProps {
   chatMessages: ChatMessage[];
   onUpdateMessages: (messages: ChatMessage[]) => void;
   onReanalyzeWithFeedback?: (chatHistory: ChatMessage[]) => void;
-  onReanalyzeWithoutFeedback?: () => void;  // 指摘を無視して再解析
   onSaveAsLearning?: (chatHistory: ChatMessage[], result: EstimationResult) => Promise<void>;
   stockId?: string;  // 関連するStockItemのID
   actualTonnage?: number;  // 実測重量（あれば）
@@ -21,7 +20,6 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
   chatMessages,
   onUpdateMessages,
   onReanalyzeWithFeedback,
-  onReanalyzeWithoutFeedback,
   onSaveAsLearning,
   stockId,
   actualTonnage,
@@ -165,7 +163,7 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
       {/* チャット本体 */}
       {showChat && (
         <>
-          {/* ツールバー */}
+          {/* ツールバー（チャット履歴がある時のみ） */}
           {chatMessages.length > 0 && (
             <div className="flex items-center justify-between px-3 py-2 border-t border-slate-800 bg-slate-800/50">
               <span className="text-[10px] text-slate-400 font-bold">
@@ -194,17 +192,7 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
                     <span>反映</span>
                   </button>
                 )}
-                {onReanalyzeWithoutFeedback && (
-                  <button
-                    onClick={onReanalyzeWithoutFeedback}
-                    className="flex items-center gap-1 text-[10px] bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 px-2 py-1 rounded transition-colors"
-                    title="指摘を無視して再解析（AIの純粋な推論）"
-                  >
-                    <RefreshCcw size={12} />
-                    <span>無視</span>
-                  </button>
-                )}
-                {onSaveAsLearning && chatMessages.length > 0 && (
+                {onSaveAsLearning && (
                   <button
                     onClick={handleSaveAsLearning}
                     disabled={isSavingLearning || savedAsLearning}

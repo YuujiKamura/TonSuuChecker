@@ -1,10 +1,30 @@
 
 import React, { useState, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
-import { Save, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, Check, ChevronDown, ChevronUp, Download, Image, FileJson, RefreshCcw } from 'lucide-react';
 import AIChatSection from './AIChatSection';
 import * as chatService from '../services/chatService';
 import { getLoadGrade, LoadGrade } from '../constants';
+
+// 画像ダウンロード関数
+const downloadImage = (base64: string, filename: string) => {
+  const link = document.createElement('a');
+  link.href = base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+  link.download = filename;
+  link.click();
+};
+
+// JSONダウンロード関数
+const downloadJson = (data: object, filename: string) => {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
 
 interface AnalysisResultProps {
   result: EstimationResult;
@@ -222,6 +242,19 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
             )}
           </div>
         )}
+
+        {/* アクションバー */}
+        {onReanalyzeWithoutFeedback && (
+          <div className="px-3 py-2 border-t border-slate-800 flex justify-end">
+            <button
+              onClick={onReanalyzeWithoutFeedback}
+              className="flex items-center gap-1.5 text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 px-3 py-1.5 rounded transition-colors"
+            >
+              <RefreshCcw size={14} />
+              <span>再解析</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ===== 詳細情報（折りたたみ） ===== */}
@@ -256,6 +289,36 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* ダウンロードボタン */}
+            <div className="pt-2 border-t border-slate-700">
+              <p className="text-[10px] font-bold text-slate-500 mb-2">データエクスポート</p>
+              <div className="flex flex-wrap gap-2">
+                {base64Images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => downloadImage(img, `analysis_${analysisId}_${i + 1}.jpg`)}
+                    className="flex items-center gap-1.5 text-[10px] bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1.5 rounded transition-colors"
+                  >
+                    <Image size={12} />
+                    <span>画像{base64Images.length > 1 ? ` ${i + 1}` : ''}</span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => downloadJson({
+                    analysisId,
+                    timestamp: new Date().toISOString(),
+                    result,
+                    actualTonnage,
+                    maxCapacity: effectiveMaxCapacity,
+                  }, `analysis_${analysisId}.json`)}
+                  className="flex items-center gap-1.5 text-[10px] bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1.5 rounded transition-colors"
+                >
+                  <FileJson size={12} />
+                  <span>結果JSON</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -268,7 +331,6 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
         chatMessages={chatMessages}
         onUpdateMessages={handleUpdateMessages}
         onReanalyzeWithFeedback={onReanalyzeWithFeedback}
-        onReanalyzeWithoutFeedback={onReanalyzeWithoutFeedback}
         onSaveAsLearning={onSaveAsLearning}
         stockId={analysisId}
         actualTonnage={actualTonnage}

@@ -435,21 +435,39 @@ export const analyzeGaraImageEnsemble = async (
   for (let i = 0; i < targetCount; i++) {
     if (abortSignal?.cancelled) break;
 
+    // 1回目は等級別データなしで推論（車両クラス判定のため）
+    // 2回目以降は等級別データありで推論
+    const stockForInference = (i === 0 && !maxCapacity) ? [] : gradedStock;
+
     notifyProgress({
       phase: 'inference',
       detail: targetCount > 1
-        ? `AI推論を実行中... (${i + 1}/${targetCount}回目)`
-        : `AI推論を実行中...${gradedStock.length > 0 ? ` (参照データ${gradedStock.length}件)` : ''}`,
+        ? `プロンプト構築中... (${i + 1}/${targetCount}回目)`
+        : `プロンプト構築中...`,
+      current: i + 1,
+      total: targetCount
+    });
+
+    notifyProgress({
+      phase: 'inference',
+      detail: targetCount > 1
+        ? `Gemini APIにリクエスト送信中... (${i + 1}/${targetCount}回目)${stockForInference.length > 0 ? ` [参照${stockForInference.length}件]` : ''}`
+        : `Gemini APIにリクエスト送信中...${stockForInference.length > 0 ? ` [参照${stockForInference.length}件]` : ''}`,
       current: i + 1,
       total: targetCount
     });
 
     try {
-      // 1回目は等級別データなしで推論（車両クラス判定のため）
-      // 2回目以降は等級別データありで推論
-      const stockForInference = (i === 0 && !maxCapacity) ? [] : gradedStock;
-
       const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, stockForInference, learningFeedback);
+
+      notifyProgress({
+        phase: 'inference',
+        detail: targetCount > 1
+          ? `推論結果を受信 (${i + 1}/${targetCount}回目): ${res.estimatedTonnage.toFixed(1)}t`
+          : `推論結果を受信: ${res.estimatedTonnage.toFixed(1)}t`,
+        current: i + 1,
+        total: targetCount
+      });
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];
