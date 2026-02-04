@@ -155,12 +155,33 @@ ${WEIGHT_FORMULA_PROMPT}
 2. 荷台の埋まり具合を目視で判定（例: すり切りの80%、山盛り等）
 3. 基準容積 × 埋まり具合 = 見かけ体積
 
+【空隙率の判定基準】（荷台幅2mを基準に塊サイズを判定）
+- 細かい（〜30cm）: 空隙率 0.30
+- 普通（30〜60cm）: 空隙率 0.35
+- 大きい（60cm〜）: 空隙率 0.40
+
+【高さ推定の目安】（後板高を1.0として）
+| 状態 | 4tダンプ(後板0.34m) | 増トン(後板0.40m) |
+|------|---------------------|-------------------|
+| すり切り | 0.32m | 0.38m |
+| 軽い山盛り（1.1倍） | 0.34m | 0.40m |
+| 山盛り（1.2倍） | 0.36m | 0.43m |
+| 高い山盛り（1.3倍） | 0.38m | 0.45m |
+
+【上面積の推定】（山盛り時は頂上が狭くなる）
+- すり切り: 底面積と同じ（100%）
+- 軽い山盛り: 底面積の80-90%
+- 山盛り: 底面積の70-80%
+- 高い山盛り: 底面積の60-70%
+
+【現実的な制約チェック】
+- 4tダンプの体積上限: 2.8m³（山盛りでも3.0m³を超えることは稀）
+- 推定値が最大積載量の130%を超える場合: パラメータを見直し、confidenceScoreを0.7以下に
+
 【回答ルール（厳守）】
 - 事実のみを記述し、推測・創作・持論は一切禁止
-- reasoningには以下の3点のみを簡潔に記載:
-  1. 見かけ体積（例: すり切り80%で1.6m³）
-  2. 適用した密度（例: As殻2.5t/m³）
-  3. 適用した空隙率（例: 30%）
+- reasoningには以下の形式で記載:
+  「車両: ○tダンプ。積載状態: ○○。体積: (○m²+○m²)/2×○m=○m³。素材: ○○、塊サイズ○○。密度○t/m³、空隙率○を適用。計算: ○×○×(1-○)=○t」
 - 計算式: 体積 × 密度 × (1-空隙率) = 推定重量
 - maxCapacityReasoningには視覚的根拠のみを記載（確認できない情報は「確認不可」）
 - 与えられたパラメータ（密度・空隙率）をそのまま使用すること。独自の数値を使わないこと
@@ -214,6 +235,12 @@ ${learningFeedback.map((fb, idx) => {
           maxCapacityReasoning: { type: Type.STRING },
           confidenceScore: { type: Type.NUMBER },
           reasoning: { type: Type.STRING },
+          loadCondition: { type: Type.STRING, nullable: true },  // 積載状態
+          chunkSize: { type: Type.STRING, nullable: true },      // 塊サイズ
+          lowerArea: { type: Type.NUMBER, nullable: true },      // 底面積
+          upperArea: { type: Type.NUMBER, nullable: true },      // 上面積
+          height: { type: Type.NUMBER, nullable: true },         // 高さ
+          voidRatio: { type: Type.NUMBER, nullable: true },      // 空隙率
           materialBreakdown: {
             type: Type.ARRAY,
             items: {
