@@ -55,6 +55,9 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
+  const [progressLog, setProgressLog] = useState<{time: string, msg: string, elapsed?: number}[]>([]);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const analysisStartTime = useRef<number>(0);
   
   // APIキー関連
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -175,10 +178,22 @@ const App: React.FC = () => {
   // loading開始時に進捗をリセット
   useEffect(() => {
     if (loading) {
+      setProgressLog([]);
+      setElapsedSeconds(0);
+      analysisStartTime.current = Date.now();
       setAnalysisProgress({ phase: 'preparing', detail: '解析を開始中...' });
     } else {
       setAnalysisProgress(null);
     }
+  }, [loading]);
+
+  // 経過時間カウンター
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setInterval(() => {
+      setElapsedSeconds(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
   }, [loading]);
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
@@ -268,6 +283,13 @@ const App: React.FC = () => {
         !isAuto ? (progress) => {
           if (activeRequestId.current !== requestId) return;
           setAnalysisProgress(progress);
+          const elapsed = Math.round((Date.now() - analysisStartTime.current) / 1000);
+          const now = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setProgressLog(prev => {
+            // 同じメッセージは追加しない
+            if (prev.length > 0 && prev[prev.length - 1].msg === progress.detail) return prev;
+            return [...prev, { time: now, msg: progress.detail, elapsed }];
+          });
         } : undefined
       );
 
@@ -638,8 +660,12 @@ const App: React.FC = () => {
                       <h2 className="text-lg md:text-2xl font-black tracking-widest text-white uppercase">
                         {isTargetLocked ? "TARGET LOCKED ON" : (analysisProgress?.detail || '解析中...')}
                       </h2>
+                      <div className="h-6 w-px bg-slate-700"></div>
+                      <span className="text-2xl font-mono font-bold text-yellow-500 tabular-nums">
+                        {String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:{String(elapsedSeconds % 60).padStart(2, '0')}
+                      </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-4">
                       <div
                         className={`h-full transition-all duration-500 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`}
                         style={{ width: isTargetLocked ? '100%' : (() => {
@@ -662,6 +688,26 @@ const App: React.FC = () => {
                         })() }}
                       ></div>
                     </div>
+                    {/* 進捗ログリスト */}
+                    {progressLog.length > 0 && (
+                      <div className="bg-slate-950/50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                        <div className="space-y-1 text-xs font-mono">
+                          {progressLog.map((log, i) => {
+                            const stepTime = i > 0 && log.elapsed !== undefined && progressLog[i-1].elapsed !== undefined
+                              ? log.elapsed - (progressLog[i-1].elapsed || 0)
+                              : 0;
+                            return (
+                              <div key={i} className={`flex items-center gap-2 ${i === progressLog.length - 1 ? 'text-blue-400' : 'text-slate-500'}`}>
+                                <span className="text-slate-600 tabular-nums w-12">+{log.elapsed || 0}s</span>
+                                {stepTime > 2 && <span className="text-yellow-500 text-[10px]">({stepTime}s)</span>}
+                                {i === progressLog.length - 1 && <span className="animate-pulse">●</span>}
+                                <span className="flex-1">{log.msg}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-center pt-4">
