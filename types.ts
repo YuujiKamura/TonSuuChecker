@@ -9,6 +9,7 @@ export interface EstimationResult {
   estimatedTonnage: number;
   estimatedMaxCapacity?: number;  // AIが見た目から推定した最大積載量(トン)
   maxCapacityReasoning?: string;  // 最大積載量の推定根拠
+  frustumRatio?: number;  // 錐台形状に対する充填割合 (0.3~1.0)
   confidenceScore: number;
   reasoning: string;
   ensembleCount: number;
