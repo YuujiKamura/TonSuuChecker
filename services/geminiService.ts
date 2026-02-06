@@ -222,6 +222,15 @@ STEP2: 積み方で補正値を加算（必須）
 - 推定値が最大積載量を超えても、それが視覚的に妥当なら正しい推定として報告する
 - 「積みすぎ」かどうかの判断は推定精度とは別問題
 
+■ 錐台充填割合（frustumRatio: 0.3〜1.0）
+- 荷台を目一杯積んだ時の理想的な錐台形状に対して、実際にどれくらい充填されているかの割合
+- 1.0 = 錐台にきっちり充填（山盛り・満載）
+- 0.7〜0.8 = やや少なめだが十分に積載
+- 0.5 = 半分程度
+- 0.3 = 少量
+- 【重要】後板付近の脱落防止用の傾斜は減点しないこと（安全対策であり荷量不足ではない）
+- frustumRatioは体積計算に反映すること（estimatedVolumeM3に反映済みの値を出力）
+
 【回答ルール（厳守）】
 - 事実のみを記述し、推測・創作・持論は一切禁止
 - reasoningには以下の形式で記載:
@@ -287,6 +296,7 @@ ${learningFeedback.map((fb, idx) => {
           estimatedTonnage: { type: Type.NUMBER },
           estimatedMaxCapacity: { type: Type.NUMBER },
           maxCapacityReasoning: { type: Type.STRING },
+          frustumRatio: { type: Type.NUMBER, description: '錐台形状に対する充填割合 (0.3〜1.0)' },
           confidenceScore: { type: Type.NUMBER },
           reasoning: { type: Type.STRING },
           loadCondition: { type: Type.STRING, nullable: true },  // 積載状態
@@ -308,7 +318,7 @@ ${learningFeedback.map((fb, idx) => {
             }
           }
         },
-        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "confidenceScore", "reasoning", "materialBreakdown"]
+        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "frustumRatio", "confidenceScore", "reasoning", "materialBreakdown"]
       }
     },
   });
@@ -331,6 +341,7 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
 
   const avgTonnage = validResults.reduce((sum, r) => sum + r.estimatedTonnage, 0) / resultCount;
   const avgVolume = validResults.reduce((sum, r) => sum + r.estimatedVolumeM3, 0) / resultCount;
+  const avgFrustumRatio = validResults.reduce((sum, r) => sum + (r.frustumRatio ?? 1.0), 0) / resultCount;
 
   const finalTruckType = getMode(validResults.map(r => r.truckType));
   const finalLicenseNumber = getMode(validResults.map(r => r.licenseNumber));
@@ -352,6 +363,7 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
     estimatedTonnage: Number(avgTonnage.toFixed(2)),
     estimatedVolumeM3: Number(avgVolume.toFixed(2)),
     estimatedMaxCapacity: finalMaxCapacity ? Number(finalMaxCapacity) : closestToAvg.estimatedMaxCapacity,
+    frustumRatio: Number(avgFrustumRatio.toFixed(2)),
     ensembleCount: count,
     reasoning: `【統合推論】有効サンプル:${resultCount}/${count}。${closestToAvg.reasoning}`
   };
