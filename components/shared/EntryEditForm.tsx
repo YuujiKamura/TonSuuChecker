@@ -59,7 +59,7 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       setImageUrl(item.imageUrls[0] || null);
       setPhotoTakenAt(item.photoTakenAt);
     }
-  }, [item?.id, isOpen]);
+  }, [item?.id, item?.actualTonnage, item?.maxCapacity, item?.manifestNumber, item?.memo, item?.destination, item?.wasteType, isOpen]);
 
   const handleImageSelect = (base64: string, dataUrl: string, extractedPhotoTakenAt?: number) => {
     setImageBase64(base64);
@@ -76,7 +76,8 @@ const EntryEditForm: React.FC<EntryEditFormProps> = ({
       maxCapacity: maxCapacity ? parseFloat(maxCapacity) : undefined,
       memo: memo || undefined,
       manifestNumber: manifestNumber.replace(/\D/g, '') || undefined,
-      wasteType: wasteType || undefined
+      wasteType: wasteType || undefined,
+      destination: destination || undefined,
     };
     if (imageBase64 && imageUrl) {
       updates.base64Images = [imageBase64];

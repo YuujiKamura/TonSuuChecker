@@ -17,6 +17,7 @@
 
 import { StockItem } from '../types';
 import ExcelJS from 'exceljs';
+import { cropImageToAspectRatio } from './imageUtils';
 
 // 産廃データのエントリー型
 export interface WasteEntry {
@@ -468,4 +469,270 @@ export const exportWasteReportFromStock = async (
  */
 export const countExportableEntries = (items: StockItem[]): number => {
   return items.filter(item => item.manifestNumber || item.actualTonnage).length;
+};
+
+// =====================================================
+// 写真付きレポート生成（GASPhotoAIManager互換レイアウト）
+// =====================================================
+
+// 写真レポート用の定数
+const PHOTO_COL_WIDTH = 56;      // 写真列幅（約56.1pt相当）
+const LABEL_COL_WIDTH = 11;      // ラベル列幅
+const VALUE_COL_WIDTH = 29;      // 値列幅（約28.6pt相当）
+const PHOTO_ROWS = 10;           // 写真ブロックあたりの行数
+const ROW_HEIGHT = 26;           // 行高さ（pt）
+const PHOTOS_PER_PAGE = 3;       // 1ページあたりの写真数
+
+// 写真レポート用の罫線スタイル
+const hairBorder: Partial<ExcelJS.Border> = { style: 'hair', color: { argb: 'FF000000' } };
+const photoReportBorders: Partial<ExcelJS.Borders> = {
+  top: hairBorder,
+  left: hairBorder,
+  bottom: hairBorder,
+  right: hairBorder
+};
+
+// ラベルセルスタイル
+const labelCellStyle: Partial<ExcelJS.Style> = {
+  font: { name: 'ＭＳ ゴシック', size: 10 },
+  alignment: { horizontal: 'center', vertical: 'middle' },
+  fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } },
+  border: photoReportBorders
+};
+
+// 値セルスタイル
+const valueCellStyle: Partial<ExcelJS.Style> = {
+  font: { name: 'ＭＳ ゴシック', size: 10 },
+  alignment: { horizontal: 'left', vertical: 'middle', wrapText: true },
+  border: photoReportBorders
+};
+
+/**
+ * 日時をフォーマット（yyyy/mm/dd HH:MM形式）
+ */
+const formatDateTime = (timestamp: number | undefined): string => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+};
+
+/**
+ * 写真付きレポート用ワークシートを作成
+ */
+const createPhotoReportWorksheet = async (
+  workbook: ExcelJS.Workbook,
+  sheetName: string,
+  items: StockItem[]
+): Promise<ExcelJS.Worksheet> => {
+  const ws = workbook.addWorksheet(sheetName);
+
+  // 列幅設定
+  ws.getColumn(1).width = PHOTO_COL_WIDTH;  // A列: 写真
+  ws.getColumn(2).width = LABEL_COL_WIDTH;  // B列: ラベル
+  ws.getColumn(3).width = VALUE_COL_WIDTH;  // C列: 値
+
+  // ページ設定（A4縦向き）
+  ws.pageSetup = {
+    paperSize: 9,  // A4
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,  // 高さは自動
+    margins: {
+      left: 0.4,
+      right: 0.4,
+      top: 0.4,
+      bottom: 0.4,
+      header: 0.3,
+      footer: 0.3
+    }
+  };
+
+  // 各アイテムを配置（全エントリーを出力）
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const blockIndex = index % PHOTOS_PER_PAGE;
+    const startRow = blockIndex * PHOTO_ROWS + 1;
+
+    // 行高さを設定
+    for (let i = startRow; i < startRow + PHOTO_ROWS; i++) {
+      ws.getRow(i).height = ROW_HEIGHT;
+    }
+
+    // 写真列（A列）の罫線設定
+    for (let i = startRow; i < startRow + PHOTO_ROWS; i++) {
+      const cell = ws.getCell(`A${i}`);
+      cell.border = {
+        left: hairBorder,
+        right: hairBorder,
+        top: i === startRow ? hairBorder : undefined,
+        bottom: i === startRow + PHOTO_ROWS - 1 ? hairBorder : undefined
+      };
+    }
+
+    // 画像を追加（base64画像がある場合）
+    if (item.base64Images && item.base64Images.length > 0) {
+      try {
+        // base64からdata URLプレフィックスを除去
+        let base64Data = item.base64Images[0];
+        if (base64Data.startsWith('data:')) {
+          base64Data = base64Data.split(',')[1];
+        }
+
+        // 4:3（CALS規格）でクリッピング
+        const croppedBase64 = await cropImageToAspectRatio(base64Data, 4 / 3, 800, 0.8);
+
+        const imageId = workbook.addImage({
+          base64: croppedBase64,
+          extension: 'jpeg'
+        });
+
+        ws.addImage(imageId, {
+          tl: { col: 0, row: startRow - 1 } as ExcelJS.Anchor,
+          br: { col: 1, row: startRow - 1 + PHOTO_ROWS } as ExcelJS.Anchor,
+          editAs: 'absolute'
+        });
+      } catch (e) {
+        console.warn('画像の埋め込みに失敗:', e);
+      }
+    }
+
+    // メタデータ配置（B列: ラベル、C列: 値）
+    // 配置する行: 2行目、4行目、6行目、8行目（各ブロック内）
+    // 備考欄に車番・最大積載量・メモをまとめて記載
+    // 車番は memo に手動入力されている場合と、AI解析結果の licensePlate/licenseNumber がある
+    const aiLicensePlate = item.result?.licensePlate || item.estimations?.[0]?.licensePlate || '';
+    const aiLicenseNumber = item.result?.licenseNumber || item.estimations?.[0]?.licenseNumber || '';
+    // memoが車番として使われている（UIで「車番」表示）ため、memoを車番として扱う
+    const vehicleNumber = item.memo || aiLicensePlate || aiLicenseNumber || '';
+    const remarksParts: string[] = [];
+    if (vehicleNumber) remarksParts.push(`車番: ${vehicleNumber}`);
+    if (item.maxCapacity) remarksParts.push(`最大積載量: ${item.maxCapacity}t`);
+    const remarksText = remarksParts.join(' / ');
+
+    // AI推定値を取得
+    const aiEstimation = item.result?.estimatedTonnage || item.estimations?.[0]?.estimatedTonnage;
+
+    const metaRows = [
+      { row: startRow + 1, label: '日時', value: formatDateTime(item.photoTakenAt || item.timestamp) },
+      { row: startRow + 3, label: '伝票', value: item.manifestNumber || '' },
+      { row: startRow + 5, label: '実測', value: item.actualTonnage ? `${item.actualTonnage} t` : '' },
+      { row: startRow + 7, label: 'AI推定', value: aiEstimation ? `${aiEstimation.toFixed(1)} t` : '' },
+      { row: startRow + 9, label: '備考', value: remarksText }
+    ];
+
+    metaRows.forEach(({ row, label, value }) => {
+      // ラベルセル（B列）
+      const labelCell = ws.getCell(`B${row}`);
+      labelCell.value = label;
+      labelCell.style = labelCellStyle;
+
+      // 値セル（C列）
+      const valueCell = ws.getCell(`C${row}`);
+      valueCell.value = value;
+      valueCell.style = valueCellStyle;
+    });
+
+    // B列とC列の空行にも罫線を適用（ブロック全体を囲む）
+    for (let i = startRow; i < startRow + PHOTO_ROWS; i++) {
+      const isMetaRow = metaRows.some(m => m.row === i);
+      if (!isMetaRow) {
+        // ラベル列（B列）
+        const cellB = ws.getCell(`B${i}`);
+        cellB.border = {
+          left: hairBorder,
+          right: hairBorder,
+          top: i === startRow ? hairBorder : undefined,
+          bottom: i === startRow + PHOTO_ROWS - 1 ? hairBorder : undefined
+        };
+        // 値列（C列）
+        const cellC = ws.getCell(`C${i}`);
+        cellC.border = {
+          left: hairBorder,
+          right: hairBorder,
+          top: i === startRow ? hairBorder : undefined,
+          bottom: i === startRow + PHOTO_ROWS - 1 ? hairBorder : undefined
+        };
+      }
+    }
+
+    // ページ区切り（3枚ごと）
+    if ((index + 1) % PHOTOS_PER_PAGE === 0 && index < items.length - 1) {
+      ws.getRow(startRow + PHOTO_ROWS - 1).addPageBreak();
+    }
+  }
+
+  return ws;
+};
+
+/**
+ * 写真付きExcelワークブックを生成
+ * GASPhotoAIManager互換レイアウト: A4縦向き、1ページ3枚の写真
+ */
+export const generatePhotoReport = async (
+  items: StockItem[],
+  config: ExportConfig
+): Promise<ExcelJS.Workbook> => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'TonSuuChecker';
+  workbook.created = new Date();
+
+  // 画像があるアイテムのみをフィルタリング
+  const itemsWithPhotos = items.filter(
+    item => item.base64Images && item.base64Images.length > 0
+  );
+
+  if (itemsWithPhotos.length === 0) {
+    // 画像がない場合は空のシートを作成
+    const ws = workbook.addWorksheet('積載量管理写真');
+    ws.getCell('A1').value = '写真データがありません';
+    return workbook;
+  }
+
+  // 日付でグループ化してシートを作成
+  const dateGroups = new Map<string, StockItem[]>();
+  itemsWithPhotos.forEach(item => {
+    const dateKey = new Date(item.photoTakenAt || item.timestamp)
+      .toISOString()
+      .split('T')[0];
+    if (!dateGroups.has(dateKey)) {
+      dateGroups.set(dateKey, []);
+    }
+    dateGroups.get(dateKey)!.push(item);
+  });
+
+  // 日付ごとにシートを作成（全エントリーを出力）
+  const sortedDates = Array.from(dateGroups.keys()).sort();
+  for (const dateKey of sortedDates) {
+    const groupItems = dateGroups.get(dateKey)!;
+    const date = new Date(dateKey);
+    const sheetName = `${date.getMonth() + 1}月${date.getDate()}日`;
+    await createPhotoReportWorksheet(workbook, sheetName, groupItems);
+  }
+
+  return workbook;
+};
+
+/**
+ * 写真付きレポートをダウンロード（便利関数）
+ */
+export const exportPhotoReportFromStock = async (
+  items: StockItem[],
+  config: ExportConfig,
+  filename: string = '積載量管理写真.xlsx'
+): Promise<void> => {
+  const workbook = await generatePhotoReport(items, config);
+  await downloadExcel(workbook, filename);
+};
+
+/**
+ * 写真レポート対象のアイテム件数を取得（画像があるもの）
+ */
+export const countPhotoReportEntries = (items: StockItem[]): number => {
+  return items.filter(item => item.base64Images && item.base64Images.length > 0).length;
 };

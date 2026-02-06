@@ -18,6 +18,13 @@ export interface EstimationResult {
     percentage: number;
     density: number;
   }[];
+  // 積載状態と計算パラメータ
+  loadCondition?: string;     // 積載状態（すり切り/軽い山盛り/山盛り/高い山盛り）
+  chunkSize?: string;         // 塊サイズ（細かい/普通/大きい）→空隙率判定の根拠
+  lowerArea?: number;         // 底面積 (m²)
+  upperArea?: number;         // 上面積 (m²)
+  height?: number;            // 積載高さ (m)
+  voidRatio?: number;         // 適用した空隙率
 }
 
 export interface AnalysisHistory {

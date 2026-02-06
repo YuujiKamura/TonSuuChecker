@@ -155,7 +155,7 @@ const SyncSettings: React.FC<SyncSettingsProps> = ({ isOpen, onClose, onDataFetc
 
   const handlePush = async () => {
     setSyncing(true);
-    const stockItems = getStockItems() as StockItem[];
+    const stockItems = await getStockItems();
 
     if (stockItems.length === 0) {
       setMessage('送信するデータがありません');

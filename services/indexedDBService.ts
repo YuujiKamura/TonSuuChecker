@@ -118,6 +118,27 @@ export const deleteStock = async (id: string): Promise<void> => {
   await db.delete('stock', id);
 };
 
+// アトミックな更新を行う関数
+export const updateStockAtomic = async (
+  id: string,
+  updater: (item: StockItem) => StockItem
+): Promise<StockItem | null> => {
+  const db = await getDB();
+  const tx = db.transaction('stock', 'readwrite');
+  const store = tx.objectStore('stock');
+
+  const item = await store.get(id);
+  if (!item) {
+    await tx.done;
+    return null;
+  }
+
+  const updated = updater(item);
+  await store.put(updated);
+  await tx.done;
+  return updated;
+};
+
 export const clearAllStock = async (): Promise<void> => {
   const db = await getDB();
   await db.clear('stock');
