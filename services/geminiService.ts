@@ -155,6 +155,15 @@ ${WEIGHT_FORMULA_PROMPT}
 2. 荷台の埋まり具合を目視で判定（例: すり切りの80%、山盛り等）
 3. 基準容積 × 埋まり具合 = 見かけ体積
 
+■ 錐台充填割合（frustumRatio: 0.3〜1.0）
+- 荷台を目一杯積んだ時の理想的な錐台形状に対して、実際にどれくらい充填されているかの割合
+- 1.0 = 錐台にきっちり充填（山盛り・満載）
+- 0.7〜0.8 = やや少なめだが十分に積載
+- 0.5 = 半分程度
+- 0.3 = 少量
+- 【重要】後板付近の脱落防止用の傾斜は減点しないこと（安全対策であり荷量不足ではない）
+- frustumRatioは体積計算に反映すること（estimatedVolumeM3に反映済みの値を出力）
+
 【回答ルール（厳守）】
 - 事実のみを記述し、推測・創作・持論は一切禁止
 - reasoningには以下の3点のみを簡潔に記載:
@@ -212,6 +221,7 @@ ${learningFeedback.map((fb, idx) => {
           estimatedTonnage: { type: Type.NUMBER },
           estimatedMaxCapacity: { type: Type.NUMBER },
           maxCapacityReasoning: { type: Type.STRING },
+          frustumRatio: { type: Type.NUMBER },
           confidenceScore: { type: Type.NUMBER },
           reasoning: { type: Type.STRING },
           materialBreakdown: {
@@ -227,7 +237,7 @@ ${learningFeedback.map((fb, idx) => {
             }
           }
         },
-        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "confidenceScore", "reasoning", "materialBreakdown"]
+        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "frustumRatio", "confidenceScore", "reasoning", "materialBreakdown"]
       }
     },
   });
