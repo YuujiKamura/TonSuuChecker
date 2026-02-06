@@ -221,7 +221,7 @@ ${learningFeedback.map((fb, idx) => {
           estimatedTonnage: { type: Type.NUMBER },
           estimatedMaxCapacity: { type: Type.NUMBER },
           maxCapacityReasoning: { type: Type.STRING },
-          frustumRatio: { type: Type.NUMBER },
+          frustumRatio: { type: Type.NUMBER, description: '錐台形状に対する充填割合 (0.3〜1.0)' },
           confidenceScore: { type: Type.NUMBER },
           reasoning: { type: Type.STRING },
           materialBreakdown: {
