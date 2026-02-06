@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
 import CameraCapture from './components/CameraCapture';
@@ -45,14 +45,19 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('tonchecker_model');
     return (saved as 'gemini-3-flash-preview' | 'gemini-3-pro-preview') || 'gemini-3-flash-preview';
   });
-  const [currentResult, setCurrentResult] = useState<EstimationResult | null>(null);
   const [rawInferences, setRawInferences] = useState<EstimationResult[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [currentImageUrls, setCurrentImageUrls] = useState<string[]>([]);
-  const [currentBase64Images, setCurrentBase64Images] = useState<string[]>([]);
+
+  // 解析中（stockItems に保存前）の一時的な結果・画像を保持
+  const [pendingResult, setPendingResult] = useState<EstimationResult | null>(null);
+  const [pendingImageUrls, setPendingImageUrls] = useState<string[]>([]);
+  const [pendingBase64Images, setPendingBase64Images] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
+  const [progressLog, setProgressLog] = useState<{time: string, msg: string, elapsed?: number}[]>([]);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const analysisStartTime = useRef<number>(0);
   
   // APIキー関連
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -68,6 +73,32 @@ const App: React.FC = () => {
   const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
   const [showStockList, setShowStockList] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+
+  // stockItems から派生する状態（useMemo）
+  const currentItem = useMemo(() => {
+    if (!currentId) return null;
+    return stockItems.find(s => s.id === currentId) ?? null;
+  }, [currentId, stockItems]);
+
+  // currentResult: pendingResult があればそれを優先、なければ stockItems から派生
+  const currentResult = useMemo(() => {
+    if (pendingResult) return pendingResult;
+    if (!currentItem) return null;
+    return currentItem.estimations?.[0] ?? currentItem.result ?? null;
+  }, [pendingResult, currentItem]);
+
+  // currentImageUrls: pending があればそれを優先、なければ stockItems から派生
+  const currentImageUrls = useMemo(() => {
+    if (pendingImageUrls.length > 0) return pendingImageUrls;
+    return currentItem?.imageUrls ?? [];
+  }, [pendingImageUrls, currentItem]);
+
+  // currentBase64Images: pending があればそれを優先、なければ stockItems から派生
+  const currentBase64Images = useMemo(() => {
+    if (pendingBase64Images.length > 0) return pendingBase64Images;
+    return currentItem?.base64Images ?? [];
+  }, [pendingBase64Images, currentItem]);
+
   const [showSettings, setShowSettings] = useState(false);
   const [showReferenceSettings, setShowReferenceSettings] = useState(false);
   const [showApiKeySetup, setShowApiKeySetup] = useState(false);
@@ -147,10 +178,22 @@ const App: React.FC = () => {
   // loading開始時に進捗をリセット
   useEffect(() => {
     if (loading) {
+      setProgressLog([]);
+      setElapsedSeconds(0);
+      analysisStartTime.current = Date.now();
       setAnalysisProgress({ phase: 'preparing', detail: '解析を開始中...' });
     } else {
       setAnalysisProgress(null);
     }
+  }, [loading]);
+
+  // 経過時間カウンター
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setInterval(() => {
+      setElapsedSeconds(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
   }, [loading]);
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
@@ -185,8 +228,8 @@ const App: React.FC = () => {
       return;
     }
 
-    setCurrentImageUrls([firstUrl]);
-    setCurrentBase64Images([firstBase64]);
+    setPendingImageUrls([firstUrl]);
+    setPendingBase64Images([firstBase64]);
     setPendingCapture({ base64: firstBase64, url: firstUrl });
   };
 
@@ -206,10 +249,10 @@ const App: React.FC = () => {
       setMonitorGuidance(null);
     } else {
       setLoading(true);
-      setCurrentResult(null);
+      setPendingResult(null);  // 解析開始時に pending をリセット
       setRawInferences([]);
-      setCurrentImageUrls(urls);
-      setCurrentBase64Images(base64s);
+      setPendingImageUrls(urls);
+      setPendingBase64Images(base64s);
     }
     
     setError(null);
@@ -240,6 +283,13 @@ const App: React.FC = () => {
         !isAuto ? (progress) => {
           if (activeRequestId.current !== requestId) return;
           setAnalysisProgress(progress);
+          const elapsed = Math.round((Date.now() - analysisStartTime.current) / 1000);
+          const now = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setProgressLog(prev => {
+            // 同じメッセージは追加しない
+            if (prev.length > 0 && prev[prev.length - 1].msg === progress.detail) return prev;
+            return [...prev, { time: now, msg: progress.detail, elapsed }];
+          });
         } : undefined
       );
 
@@ -279,10 +329,9 @@ const App: React.FC = () => {
 
         // currentIdが既に設定されている場合は既存のストックアイテムとして扱う
         const itemId = currentId || crypto.randomUUID();
-        setCurrentResult(merged);
+        setPendingResult(merged);  // 保存前の一時的な結果を pending に設定
         setCurrentId(itemId);
         setRawInferences(results);
-        setCurrentImageUrls(urls);
         
         // 解析結果をストックに保存（自動監視の場合は除く）
         if (!isAuto && base64s.length > 0 && merged.isTargetDetected) {
@@ -337,12 +386,16 @@ const App: React.FC = () => {
               await saveStockItem(stockItem);
             }
             await refreshStock();
+            // stockItems が更新されたので pending をクリア（useMemo で派生される）
+            setPendingResult(null);
+            setPendingImageUrls([]);
+            setPendingBase64Images([]);
           } catch (err) {
             console.error('ストック追加エラー:', err);
             // ストック追加に失敗しても解析は続行
           }
         }
-        
+
         refreshCost();
       }
     } catch (err: any) {
@@ -377,10 +430,11 @@ const App: React.FC = () => {
 
   const resetAnalysis = () => {
     activeRequestId.current = 0;
-    setCurrentResult(null);
     setCurrentId(null);
-    setCurrentImageUrls([]);
-    setCurrentBase64Images([]);
+    // pending state をクリア（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
+    setPendingResult(null);
+    setPendingImageUrls([]);
+    setPendingBase64Images([]);
     setRawInferences([]);
     setError(null);
     setLoading(false);
@@ -483,8 +537,7 @@ const App: React.FC = () => {
               const { base64, url } = pendingCapture!;
               setPendingCapture(null);
               setMaxCapacity(capacity);
-              setCurrentImageUrls([url]);
-              setCurrentBase64Images([base64]);
+              // startAnalysis 内で pending state を設定するのでここでは不要
               startAnalysis([base64], [url], false, capacity);
             }}
             onStock={currentId ? undefined : async () => {
@@ -601,14 +654,27 @@ const App: React.FC = () => {
 
                   {/* ステータステキストエリア（画像の下に分離配置） */}
                   <div className={`mt-4 p-6 rounded-3xl border shadow-2xl transition-all duration-500 ${isTargetLocked ? 'bg-red-950/80 border-red-500' : 'bg-slate-900/90 border-blue-500/30'}`}>
+                    {/* モデル・推論回数表示 */}
+                    <div className="flex items-center justify-center gap-3 mb-3 text-xs">
+                      <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded font-mono">
+                        {selectedModel === 'gemini-3-pro-preview' ? 'PRO' : 'Flash'}
+                      </span>
+                      <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded">
+                        推論 x{ensembleTarget}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-center gap-4 mb-4">
                       <Activity className={`${isTargetLocked ? 'text-red-500 animate-bounce' : 'text-blue-500 animate-pulse'}`} size={32} />
                       <div className="h-6 w-px bg-slate-700"></div>
                       <h2 className="text-lg md:text-2xl font-black tracking-widest text-white uppercase">
                         {isTargetLocked ? "TARGET LOCKED ON" : (analysisProgress?.detail || '解析中...')}
                       </h2>
+                      <div className="h-6 w-px bg-slate-700"></div>
+                      <span className="text-2xl font-mono font-bold text-yellow-500 tabular-nums">
+                        {String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:{String(elapsedSeconds % 60).padStart(2, '0')}
+                      </span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-4">
                       <div
                         className={`h-full transition-all duration-500 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`}
                         style={{ width: isTargetLocked ? '100%' : (() => {
@@ -631,6 +697,26 @@ const App: React.FC = () => {
                         })() }}
                       ></div>
                     </div>
+                    {/* 進捗ログリスト */}
+                    {progressLog.length > 0 && (
+                      <div className="bg-slate-950/50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                        <div className="space-y-1 text-xs font-mono">
+                          {progressLog.map((log, i) => {
+                            const stepTime = i > 0 && log.elapsed !== undefined && progressLog[i-1].elapsed !== undefined
+                              ? log.elapsed - (progressLog[i-1].elapsed || 0)
+                              : 0;
+                            return (
+                              <div key={i} className={`flex items-center gap-2 ${i === progressLog.length - 1 ? 'text-blue-400' : 'text-slate-500'}`}>
+                                <span className="text-slate-600 tabular-nums w-12">+{log.elapsed || 0}s</span>
+                                {stepTime > 2 && <span className="text-yellow-500 text-[10px]">({stepTime}s)</span>}
+                                {i === progressLog.length - 1 && <span className="animate-pulse">●</span>}
+                                <span className="flex-1">{log.msg}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-center pt-4">
@@ -672,7 +758,7 @@ const App: React.FC = () => {
                         // 後方互換性のため、resultも更新
                         await updateStockItem(currentId, { result: updatedResult });
                       }
-                      setCurrentResult(updatedResult);
+                      // refreshStock で stockItems が更新され、useMemo で currentResult が派生される
                       await refreshStock();
                     }
                   }}
@@ -687,6 +773,12 @@ const App: React.FC = () => {
                     const item = stockItems.find(i => i.id === currentId);
                     // 再解析を開始（指摘を含めて）
                     startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, chatHistory);
+                  }}
+                  onReanalyzeWithoutFeedback={() => {
+                    if (!currentId || !currentBase64Images.length) return;
+                    const item = stockItems.find(i => i.id === currentId);
+                    // 指摘を無視して再解析（AIの純粋な推論）
+                    startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, undefined);
                   }}
                   onSaveAsLearning={handleSaveAsLearning}
                 />
@@ -725,15 +817,15 @@ const App: React.FC = () => {
             requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
           }}
           onViewResult={(item) => {
-            // 解析結果ページを表示
-            const latestEstimation = item.estimations && item.estimations.length > 0 
-              ? item.estimations[0] 
-              : item.result;
+            // setCurrentId のみで OK（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
+            const latestItem = stockItems.find(s => s.id === item.id) ?? item;
+            const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              setCurrentResult(latestEstimation);
-              setCurrentId(item.id);
-              setCurrentImageUrls(item.imageUrls);
-              setCurrentBase64Images(item.base64Images);
+              // pending をクリアして stockItems からの派生を有効にする
+              setPendingResult(null);
+              setPendingImageUrls([]);
+              setPendingBase64Images([]);
+              setCurrentId(latestItem.id);
               setShowStockList(false);
             }
           }}
@@ -765,14 +857,15 @@ const App: React.FC = () => {
             requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
           }}
           onViewResult={(item) => {
-            const latestEstimation = item.estimations && item.estimations.length > 0
-              ? item.estimations[0]
-              : item.result;
+            // setCurrentId のみで OK（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
+            const latestItem = stockItems.find(s => s.id === item.id) ?? item;
+            const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              setCurrentResult(latestEstimation);
-              setCurrentId(item.id);
-              setCurrentImageUrls(item.imageUrls);
-              setCurrentBase64Images(item.base64Images);
+              // pending をクリアして stockItems からの派生を有効にする
+              setPendingResult(null);
+              setPendingImageUrls([]);
+              setPendingBase64Images([]);
+              setCurrentId(latestItem.id);
               setShowReportView(false);
             }
           }}
@@ -790,6 +883,15 @@ const App: React.FC = () => {
         onApiKeyChange={(hasKey, isStudio) => {
           setHasApiKey(hasKey);
           setIsGoogleAIStudio(isStudio);
+        }}
+        onDataChanged={() => {
+          // インポート後にデータを再読み込みし、選択状態をリセット
+          refreshStock();
+          setCurrentId(null);
+          // pending もクリア
+          setPendingResult(null);
+          setPendingImageUrls([]);
+          setPendingBase64Images([]);
         }}
       />
 

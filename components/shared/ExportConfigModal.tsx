@@ -39,13 +39,36 @@ export const saveExportConfig = (config: typeof defaultConfig) => {
   }
 };
 
+// エクスポート設定型（コールバック用）
+export interface ExportSettings {
+  wasteType: string;
+  destination: string;
+  unit: string;
+  projectNumber: string;
+  projectName: string;
+  contractorName: string;
+  siteManager: string;
+}
+
 interface ExportConfigModalProps {
   items: StockItem[];
   isOpen: boolean;
   onClose: () => void;
+  onExport?: (config: ExportSettings) => Promise<void>;  // カスタムエクスポート処理
+  title?: string;  // モーダルタイトル
+  exportLabel?: string;  // エクスポートボタンのラベル
+  itemCountLabel?: string;  // 件数表示のラベル
 }
 
-const ExportConfigModal: React.FC<ExportConfigModalProps> = ({ items, isOpen, onClose }) => {
+const ExportConfigModal: React.FC<ExportConfigModalProps> = ({
+  items,
+  isOpen,
+  onClose,
+  onExport,
+  title = 'Excel出力設定',
+  exportLabel = 'Excel出力',
+  itemCountLabel = '伝票番号または実測値があるエントリー'
+}) => {
   const [config, setConfig] = useState(loadExportConfig);
 
   useEffect(() => {
@@ -61,25 +84,33 @@ const ExportConfigModal: React.FC<ExportConfigModalProps> = ({ items, isOpen, on
   };
 
   const handleExport = async () => {
-    await exportWasteReportFromStock(
-      items,
-      {
-        projectNumber: config.projectNumber,
-        projectName: config.projectName,
-        contractorName: config.contractorName,
-        siteManager: config.siteManager
-      },
-      `産廃集計表_${new Date().toISOString().split('T')[0]}.xlsx`,
-      config.wasteType,
-      config.destination,
-      config.unit
-    );
+    if (onExport) {
+      // カスタムエクスポート処理が指定されている場合
+      await onExport(config);
+    } else {
+      // デフォルトのエクスポート処理
+      await exportWasteReportFromStock(
+        items,
+        {
+          projectNumber: config.projectNumber,
+          projectName: config.projectName,
+          contractorName: config.contractorName,
+          siteManager: config.siteManager
+        },
+        `産廃集計表_${new Date().toISOString().split('T')[0]}.xlsx`,
+        config.wasteType,
+        config.destination,
+        config.unit
+      );
+    }
     onClose();
   };
 
   if (!isOpen) return null;
 
-  const exportableCount = countExportableEntries(items);
+  // カスタムエクスポート処理が指定されている場合はitems.lengthを使用
+  // （既にフィルタ済みのアイテムが渡されるため）
+  const exportableCount = onExport ? items.length : countExportableEntries(items);
 
   return (
     <div className="fixed inset-0 bg-black/80 z-[130] flex items-center justify-center p-4 overflow-y-auto">
@@ -88,7 +119,7 @@ const ExportConfigModal: React.FC<ExportConfigModalProps> = ({ items, isOpen, on
         <div className="sticky top-0 bg-slate-900 border-b border-slate-800 p-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
             <FileSpreadsheet size={18} className="text-emerald-400" />
-            <h3 className="text-sm font-bold text-white">Excel出力設定</h3>
+            <h3 className="text-sm font-bold text-white">{title}</h3>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all">
             <X size={18} />
@@ -102,7 +133,7 @@ const ExportConfigModal: React.FC<ExportConfigModalProps> = ({ items, isOpen, on
               {exportableCount}件 のデータを出力
             </p>
             <p className="text-slate-500 text-[10px] mt-1">
-              伝票番号または実測値があるエントリー
+              {itemCountLabel}
             </p>
           </div>
 
@@ -200,7 +231,7 @@ const ExportConfigModal: React.FC<ExportConfigModalProps> = ({ items, isOpen, on
             className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2"
           >
             <FileSpreadsheet size={16} />
-            Excel出力
+            {exportLabel}
           </button>
         </div>
       </div>

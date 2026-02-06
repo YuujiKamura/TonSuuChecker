@@ -21,12 +21,13 @@ export const TRUCK_SPECS: Record<string, TruckSpec> = {
     soilEquivalent: 1.1
   },
   '4t': {
+    // いすゞフォワード基準
     maxCapacity: 4,
     bedLength: 3.4,
     bedWidth: 2.06,
-    bedHeight: 0.34,
-    levelVolume: 2.0,
-    heapVolume: 2.4,
+    bedHeight: 0.32,
+    levelVolume: 2.2,
+    heapVolume: 2.9,
     soilEquivalent: 2.2
   },
   '増トン': {

@@ -163,7 +163,7 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
       {/* チャット本体 */}
       {showChat && (
         <>
-          {/* ツールバー */}
+          {/* ツールバー（チャット履歴がある時のみ） */}
           {chatMessages.length > 0 && (
             <div className="flex items-center justify-between px-3 py-2 border-t border-slate-800 bg-slate-800/50">
               <span className="text-[10px] text-slate-400 font-bold">
@@ -189,9 +189,10 @@ const AIChatSection: React.FC<AIChatSectionProps> = ({
                     title="指摘を反映して再解析"
                   >
                     <RefreshCcw size={12} />
+                    <span>反映</span>
                   </button>
                 )}
-                {onSaveAsLearning && chatMessages.length > 0 && (
+                {onSaveAsLearning && (
                   <button
                     onClick={handleSaveAsLearning}
                     disabled={isSavingLearning || savedAsLearning}

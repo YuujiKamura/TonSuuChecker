@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StockItem } from '../types';
 import { FileSpreadsheet, Plus, ArrowLeft, Trash2, Eye, Brain, Sun, Moon } from 'lucide-react';
-import { countExportableEntries } from '../services/excelExporter';
+import { countExportableEntries, exportPhotoReportFromStock } from '../services/excelExporter';
+import { ExportSettings } from './shared/ExportConfigModal';
 import EntryEditForm from './shared/EntryEditForm';
 import ExportConfigModal from './shared/ExportConfigModal';
 import { getEffectiveDateTime, formatDateTime } from '../services/exifUtils';
@@ -30,9 +31,18 @@ const ReportView: React.FC<ReportViewProps> = ({
   onAnalyze,
   onViewResult
 }) => {
-  const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isNewItem, setIsNewItem] = useState(false);  // 新規作成モードかどうか
+  const [newItemData, setNewItemData] = useState<StockItem | null>(null);  // 新規作成時の一時データ
+
+  // 編集中のアイテムを派生状態として取得（常に最新のitemsから参照）
+  const currentEditingItem = useMemo(() => {
+    if (isNewItem && newItemData) return newItemData;
+    if (!editingItemId) return null;
+    return items.find(i => i.id === editingItemId) ?? null;
+  }, [editingItemId, items, isNewItem, newItemData]);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showPhotoExportModal, setShowPhotoExportModal] = useState(false);
   const [theme, setTheme] = useState(getStoredTheme);
 
   const toggleTheme = () => {
@@ -52,6 +62,9 @@ const ReportView: React.FC<ReportViewProps> = ({
   // 合計計算
   const total = exportableItems.reduce((sum, item) => sum + (item.actualTonnage || 0), 0);
 
+  // 写真付きアイテム（base64Imagesが存在するもの）
+  const itemsWithPhotos = exportableItems.filter(item => item.base64Images && item.base64Images.length > 0);
+
   // 新規エントリー追加（保存は編集フォームで行う）
   const addNewEntry = () => {
     const newItem: StockItem = {
@@ -60,7 +73,7 @@ const ReportView: React.FC<ReportViewProps> = ({
       base64Images: [],
       imageUrls: []
     };
-    setEditingItem(newItem);
+    setNewItemData(newItem);
     setIsNewItem(true);  // 新規作成モードをオン
   };
 
@@ -101,6 +114,14 @@ const ReportView: React.FC<ReportViewProps> = ({
           <FileSpreadsheet size={16} />
           <span>Excel ({countExportableEntries(items)})</span>
         </button>
+        <button
+          onClick={() => setShowPhotoExportModal(true)}
+          disabled={itemsWithPhotos.length === 0}
+          className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="text-base">📷</span>
+          <span>写真付き ({itemsWithPhotos.length})</span>
+        </button>
       </div>
 
       {/* 帳票テーブル */}
@@ -131,7 +152,7 @@ const ReportView: React.FC<ReportViewProps> = ({
               return (
                 <tr
                   key={item.id}
-                  onClick={() => { setEditingItem(item); setIsNewItem(false); }}
+                  onClick={() => { setEditingItemId(item.id); setIsNewItem(false); }}
                   className={`border-b cursor-pointer ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-gray-200 hover:bg-gray-50'}`}
                 >
                   <td className={`p-2 text-center ${mutedColor}`}>{idx + 1}</td>
@@ -216,19 +237,19 @@ const ReportView: React.FC<ReportViewProps> = ({
 
       {/* 編集モーダル */}
       <EntryEditForm
-        item={editingItem}
-        isOpen={!!editingItem}
+        item={currentEditingItem}
+        isOpen={!!currentEditingItem}
         isNew={isNewItem}
         onSave={(id, updates) => {
           onUpdate(id, updates);
-          setEditingItem(null);
+          setEditingItemId(null);
         }}
         onCreate={(newItem) => {
           onAdd(newItem);
-          setEditingItem(null);
+          setNewItemData(null);
           setIsNewItem(false);
         }}
-        onClose={() => { setEditingItem(null); setIsNewItem(false); }}
+        onClose={() => { setEditingItemId(null); setNewItemData(null); setIsNewItem(false); }}
         onAnalyze={onAnalyze ? (item) => { onClose(); onAnalyze(item); } : undefined}
         onViewResult={onViewResult ? (item) => { onClose(); onViewResult(item); } : undefined}
       />
@@ -238,6 +259,28 @@ const ReportView: React.FC<ReportViewProps> = ({
         items={items}
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
+      />
+
+      {/* 写真付きExcel出力設定モーダル */}
+      <ExportConfigModal
+        items={itemsWithPhotos}
+        isOpen={showPhotoExportModal}
+        onClose={() => setShowPhotoExportModal(false)}
+        title="写真付きExcel出力設定"
+        exportLabel="写真付きExcel出力"
+        itemCountLabel="写真付きのエントリー"
+        onExport={async (config: ExportSettings) => {
+          await exportPhotoReportFromStock(
+            itemsWithPhotos,
+            {
+              projectNumber: config.projectNumber,
+              projectName: config.projectName,
+              contractorName: config.contractorName,
+              siteManager: config.siteManager
+            },
+            `積載量管理写真_${new Date().toISOString().split('T')[0]}.xlsx`
+          );
+        }}
       />
     </div>
   );
