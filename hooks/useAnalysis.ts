@@ -370,10 +370,6 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
               await saveStockItem(stockItem);
             }
             await refreshStock();
-            // stockItems が更新されたので pending をクリア（useMemo で派生される）
-            setPendingResult(null);
-            setPendingImageUrls([]);
-            setPendingBase64Images([]);
           } catch (err) {
             console.error('ストック追加エラー:', err);
             // ストック追加に失敗しても解析は続行
