@@ -1,6 +1,6 @@
 // SSOT loader: prompt-spec.json から全設定値を供給する
 // Rust側の PROMPT_SPEC + accessor 関数に相当
-import spec from '../prompt-spec.json';
+import spec from '../lib/tonsuu-core/prompt-spec.json';
 import {
   buildCorePrompt as wasmBuildCorePrompt,
 } from '../lib/tonsuu-core/tonsuu_core.js';
