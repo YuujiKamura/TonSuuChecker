@@ -1,48 +1,96 @@
-import React, { useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { StockItem } from '../types';
 import { Trash2, Brain, Sparkles, Loader2, Eye, Camera, FolderOpen } from 'lucide-react';
 import { getEffectiveDateTime, formatDateTime } from '../services/exifUtils';
+import { readImageFile, buildStockUpdate } from '../hooks/useStockList';
+import { extractFeatures } from '../services/geminiService';
 
 interface StockItemRowProps {
   item: StockItem;
-  isEditing: boolean;
-  editTonnage: string;
-  setEditTonnage: (v: string) => void;
-  editMaxCapacity: string;
-  setEditMaxCapacity: (v: string) => void;
-  editMemo: string;
-  setEditMemo: (v: string) => void;
-  editManifestNumber: string;
-  setEditManifestNumber: (v: string) => void;
-  editImageUrl: string | null;
-  extractingId: string | null;
-  showFeatures: string | null;
-  onStartEdit: () => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-  onEditImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onExtractFeatures: () => void;
-  onToggleFeatures: () => void;
-  onAnalyze: () => void;
-  onViewResult: () => void;
-  onDelete: () => void;
+  onUpdate: (id: string, updates: Partial<StockItem>) => void;
+  onDelete: (id: string) => void;
+  onAnalyze: (item: StockItem) => void;
+  onViewResult: (item: StockItem) => void;
 }
 
 const StockItemRow: React.FC<StockItemRowProps> = ({
-  item, isEditing,
-  editTonnage, setEditTonnage,
-  editMaxCapacity, setEditMaxCapacity,
-  editMemo, setEditMemo,
-  editManifestNumber, setEditManifestNumber,
-  editImageUrl,
-  extractingId, showFeatures,
-  onStartEdit, onSaveEdit, onCancelEdit,
-  onEditImageSelect,
-  onExtractFeatures, onToggleFeatures,
-  onAnalyze, onViewResult, onDelete
+  item, onUpdate, onDelete, onAnalyze, onViewResult
 }) => {
   const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit state (internalized)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTonnage, setEditTonnage] = useState('');
+  const [editMaxCapacity, setEditMaxCapacity] = useState('');
+  const [editMemo, setEditMemo] = useState('');
+  const [editManifestNumber, setEditManifestNumber] = useState('');
+  const [editImageBase64, setEditImageBase64] = useState<string | null>(null);
+  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
+  const [editPhotoTakenAt, setEditPhotoTakenAt] = useState<number | undefined>(undefined);
+
+  // Feature extraction state (internalized)
+  const [extractingFeatures, setExtractingFeatures] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
+
   const hasAnalysis = (item.estimations && item.estimations.length > 0) || item.result;
+
+  const startEdit = useCallback(() => {
+    setIsEditing(true);
+    setEditTonnage(item.actualTonnage?.toString() || '');
+    setEditMaxCapacity(item.maxCapacity?.toString() || '');
+    setEditMemo(item.memo || '');
+    setEditManifestNumber(item.manifestNumber || '');
+    setEditImageBase64(item.base64Images[0] || null);
+    setEditImageUrl(item.imageUrls[0] || null);
+    setEditPhotoTakenAt(item.photoTakenAt);
+  }, [item]);
+
+  const saveEdit = useCallback(() => {
+    const updates = buildStockUpdate({
+      tonnage: editTonnage,
+      maxCapacity: editMaxCapacity,
+      memo: editMemo,
+      manifestNumber: editManifestNumber,
+      imageBase64: editImageBase64,
+      imageUrl: editImageUrl,
+      photoTakenAt: editPhotoTakenAt
+    });
+    onUpdate(item.id, updates);
+    setIsEditing(false);
+  }, [editTonnage, editMaxCapacity, editMemo, editManifestNumber, editImageBase64, editImageUrl, editPhotoTakenAt, onUpdate, item.id]);
+
+  const cancelEdit = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+
+  const handleEditImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const result = await readImageFile(file);
+    setEditImageBase64(result.base64);
+    setEditImageUrl(result.dataUrl);
+    setEditPhotoTakenAt(result.photoTakenAt);
+    e.target.value = '';
+  }, []);
+
+  const handleExtractFeatures = useCallback(async () => {
+    if (!item.actualTonnage || !item.base64Images[0]) return;
+    setExtractingFeatures(true);
+    try {
+      const { features, rawResponse } = await extractFeatures(
+        item.base64Images[0], item.actualTonnage, undefined, item.maxCapacity, item.memo
+      );
+      onUpdate(item.id, { extractedFeatures: features, featureRawResponse: rawResponse });
+    } catch (err) {
+      console.error('特徴抽出エラー:', err);
+    } finally {
+      setExtractingFeatures(false);
+    }
+  }, [item, onUpdate]);
+
+  const toggleFeatures = useCallback(() => {
+    setShowFeatures(prev => !prev);
+  }, []);
 
   return (
       <div
@@ -102,7 +150,7 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
               <input
                 id={`edit-camera-${item.id}`}
                 type="file"
-                onChange={onEditImageSelect}
+                onChange={handleEditImageSelect}
                 accept="image/*"
                 capture="environment"
                 className="hidden"
@@ -111,7 +159,7 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
                 id={`edit-file-${item.id}`}
                 type="file"
                 ref={editFileInputRef}
-                onChange={onEditImageSelect}
+                onChange={handleEditImageSelect}
                 accept="image/*"
                 className="hidden"
               />
@@ -165,13 +213,13 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
               />
               <div className="flex flex-col-reverse sm:flex-row gap-2">
                 <button
-                  onClick={onCancelEdit}
+                  onClick={cancelEdit}
                   className="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold rounded-xl transition-all"
                 >
                   閉じる
                 </button>
                 <button
-                  onClick={onSaveEdit}
+                  onClick={saveEdit}
                   className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-all"
                 >
                   保存
@@ -187,12 +235,12 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
                 src={item.imageUrls[0]}
                 className="w-20 h-20 rounded-xl object-cover bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95"
                 alt="Stock"
-                onClick={onStartEdit}
+                onClick={startEdit}
               />
             ) : (
               <div
                 className="w-20 h-20 rounded-xl bg-slate-900 border border-slate-600 shrink-0 cursor-pointer hover:border-blue-500 transition-all active:scale-95 flex items-center justify-center"
-                onClick={onStartEdit}
+                onClick={startEdit}
               >
                 <Camera size={24} className="text-slate-600" />
               </div>
@@ -202,8 +250,8 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
               {/* 日時とタグ */}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 {(() => {
-                  const latestEstimation = item.estimations && item.estimations.length > 0 
-                    ? item.estimations[0] 
+                  const latestEstimation = item.estimations && item.estimations.length > 0
+                    ? item.estimations[0]
                     : item.result;
                   return latestEstimation?.estimatedTonnage && (
                     <span className="text-xs font-bold text-cyan-400 bg-cyan-500/20 px-2 py-0.5 rounded-full" title={item.estimations && item.estimations.length > 1 ? `推定履歴: ${item.estimations.length}回` : ''}>
@@ -243,8 +291,8 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
                 {/* 特徴抽出ボタン（実測値がある場合） */}
                 {item.actualTonnage && item.base64Images[0] && (
                   <button
-                    onClick={onExtractFeatures}
-                    disabled={extractingId === item.id}
+                    onClick={handleExtractFeatures}
+                    disabled={extractingFeatures}
                     className={`p-2 rounded-xl border transition-all active:scale-95 ${
                       item.extractedFeatures
                         ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
@@ -252,7 +300,7 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
                     }`}
                     title={item.extractedFeatures ? '特徴抽出済み' : '特徴を抽出'}
                   >
-                    {extractingId === item.id ? (
+                    {extractingFeatures ? (
                       <Loader2 size={16} className="animate-spin" />
                     ) : (
                       <Sparkles size={16} />
@@ -262,16 +310,16 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
                 {/* 抽出結果表示トグル */}
                 {item.extractedFeatures && (
                   <button
-                    onClick={onToggleFeatures}
+                    onClick={toggleFeatures}
                     className="p-2 rounded-xl bg-slate-700 border border-slate-600 text-slate-400 hover:bg-slate-600 transition-all active:scale-95 text-xs"
                   >
-                    {showFeatures === item.id ? '閉' : '詳'}
+                    {showFeatures ? '閉' : '詳'}
                   </button>
                 )}
                 {/* 解析結果を見るボタン（解析済みの場合） */}
                 {(item.estimations && item.estimations.length > 0) || item.result ? (
                   <button
-                    onClick={onViewResult}
+                    onClick={() => onViewResult(item)}
                     className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 transition-all active:scale-95"
                     title="解析結果を見る"
                   >
@@ -281,7 +329,7 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
                 {/* AI解析ボタン（再解析用） - 画像がある場合のみ */}
                 {item.imageUrls[0] && (
                   <button
-                    onClick={onAnalyze}
+                    onClick={() => onAnalyze(item)}
                     className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
                     title="AI解析"
                   >
@@ -289,7 +337,7 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
                   </button>
                 )}
                 <button
-                  onClick={onDelete}
+                  onClick={() => onDelete(item.id)}
                   className="p-2 rounded-xl bg-slate-700 border border-slate-600 text-slate-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all active:scale-95"
                   title="削除"
                 >
@@ -298,7 +346,7 @@ const StockItemRow: React.FC<StockItemRowProps> = ({
               </div>
             </div>
             {/* 抽出結果表示 */}
-            {showFeatures === item.id && item.extractedFeatures && (
+            {showFeatures && item.extractedFeatures && (
               <div className="mt-3 p-3 bg-slate-900 rounded-xl border border-slate-700">
                 <p className="text-xs font-bold text-emerald-400 mb-2">抽出されたパラメータ:</p>
                 <div className="space-y-1 max-h-48 overflow-y-auto">

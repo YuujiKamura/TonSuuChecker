@@ -90,6 +90,4 @@ export interface StockItem {
 }
 
 // Re-exports for backward compatibility
-export { getJudgmentStatus, isJudged } from './utils/judgment';
-export type { JudgmentStatus } from './utils/judgment';
 export type { AnalysisProgress } from './types/ui';

@@ -1,5 +1,5 @@
 import { ChatMessage, LearningFeedback, StockItem } from "../types";
-import { TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT, LOAD_GRADES_PROMPT } from "../constants";
+import { TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT, LOAD_GRADES_PROMPT } from "./weightEstimation";
 import { GradedStockItem } from "../services/stockService";
 
 /**

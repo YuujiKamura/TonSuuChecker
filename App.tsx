@@ -65,7 +65,7 @@ const App: React.FC = () => {
     loading, isTargetLocked, isRateLimited,
     currentId, setCurrentId,
     error, setError,
-    analysisProgress, progressLog, elapsedSeconds,
+    analysisProgress, progressPercent, progressLog, elapsedSeconds,
     pendingCapture, setPendingCapture,
     showCamera, setShowCamera,
     currentResult, currentImageUrls, currentBase64Images,
@@ -247,23 +247,7 @@ const App: React.FC = () => {
                     <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-4">
                       <div
                         className={`h-full transition-all duration-500 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`}
-                        style={{ width: isTargetLocked ? '100%' : (() => {
-                          if (!analysisProgress) return '10%';
-                          const phaseWeights: Record<string, number> = {
-                            preparing: 10,
-                            loading_references: 20,
-                            loading_stock: 30,
-                            inference: 40,
-                            merging: 90,
-                            done: 100
-                          };
-                          const basePercent = phaseWeights[analysisProgress.phase] || 10;
-                          if (analysisProgress.phase === 'inference' && analysisProgress.total && analysisProgress.current) {
-                            const inferenceProgress = (analysisProgress.current / analysisProgress.total) * 50;
-                            return `${basePercent + inferenceProgress}%`;
-                          }
-                          return `${basePercent}%`;
-                        })() }}
+                        style={{ width: progressPercent }}
                       ></div>
                     </div>
                     {/* 進捗ログリスト */}

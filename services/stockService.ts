@@ -1,7 +1,9 @@
-import { StockItem, EstimationResult, isJudged } from '../types';
+import { StockItem, EstimationResult } from '../types';
+import { isJudged } from '../utils/judgment';
 import { compressImage } from './imageUtils';
 import * as idb from './indexedDBService';
-import { LOAD_GRADES, getLoadGrade } from '../constants';
+import { LOAD_GRADES } from '../domain/specs';
+import { getLoadGrade } from '../domain/logic';
 
 // ========== ストック取得 ==========
 

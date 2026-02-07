@@ -20,44 +20,22 @@ interface StockListProps {
 const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete, onAnalyze, onViewResult, onClose }) => {
   const {
     analyzedItems, unanalyzedItems,
-    editingId, editTonnage, setEditTonnage, editMaxCapacity, setEditMaxCapacity,
-    editMemo, setEditMemo, editManifestNumber, setEditManifestNumber,
-    editImageUrl,
-    startEdit, saveEdit, cancelEdit, handleEditImageSelect,
-    extractingId, showFeatures, handleExtractFeatures, toggleFeatures,
     showExportModal, setShowExportModal,
     showAddForm, setShowAddForm,
     newTonnage, setNewTonnage, newMaxCapacity, setNewMaxCapacity,
     newMemo, setNewMemo, newManifestNumber, setNewManifestNumber,
     newImageUrl,
     handleNewImageSelect, handleAddEntry, resetAddForm
-  } = useStockList({ items, onAdd, onUpdate });
+  } = useStockList({ items, onAdd });
 
   const renderItem = (item: StockItem) => (
     <StockItemRow
       key={item.id}
       item={item}
-      isEditing={editingId === item.id}
-      editTonnage={editTonnage}
-      setEditTonnage={setEditTonnage}
-      editMaxCapacity={editMaxCapacity}
-      setEditMaxCapacity={setEditMaxCapacity}
-      editMemo={editMemo}
-      setEditMemo={setEditMemo}
-      editManifestNumber={editManifestNumber}
-      setEditManifestNumber={setEditManifestNumber}
-      editImageUrl={editImageUrl}
-      extractingId={extractingId}
-      showFeatures={showFeatures}
-      onStartEdit={() => startEdit(item)}
-      onSaveEdit={() => saveEdit(item.id)}
-      onCancelEdit={cancelEdit}
-      onEditImageSelect={handleEditImageSelect}
-      onExtractFeatures={() => handleExtractFeatures(item)}
-      onToggleFeatures={() => toggleFeatures(item.id)}
-      onAnalyze={() => onAnalyze(item)}
-      onViewResult={() => onViewResult(item)}
-      onDelete={() => onDelete(item.id)}
+      onUpdate={onUpdate}
+      onDelete={onDelete}
+      onAnalyze={onAnalyze}
+      onViewResult={onViewResult}
     />
   );
 

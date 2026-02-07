@@ -1,7 +1,7 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Part, Type } from "@google/genai";
 import { saveCostEntry } from "./costTracker";
 import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage, LearningFeedback, AnalysisProgress } from "../types";
-import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT, LOAD_GRADES_PROMPT } from "../constants";
+import { SYSTEM_PROMPT, WEIGHT_FORMULA_PROMPT } from "../prompts/weightEstimation";
 import { getReferenceImages } from "./referenceImages";
 import { getRecentLearningFeedback } from "./indexedDBService";
 import { GradedStockItem, selectStockByGrade, getTruckClass, TruckClass } from "./stockService";
@@ -14,8 +14,8 @@ export { getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, detectApiKeySou
 export { mergeResults } from "../utils/analysisUtils";
 
 // クォータ制限エラーかどうかを判定（共通関数）
-export const isQuotaError = (err: any): boolean => {
-  const message = err?.message || "";
+export const isQuotaError = (err: unknown): boolean => {
+  const message = err instanceof Error ? err.message : String(err ?? "");
   return message.includes("429") ||
          message.includes("quota") ||
          message.includes("RESOURCE_EXHAUSTED");
@@ -27,9 +27,47 @@ export const QUOTA_ERROR_MESSAGE = "APIの利用制限に達しました。し�
 // 学習フィードバックの取得件数上限
 const RECENT_LEARNING_FEEDBACK_LIMIT = 10;
 
+// runSingleInference用のレスポンススキーマ定義
+const ESTIMATION_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    isTargetDetected: { type: Type.BOOLEAN },
+    truckType: { type: Type.STRING },
+    licensePlate: { type: Type.STRING, nullable: true },
+    licenseNumber: { type: Type.STRING, nullable: true },
+    materialType: { type: Type.STRING },
+    estimatedVolumeM3: { type: Type.NUMBER },
+    estimatedTonnage: { type: Type.NUMBER },
+    estimatedMaxCapacity: { type: Type.NUMBER },
+    maxCapacityReasoning: { type: Type.STRING },
+    frustumRatio: { type: Type.NUMBER, description: '錐台形状に対する充填割合 (0.3〜1.0)' },
+    confidenceScore: { type: Type.NUMBER },
+    reasoning: { type: Type.STRING },
+    loadCondition: { type: Type.STRING, nullable: true },  // 積載状態
+    chunkSize: { type: Type.STRING, nullable: true },      // 塊サイズ
+    lowerArea: { type: Type.NUMBER, nullable: true },      // 底面積
+    upperArea: { type: Type.NUMBER, nullable: true },      // 上面積
+    height: { type: Type.NUMBER, nullable: true },         // 高さ
+    voidRatio: { type: Type.NUMBER, nullable: true },      // 空隙率
+    materialBreakdown: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          material: { type: Type.STRING },
+          percentage: { type: Type.NUMBER },
+          density: { type: Type.NUMBER },
+        },
+        required: ["material", "percentage", "density"]
+      }
+    }
+  },
+  required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "frustumRatio", "confidenceScore", "reasoning", "materialBreakdown"]
+} as const;
+
 async function runSingleInference(
-  ai: any,
-  imageParts: any[],
+  ai: GoogleGenAI,
+  imageParts: Part[],
   modelName: string,
   maxCapacity?: number,
   runIndex: number = 0,
@@ -72,59 +110,29 @@ async function runSingleInference(
       topP: 0.95,
       // Google Search Grounding: 車両・重機のスペックを外部検索で取得
       tools: [{ googleSearch: {} }],
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          isTargetDetected: { type: Type.BOOLEAN },
-          truckType: { type: Type.STRING },
-          licensePlate: { type: Type.STRING, nullable: true },
-          licenseNumber: { type: Type.STRING, nullable: true },
-          materialType: { type: Type.STRING },
-          estimatedVolumeM3: { type: Type.NUMBER },
-          estimatedTonnage: { type: Type.NUMBER },
-          estimatedMaxCapacity: { type: Type.NUMBER },
-          maxCapacityReasoning: { type: Type.STRING },
-          frustumRatio: { type: Type.NUMBER, description: '錐台形状に対する充填割合 (0.3〜1.0)' },
-          confidenceScore: { type: Type.NUMBER },
-          reasoning: { type: Type.STRING },
-          loadCondition: { type: Type.STRING, nullable: true },  // 積載状態
-          chunkSize: { type: Type.STRING, nullable: true },      // 塊サイズ
-          lowerArea: { type: Type.NUMBER, nullable: true },      // 底面積
-          upperArea: { type: Type.NUMBER, nullable: true },      // 上面積
-          height: { type: Type.NUMBER, nullable: true },         // 高さ
-          voidRatio: { type: Type.NUMBER, nullable: true },      // 空隙率
-          materialBreakdown: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                material: { type: Type.STRING },
-                percentage: { type: Type.NUMBER },
-                density: { type: Type.NUMBER },
-              },
-              required: ["material", "percentage", "density"]
-            }
-          }
-        },
-        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "frustumRatio", "confidenceScore", "reasoning", "materialBreakdown"]
-      }
+      responseSchema: ESTIMATION_RESPONSE_SCHEMA
     },
   });
 
 
   const text = response.text;
   if (!text) throw new Error("APIレスポンスが空です");
-  return { ...JSON.parse(text), ensembleCount: 1 };
+
+  try {
+    return { ...JSON.parse(text), ensembleCount: 1 };
+  } catch (e) {
+    throw new Error(`APIレスポンスのJSON解析に失敗しました: ${e instanceof Error ? e.message : String(e)}\nレスポンス先頭200文字: ${text.slice(0, 200)}`);
+  }
 }
 
 export const analyzeGaraImageEnsemble = async (
   base64Images: string[],
   targetCount: number,
-  _learningData: AnalysisHistory[] = [],  // 未使用（後方互換性のため残す）
+  _learningData: AnalysisHistory[] = [],  // @deprecated 未使用（後方互換性のため残す）
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview',
-  _taggedStock: StockItem[] = [],  // 未使用（等級別選択に移行）
+  _taggedStock: StockItem[] = [],  // @deprecated 未使用（等級別選択に移行）
   maxCapacity?: number,
   userFeedback?: ChatMessage[],  // ユーザーからの指摘・修正
   onDetailedProgress?: (progress: AnalysisProgress) => void  // 詳細な進捗通知
@@ -257,9 +265,9 @@ export const analyzeGaraImageEnsemble = async (
       results.push(res);
       await saveCostEntry(modelName, imageParts.length, checkIsFreeTier());
       onProgress(results.length, res);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`推論エラー #${i + 1}:`, err);
-      lastError = err;
+      lastError = err instanceof Error ? err : new Error(String(err));
     }
   }
 

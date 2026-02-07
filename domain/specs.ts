@@ -96,6 +96,34 @@ export const BUCKET_SPECS: Record<string, BucketSpec> = {
   'コンマ9': { capacity: 0.9, machineClass: '25tクラス', typicalWeight: 1.3 },
 };
 
+// --- ヘルパー関数（プロンプト生成用） ---
+
+/** TRUCK_SPECS からプロンプト用の要約テキストを生成 */
+export function getTruckSpecsSummary(): string {
+  return Object.entries(TRUCK_SPECS)
+    .map(([name, t]) => `${name}ダンプ: すり切り約${t.levelVolume}m³、山盛り約${t.heapVolume}m³`)
+    .join('、');
+}
+
+/** 特定トラック規格のプロンプト用テキストを生成 */
+export function getTruckCapacityText(key: string): string {
+  const t = TRUCK_SPECS[key];
+  if (!t) return '';
+  return `${key}ダンプ: すり切り約${t.levelVolume}m³、山盛り約${t.heapVolume}m³`;
+}
+
+/** MATERIAL_DENSITIES からエイリアス（'ガラ' を含む名称）を除いた主要素材を返す */
+export function getPrimaryMaterials(): [string, number][] {
+  return Object.entries(MATERIAL_DENSITIES)
+    .filter(([name]) => !name.includes('ガラ'));
+}
+
+/** MATERIAL_VOID_RATIOS からエイリアスを除いた主要素材を返す */
+export function getPrimaryMaterialVoidRatios(): [string, { typical: number; range: [number, number]; desc: string }][] {
+  return Object.entries(MATERIAL_VOID_RATIOS)
+    .filter(([name]) => !name.includes('ガラ'));
+}
+
 // 積載等級の定義（実測値 / 最大積載量）
 export interface LoadGrade {
   name: string;      // 等級名

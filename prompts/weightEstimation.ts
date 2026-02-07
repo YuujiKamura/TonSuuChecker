@@ -1,10 +1,11 @@
 import {
   TRUCK_SPECS,
-  MATERIAL_DENSITIES,
-  MATERIAL_VOID_RATIOS,
   VOID_RATIOS,
   BUCKET_SPECS,
   LOAD_GRADES,
+  getPrimaryMaterials,
+  getPrimaryMaterialVoidRatios,
+  getTruckSpecsSummary,
 } from '../domain/specs.ts';
 
 // 車両規格をプロンプト用テキストに変換
@@ -13,15 +14,13 @@ export const TRUCK_SPECS_PROMPT = Object.entries(TRUCK_SPECS)
     `- ${name}ダンプ: 荷台${spec.bedLength}m×${spec.bedWidth}m×${spec.bedHeight}m, すり切り${spec.levelVolume}m³, 山盛り${spec.heapVolume}m³, 最大積載${spec.maxCapacity}t`
   ).join('\n');
 
-// 素材密度をプロンプト用テキストに変換
-export const MATERIAL_DENSITIES_PROMPT = Object.entries(MATERIAL_DENSITIES)
-  .filter(([name]) => !name.includes('ガラ'))  // エイリアスは除外
+// 素材密度をプロンプト用テキストに変換（エイリアスはSSOTで除外済み）
+export const MATERIAL_DENSITIES_PROMPT = getPrimaryMaterials()
   .map(([name, density]) => `- ${name}: ${density} t/m³`)
   .join('\n');
 
-// 素材別空隙率をプロンプト用テキストに変換
-export const MATERIAL_VOID_RATIOS_PROMPT = Object.entries(MATERIAL_VOID_RATIOS)
-  .filter(([name]) => !name.includes('ガラ'))  // エイリアスは除外
+// 素材別空隙率をプロンプト用テキストに変換（エイリアスはSSOTで除外済み）
+export const MATERIAL_VOID_RATIOS_PROMPT = getPrimaryMaterialVoidRatios()
   .map(([name, v]) => `- ${name}: 標準${Math.round(v.typical * 100)}%（${Math.round(v.range[0] * 100)}〜${Math.round(v.range[1] * 100)}%）← ${v.desc}`)
   .join('\n');
 
@@ -60,7 +59,16 @@ ${MATERIAL_VOID_RATIOS_PROMPT}
 - As殻2.0m³の場合: 2.0 × 2.5 × (1-0.30) = 3.50t
 - ガラは密度が高いが空隙率も高いため、土砂と同程度の重量になることが多い`;
 
-export const SYSTEM_PROMPT = `あなたは建設廃棄物（ガラ）の重量推定を行うシステムです。
+/** SYSTEM_PROMPT を TRUCK_SPECS 等のSSOTから動的に構築する */
+function getSystemPrompt(): string {
+  const spec4t = TRUCK_SPECS['4t'];
+  // 全車種の容量一覧テキスト
+  const truckSummary = getTruckSpecsSummary();
+  // 山盛り容量を超えた場合の上限目安（山盛り × 1.1 程度）
+  const overHeapMin = (spec4t.heapVolume * 1.05).toFixed(1);
+  const overHeapMax = (spec4t.heapVolume * 1.15).toFixed(1);
+
+  return `あなたは建設廃棄物（ガラ）の重量推定を行うシステムです。
 監視カメラまたは手動撮影された画像から、荷台の荷姿を解析し重量を推定します。
 
 【最重要：創作・推測の禁止】
@@ -77,7 +85,7 @@ export const SYSTEM_PROMPT = `あなたは建設廃棄物（ガラ）の重量�
 - 事実のみを簡潔に記述すること
 
 ### 誤検出防止 & 高速化ルール (CRITICAL)
-1. **対象確認 (isTargetDetected)**: 
+1. **対象確認 (isTargetDetected)**:
    - 以下の条件をすべて満たさない場合は必ず false にし、reasoning以外の項目はnullや0にして即答してください。
      - 明確に「トラック」の車体（特に荷台部分）が写っている。
      - 荷台に「廃棄物（コンクリートガラ、アスガラ、混廃等）」が積載されている。
@@ -94,14 +102,14 @@ export const SYSTEM_PROMPT = `あなたは建設廃棄物（ガラ）の重量�
    【荷台容量の定義】
    - すり切り = 側板・後板の上端まで（アオリを倒した状態）
    - 山盛り = アオリを立てた状態の上端まで
-   - 4tダンプ: すり切り約2.0m³、山盛り約2.4m³
+   - 車種別容量: ${truckSummary}
 
    【ガラ積載の特性（重要）】
    - ガラ（As殻・Co殻）は流動性がなく、ブロック状に積み重ね可能
    - 土砂のように崩れて山型にならず、真四角・箱型に積める
-   - アオリを立てた状態で上端まで箱型に積むと約2.4m³（山盛り容量）
+   - アオリを立てた状態で上端まで箱型に積むと山盛り容量相当
    - ガラは箱型に積めるため、山盛り容量をフルに使える
-   - 4tダンプの場合: アオリ上端まで箱型 → 約2.4m³、さらに山盛り → 2.6〜2.8m³
+   - 4tダンプの場合: アオリ上端まで箱型 → 約${spec4t.heapVolume}m³、さらに山盛り → ${overHeapMin}〜${overHeapMax}m³
 
 5. **状況認識 (CRITICAL)**:
    - バックホウ・ショベル・ユンボ等の重機が写っている場合は「積込作業中」と認識する。
@@ -165,3 +173,7 @@ ${BUCKET_SPECS_PROMPT}
   "reasoning": string,
   "materialBreakdown": [{"material": string, "percentage": number, "density": number}]
 }`;
+}
+
+// 後方互換: モジュールロード時に評価（従来と同じconst export）
+export const SYSTEM_PROMPT = getSystemPrompt();
