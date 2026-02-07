@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
 import CameraCapture from './components/CameraCapture';
@@ -10,498 +10,69 @@ import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import ApiKeySetup from './components/ApiKeySetup';
-import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, addEstimation, getLatestEstimation, refreshStockCache } from './services/stockService';
-import { refreshVehicleCache } from './services/referenceImages';
-import { getTodayCost, formatCost, refreshCostCache } from './services/costTracker';
-import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage, saveLearningFeedback } from './services/indexedDBService';
+import { saveStockItem, updateStockItem, deleteStockItem } from './services/stockService';
 import { extractPhotoTakenAt } from './services/exifUtils';
-import { initFromUrlParams } from './services/sheetSync';
-import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
-import { EstimationResult, StockItem, ChatMessage, LearningFeedback, AnalysisProgress } from './types';
+import { formatCost } from './services/costTracker';
+import { StockItem } from './types';
+import useAppData from './hooks/useAppData';
+import useAnalysis from './hooks/useAnalysis';
 import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
 
-// 学習フィードバック要約の最大文字数
-const FEEDBACK_SUMMARY_MAX_LENGTH = 200;
-
-interface LogEntry {
-  id: string;
-  message: string;
-  type: 'info' | 'success' | 'error' | 'system';
-  timestamp: string;
-}
-
 const App: React.FC = () => {
-  const [showCamera, setShowCamera] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [isBackgroundScanning, setIsBackgroundScanning] = useState(false);
-  const [isTargetLocked, setIsTargetLocked] = useState(false);
-  const [isRateLimited, setIsRateLimited] = useState(false);
-  const [monitorGuidance, setMonitorGuidance] = useState<string | null>(null);
-  const [ensembleTarget, setEnsembleTarget] = useState(() => {
-    const saved = localStorage.getItem('tonchecker_ensemble_target');
-    return saved ? parseInt(saved) : 1;
-  });
-  const [selectedModel, setSelectedModel] = useState<'gemini-3-flash-preview' | 'gemini-3-pro-preview'>(() => {
-    const saved = localStorage.getItem('tonchecker_model');
-    return (saved as 'gemini-3-flash-preview' | 'gemini-3-pro-preview') || 'gemini-3-flash-preview';
-  });
-  const [rawInferences, setRawInferences] = useState<EstimationResult[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  // --- Data & Settings ---
+  const appData = useAppData();
+  const {
+    ensembleTarget, setEnsembleTarget,
+    selectedModel, setSelectedModel,
+    hasApiKey, setHasApiKey,
+    isGoogleAIStudio, setIsGoogleAIStudio,
+    todaysCost, refreshCost,
+    storageUsed, storageQuota,
+    stockItems, refreshStock,
+  } = appData;
 
-  // 解析中（stockItems に保存前）の一時的な結果・画像を保持
-  const [pendingResult, setPendingResult] = useState<EstimationResult | null>(null);
-  const [pendingImageUrls, setPendingImageUrls] = useState<string[]>([]);
-  const [pendingBase64Images, setPendingBase64Images] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
-  const [progressLog, setProgressLog] = useState<{time: string, msg: string, elapsed?: number}[]>([]);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const analysisStartTime = useRef<number>(0);
-  
-  // APIキー関連
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [isGoogleAIStudio, setIsGoogleAIStudio] = useState(false);
+  // --- UI visibility (App.tsx owns these) ---
   const [showCostDashboard, setShowCostDashboard] = useState(false);
-  const [todaysCost, setTodaysCost] = useState(0);
-
-  // ストレージ使用量
-  const [storageUsed, setStorageUsed] = useState<number>(0);
-  const [storageQuota, setStorageQuota] = useState<number>(0);
-
-  // ストック・選択関連
-  const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
   const [showStockList, setShowStockList] = useState(false);
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
-
-  // stockItems から派生する状態（useMemo）
-  const currentItem = useMemo(() => {
-    if (!currentId) return null;
-    return stockItems.find(s => s.id === currentId) ?? null;
-  }, [currentId, stockItems]);
-
-  // currentResult: pendingResult があればそれを優先、なければ stockItems から派生
-  const currentResult = useMemo(() => {
-    if (pendingResult) return pendingResult;
-    if (!currentItem) return null;
-    return currentItem.estimations?.[0] ?? currentItem.result ?? null;
-  }, [pendingResult, currentItem]);
-
-  // currentImageUrls: pending があればそれを優先、なければ stockItems から派生
-  const currentImageUrls = useMemo(() => {
-    if (pendingImageUrls.length > 0) return pendingImageUrls;
-    return currentItem?.imageUrls ?? [];
-  }, [pendingImageUrls, currentItem]);
-
-  // currentBase64Images: pending があればそれを優先、なければ stockItems から派生
-  const currentBase64Images = useMemo(() => {
-    if (pendingBase64Images.length > 0) return pendingBase64Images;
-    return currentItem?.base64Images ?? [];
-  }, [pendingBase64Images, currentItem]);
-
   const [showSettings, setShowSettings] = useState(false);
   const [showReferenceSettings, setShowReferenceSettings] = useState(false);
   const [showApiKeySetup, setShowApiKeySetup] = useState(false);
   const [showReportView, setShowReportView] = useState(false);
-  const [pendingAnalysis, setPendingAnalysis] = useState<{base64s: string[], urls: string[], capacity?: number} | null>(null);
 
-  // 最大積載量
-  const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
-  
-  const requestCounter = useRef(0);
-  const activeRequestId = useRef(0);
-
-  // APIキーの状態を初期化時にチェック
-  useEffect(() => {
-    const initializeApp = async () => {
-      const apiKey = getApiKey();
-      setHasApiKey(!!apiKey);
-
-      // 既存のキーがあるが、ソースが不明な場合は確認を促す
-      if (apiKey && !isGoogleAIStudioKey() && !localStorage.getItem('gemini_api_key_source')) {
-        // ソースが不明な場合は、ユーザーに確認を求めるためにモーダルを表示
-        // ただし、初回起動時は自動的に表示しない（ユーザーが設定を開いたときに確認）
-      } else {
-        setIsGoogleAIStudio(isGoogleAIStudioKey());
-      }
-
-      // LocalStorage → IndexedDB マイグレーション（初回のみ）
-      await migrateFromLocalStorage();
-
-      // 永続化をリクエスト（モバイルでの自動削除を防ぐ）
-      requestPersistentStorage().then(granted => {
-        if (granted) console.log('永続ストレージが許可されました');
-      });
-
-      // キャッシュを更新してデータを読み込み
-      const [items, cost, , , usage] = await Promise.all([
-        refreshStockCache(),
-        getTodayCost(),
-        refreshVehicleCache(),
-        refreshCostCache(),
-        getIndexedDBUsage()
-      ]);
-
-      setStockItems(items);
-      setTodaysCost(cost);
-      setStorageUsed(usage.used);
-      setStorageQuota(usage.quota);
-
-      // URLパラメータからGAS URLを読み込み
-      initFromUrlParams();
-    };
-
-    initializeApp();
-  }, []);
-
-  // コスト更新（解析完了後）
-  const refreshCost = async () => {
-    const cost = await getTodayCost();
-    setTodaysCost(cost);
-  };
-
-  // ストック更新
-  const refreshStock = async () => {
-    const items = await refreshStockCache();
-    setStockItems(items);
-    // ストレージ使用量も更新
-    const usage = await getIndexedDBUsage();
-    setStorageUsed(usage.used);
-    setStorageQuota(usage.quota);
-  };
-
-  // 履歴はstockItemsから取得（解析結果があるアイテム）
-  const history = stockItems.filter(item =>
-    (item.estimations && item.estimations.length > 0) || item.result !== undefined
-  );
-
-  // loading開始時に進捗をリセット
-  useEffect(() => {
-    if (loading) {
-      setProgressLog([]);
-      setElapsedSeconds(0);
-      analysisStartTime.current = Date.now();
-      setAnalysisProgress({ phase: 'preparing', detail: '解析を開始中...' });
-    } else {
-      setAnalysisProgress(null);
-    }
-  }, [loading]);
-
-  // 経過時間カウンター
-  useEffect(() => {
-    if (!loading) return;
-    const timer = setInterval(() => {
-      setElapsedSeconds(prev => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [loading]);
-
-  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
-    const newLog: LogEntry = {
-      id: crypto.randomUUID(),
-      message,
-      type,
-      timestamp: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    };
-    setLogs(prev => [newLog, ...prev.slice(0, 49)]);
-  };
-
-
-  // 解析開始の統一エントリーポイント
-  const requestAnalysis = (base64s: string[], urls: string[], initialMaxCapacity?: number, stockItemId?: string) => {
-    // ストックアイテムのIDを保存（既存アイテムの場合はaddEstimationを使用するため）
-    if (stockItemId) {
-      setCurrentId(stockItemId);
-    }
-    setMaxCapacity(initialMaxCapacity);
-
-    // base64がない場合はimageUrlsから抽出（履歴移行データ対応）
-    let firstBase64 = base64s[0];
-    const firstUrl = urls[0];
-
-    if (!firstBase64 && firstUrl && firstUrl.startsWith('data:')) {
-      firstBase64 = firstUrl.split(',')[1] || '';
-    }
-
-    if (!firstBase64) {
-      setError('画像データがありません。再撮影してください。');
-      return;
-    }
-
-    setPendingImageUrls([firstUrl]);
-    setPendingBase64Images([firstBase64]);
-    setPendingCapture({ base64: firstBase64, url: firstUrl });
-  };
-
-  const startAnalysis = async (base64s: string[], urls: string[], isAuto: boolean = false, capacityOverride?: number, userFeedback?: ChatMessage[]) => {
-    if (!hasApiKey) {
-      // APIキー未設定時はセットアップ画面を表示し、解析を保留
-      setPendingAnalysis({ base64s, urls, capacity: capacityOverride });
-      setShowApiKeySetup(true);
-      return;
-    }
-
-    const requestId = ++requestCounter.current;
-    activeRequestId.current = requestId;
-
-    if (isAuto) {
-      setIsBackgroundScanning(true);
-      setMonitorGuidance(null);
-    } else {
-      setLoading(true);
-      setPendingResult(null);  // 解析開始時に pending をリセット
-      setRawInferences([]);
-      setPendingImageUrls(urls);
-      setPendingBase64Images(base64s);
-    }
-    
-    setError(null);
-    addLog(isAuto ? `Motion Triggered: Analyzing...` : `推論開始 (x${ensembleTarget})`, isAuto ? 'info' : 'system');
-
-    try {
-      const abortSignal = { get cancelled() { return activeRequestId.current !== requestId; } };
-      
-      // 自動監視時は Lite モデル (gemini-flash-lite-latest) を優先
-      const taggedItems = await getTaggedItems();
-      const results = await analyzeGaraImageEnsemble(
-        base64s,
-        isAuto ? 1 : ensembleTarget,
-        history,
-        (count, lastRes) => {
-          if (activeRequestId.current !== requestId) return;
-          if (!isAuto) {
-            setRawInferences(prev => [...prev, lastRes]);
-            addLog(`サンプル #${count} 受信`, 'success');
-          }
-        },
-        abortSignal,
-        isAuto ? 'gemini-flash-lite-latest' : selectedModel,
-        taggedItems,
-        isAuto ? undefined : capacityOverride,  // capacityOverrideを直接使用（stateのフォールバックはしない）
-        userFeedback,  // ユーザーからの指摘・修正
-        // 詳細な進捗通知
-        !isAuto ? (progress) => {
-          if (activeRequestId.current !== requestId) return;
-          setAnalysisProgress(progress);
-          const elapsed = Math.round((Date.now() - analysisStartTime.current) / 1000);
-          const now = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          setProgressLog(prev => {
-            // 同じメッセージは追加しない
-            if (prev.length > 0 && prev[prev.length - 1].msg === progress.detail) return prev;
-            return [...prev, { time: now, msg: progress.detail, elapsed }];
-          });
-        } : undefined
-      );
-
-      if (activeRequestId.current !== requestId) return;
-
-      if (results.length > 0) {
-        const merged = mergeResults(results);
-        setIsRateLimited(false); // 成功すれば制限フラグを解除
-
-        if (isAuto) {
-          const CONFIDENCE_THRESHOLD = 0.8;
-          if (!merged.isTargetDetected || merged.confidenceScore < CONFIDENCE_THRESHOLD) {
-            const reason = merged.reasoning.toLowerCase();
-            if (reason.includes("荷台") || reason.includes("写っていない")) {
-              setMonitorGuidance("荷台が見える位置にカメラを向けてください");
-            } else if (reason.includes("トラック") || reason.includes("車両")) {
-              setMonitorGuidance("ダンプトラックをフレーム内に収めてください");
-            } else {
-              setMonitorGuidance("対象を特定できませんでした");
-            }
-            // 自動監視の場合は早期リターンしない（finallyでクリーンアップされる）
-            return;
-          }
-          
-          setIsTargetLocked(true);
-          addLog(`ロックオン: 荷姿を検知`, 'success');
-          await new Promise(r => setTimeout(r, 1500));
-          // 自動監視の場合はここで処理を終了（finallyでクリーンアップされる）
-          return;
-        } else {
-          if (!merged.isTargetDetected) {
-            setError("トラックや荷姿が確認できません。撮り直してください。");
-            // エラー時もfinallyでクリーンアップされる
-            return;
-          }
-        }
-
-        // currentIdが既に設定されている場合は既存のストックアイテムとして扱う
-        const itemId = currentId || crypto.randomUUID();
-        setPendingResult(merged);  // 保存前の一時的な結果を pending に設定
-        setCurrentId(itemId);
-        setRawInferences(results);
-        
-        // 解析結果をストックに保存（自動監視の場合は除く）
-        if (!isAuto && base64s.length > 0 && merged.isTargetDetected) {
-          try {
-            const existingStock = await getStockItems();
-            let existingItem: StockItem | undefined;
-
-            if (currentId) {
-              // currentIdで既存アイテムを検索
-              existingItem = existingStock.find(item => item.id === currentId);
-            }
-
-            if (!existingItem) {
-              // currentIdがない場合は、画像URLで既存アイテムを検索
-              existingItem = existingStock.find(item =>
-                item.imageUrls.length === urls.length &&
-                item.imageUrls[0] === urls[0]
-              );
-            }
-
-            // 最大積載量: ユーザー指定 > AIの推定値（登録車両マッチ時）
-            const effectiveMaxCapacity = capacityOverride || merged.estimatedMaxCapacity;
-
-            if (existingItem) {
-              // 既存のアイテムがある場合は、推定結果を追加（ランごとに履歴として保存）
-              await addEstimation(existingItem.id, merged);
-              // maxCapacityを最新の推論結果で更新（再解析時は常に更新）
-              if (effectiveMaxCapacity) {
-                await updateStockItem(existingItem.id, { maxCapacity: effectiveMaxCapacity });
-              }
-              // 既存アイテムにphotoTakenAtがない場合は抽出を試みる
-              if (!existingItem.photoTakenAt && base64s[0]) {
-                const photoTakenAt = await extractPhotoTakenAt(base64s[0]);
-                if (photoTakenAt) {
-                  await updateStockItem(existingItem.id, { photoTakenAt });
-                }
-              }
-            } else {
-              // 新規アイテムの場合は作成
-              // EXIFから撮影日時を抽出
-              const photoTakenAt = base64s[0] ? await extractPhotoTakenAt(base64s[0]) : undefined;
-              const stockItem: StockItem = {
-                id: itemId,
-                timestamp: Date.now(),
-                photoTakenAt,  // EXIFから取得した撮影日時
-                base64Images: base64s,
-                imageUrls: urls,
-                maxCapacity: effectiveMaxCapacity,  // ユーザー指定 or AI推定値
-                result: merged, // 最新の推定結果（後方互換性）
-                estimations: [merged], // 推定結果の履歴（ランごとに追加）
-              };
-              await saveStockItem(stockItem);
-            }
-            await refreshStock();
-            // stockItems が更新されたので pending をクリア（useMemo で派生される）
-            setPendingResult(null);
-            setPendingImageUrls([]);
-            setPendingBase64Images([]);
-          } catch (err) {
-            console.error('ストック追加エラー:', err);
-            // ストック追加に失敗しても解析は続行
-          }
-        }
-
-        refreshCost();
-      }
-    } catch (err: any) {
-      if (activeRequestId.current !== requestId) return;
-      const message = err?.message || '';
-
-      if (isQuotaError(err)) {
-        setIsRateLimited(true);
-        addLog("Quota Limit reached. Slowing down...", 'error');
-        if (!isAuto) setError(QUOTA_ERROR_MESSAGE);
-      } else if (message.includes('API_KEY_INVALID') || message.includes('API key not valid')) {
-        addLog(`Error: Invalid API Key`, 'error');
-        if (!isAuto) setError('APIキーが無効です。設定から正しいキーを入力してください。');
-      } else if (message.includes('400') || message.includes('INVALID_ARGUMENT')) {
-        addLog(`Error: ${message}`, 'error');
-        if (!isAuto) setError('画像データが不正です。再撮影してください。');
-      } else if (message.includes('fetch') || message.includes('network') || message.includes('Failed to fetch')) {
-        addLog(`Error: Network error`, 'error');
-        if (!isAuto) setError('ネットワークエラーです。接続を確認してください。');
-      } else {
-        addLog(`Error: ${message}`, 'error');
-        if (!isAuto) setError(`エラー: ${message}`);
-      }
-    } finally {
-      if (activeRequestId.current === requestId) {
-        setLoading(false);
-        setIsBackgroundScanning(false);
-        setIsTargetLocked(false);
-      }
-    }
-  };
-
-  const resetAnalysis = () => {
-    activeRequestId.current = 0;
-    setCurrentId(null);
-    // pending state をクリア（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
-    setPendingResult(null);
-    setPendingImageUrls([]);
-    setPendingBase64Images([]);
-    setRawInferences([]);
-    setError(null);
-    setLoading(false);
-    setIsBackgroundScanning(false);
-    setIsTargetLocked(false);
-    setMonitorGuidance(null);
-    setMaxCapacity(undefined); // 最大積載量もリセット
-    // 全てのモーダル・サブ画面を閉じる
-    setShowCamera(false);
-    setPendingCapture(null);
+  // --- Analysis engine ---
+  const onReset = useCallback(() => {
     setShowSettings(false);
     setShowCostDashboard(false);
     setShowStockList(false);
     setShowReferenceSettings(false);
-    setShowApiKeySetup(false);
-    setPendingAnalysis(null);
-  };
+    setShowReportView(false);
+  }, []);
 
-  // APIキーセットアップ完了時
-  const handleApiKeySetupComplete = (key: string, isStudio: boolean) => {
-    setApiKey(key, isStudio);
-    setHasApiKey(true);
-    setIsGoogleAIStudio(isStudio);
-    setShowApiKeySetup(false);
+  const analysis = useAnalysis({
+    stockItems,
+    hasApiKey,
+    ensembleTarget,
+    selectedModel,
+    refreshStock,
+    refreshCost,
+    setShowApiKeySetup,
+    setHasApiKey,
+    setIsGoogleAIStudio,
+    onReset,
+  });
 
-    // 保留中の解析があれば実行
-    if (pendingAnalysis) {
-      const { base64s, urls, capacity } = pendingAnalysis;
-      setPendingAnalysis(null);
-      startAnalysis(base64s, urls, false, capacity);
-    }
-  };
-
-  // チャット履歴を学習データとして保存
-  const handleSaveAsLearning = async (chatHistory: ChatMessage[], result: EstimationResult) => {
-    if (!currentId || chatHistory.length === 0) return;
-
-    try {
-      // チャット履歴から要約を生成（ユーザーの指摘を抽出）
-      const userMessages = chatHistory.filter(m => m.role === 'user');
-      const summary = userMessages.map(m => m.content).join(' → ');
-
-      // 実測値があるかどうかで訂正かどうかを判定
-      const stockItem = stockItems.find(i => i.id === currentId);
-      const feedbackType: LearningFeedback['feedbackType'] =
-        stockItem?.actualTonnage ? 'correction' : 'insight';
-
-      const feedback: LearningFeedback = {
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        originalStockId: currentId,
-        truckType: result.truckType,
-        materialType: result.materialType,
-        feedbackType,
-        summary: summary.length > FEEDBACK_SUMMARY_MAX_LENGTH ? summary.slice(0, FEEDBACK_SUMMARY_MAX_LENGTH) + '...' : summary,
-        originalMessages: chatHistory,
-        actualTonnage: stockItem?.actualTonnage,
-        aiEstimation: result.estimatedTonnage,
-      };
-
-      await saveLearningFeedback(feedback);
-      addLog('学習データを保存しました', 'success');
-    } catch (err: any) {
-      addLog(`学習データ保存エラー: ${err?.message || '不明なエラー'}`, 'error');
-      throw err;  // 上位コンポーネントにも伝播
-    }
-  };
+  const {
+    loading, isTargetLocked, isRateLimited,
+    currentId, setCurrentId,
+    error, setError,
+    analysisProgress, progressPercent, progressLog, elapsedSeconds,
+    pendingCapture, setPendingCapture,
+    showCamera, setShowCamera,
+    currentResult, currentImageUrls, currentBase64Images,
+    maxCapacity, setMaxCapacity,
+    requestAnalysis, startAnalysis, resetAnalysis,
+    handleSaveAsLearning, handleApiKeySetupComplete,
+  } = analysis;
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-200">
@@ -513,7 +84,7 @@ const App: React.FC = () => {
         storageUsed={storageUsed}
         storageQuota={storageQuota}
       />
-      
+
       <main className="flex-grow min-h-0 relative overflow-x-hidden overflow-y-auto">
         {/* カメラモーダル */}
         {showCamera && (
@@ -537,17 +108,15 @@ const App: React.FC = () => {
               const { base64, url } = pendingCapture!;
               setPendingCapture(null);
               setMaxCapacity(capacity);
-              // startAnalysis 内で pending state を設定するのでここでは不要
               startAnalysis([base64], [url], false, capacity);
             }}
             onStock={currentId ? undefined : async () => {
               const dataUrl = 'data:image/jpeg;base64,' + pendingCapture.base64;
-              // EXIFから撮影日時を抽出
               const photoTakenAt = await extractPhotoTakenAt(pendingCapture.base64);
               const newItem: StockItem = {
                 id: crypto.randomUUID(),
                 timestamp: Date.now(),
-                photoTakenAt,  // EXIFから取得した撮影日時
+                photoTakenAt,
                 base64Images: [pendingCapture.base64],
                 imageUrls: [dataUrl],
               };
@@ -557,11 +126,11 @@ const App: React.FC = () => {
             }}
             onCancel={() => {
               setPendingCapture(null);
-              setCurrentId(null); // ストックからの解析の場合、キャンセル時にIDをクリア
+              setCurrentId(null);
             }}
           />
         )}
-        
+
         <div className="max-w-4xl mx-auto w-full px-4 pt-4">
             {/* ツールバー */}
             <div className="mb-4 flex items-center gap-2 sm:gap-3">
@@ -677,24 +246,7 @@ const App: React.FC = () => {
                     <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-4">
                       <div
                         className={`h-full transition-all duration-500 ${isTargetLocked ? 'bg-red-500' : 'bg-blue-500'}`}
-                        style={{ width: isTargetLocked ? '100%' : (() => {
-                          if (!analysisProgress) return '10%';
-                          const phaseWeights: Record<string, number> = {
-                            preparing: 10,
-                            loading_references: 20,
-                            loading_stock: 30,
-                            inference: 40,
-                            merging: 90,
-                            done: 100
-                          };
-                          const basePercent = phaseWeights[analysisProgress.phase] || 10;
-                          // 推論フェーズの場合は進捗に応じて増加
-                          if (analysisProgress.phase === 'inference' && analysisProgress.total && analysisProgress.current) {
-                            const inferenceProgress = (analysisProgress.current / analysisProgress.total) * 50; // 40-90%の範囲
-                            return `${basePercent + inferenceProgress}%`;
-                          }
-                          return `${basePercent}%`;
-                        })() }}
+                        style={{ width: progressPercent }}
                       ></div>
                     </div>
                     {/* 進捗ログリスト */}
@@ -747,18 +299,14 @@ const App: React.FC = () => {
                   onUpdateLicensePlate={async (p, n) => {
                     if (currentId && currentResult) {
                       const updatedResult = { ...currentResult, licensePlate: p, licenseNumber: n };
-                      // 最新の推定結果を更新
                       const item = stockItems.find(i => i.id === currentId);
                       if (item && item.estimations && item.estimations.length > 0) {
-                        // estimations配列の最新（先頭）を更新
                         const updatedEstimations = [...item.estimations];
                         updatedEstimations[0] = updatedResult;
                         await updateStockItem(currentId, { result: updatedResult, estimations: updatedEstimations });
                       } else {
-                        // 後方互換性のため、resultも更新
                         await updateStockItem(currentId, { result: updatedResult });
                       }
-                      // refreshStock で stockItems が更新され、useMemo で currentResult が派生される
                       await refreshStock();
                     }
                   }}
@@ -771,13 +319,11 @@ const App: React.FC = () => {
                   onReanalyzeWithFeedback={async (chatHistory) => {
                     if (!currentId || !currentBase64Images.length) return;
                     const item = stockItems.find(i => i.id === currentId);
-                    // 再解析を開始（指摘を含めて）
                     startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, chatHistory);
                   }}
                   onReanalyzeWithoutFeedback={() => {
                     if (!currentId || !currentBase64Images.length) return;
                     const item = stockItems.find(i => i.id === currentId);
-                    // 指摘を無視して再解析（AIの純粋な推論）
                     startAnalysis(currentBase64Images, currentImageUrls, false, item?.maxCapacity, undefined);
                   }}
                   onSaveAsLearning={handleSaveAsLearning}
@@ -790,9 +336,9 @@ const App: React.FC = () => {
 
 
       {/* コストダッシュボード */}
-      <CostDashboard 
-        isOpen={showCostDashboard} 
-        onClose={() => { setShowCostDashboard(false); refreshCost(); }} 
+      <CostDashboard
+        isOpen={showCostDashboard}
+        onClose={() => { setShowCostDashboard(false); refreshCost(); }}
       />
 
       {/* ストック一覧 */}
@@ -813,19 +359,13 @@ const App: React.FC = () => {
           }}
           onAnalyze={(item) => {
             setShowStockList(false);
-            // 統一フロー：requestAnalysisを使用してCaptureChoiceを表示
             requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
           }}
           onViewResult={(item) => {
-            // setCurrentId のみで OK（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
             const latestItem = stockItems.find(s => s.id === item.id) ?? item;
             const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              // pending をクリアして stockItems からの派生を有効にする
-              setPendingResult(null);
-              setPendingImageUrls([]);
-              setPendingBase64Images([]);
-              setCurrentId(latestItem.id);
+              analysis.viewStockItem(latestItem.id);
               setShowStockList(false);
             }
           }}
@@ -857,15 +397,10 @@ const App: React.FC = () => {
             requestAnalysis(item.base64Images, item.imageUrls, item.maxCapacity, item.id);
           }}
           onViewResult={(item) => {
-            // setCurrentId のみで OK（currentResult, currentImageUrls, currentBase64Images は useMemo で派生）
             const latestItem = stockItems.find(s => s.id === item.id) ?? item;
             const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              // pending をクリアして stockItems からの派生を有効にする
-              setPendingResult(null);
-              setPendingImageUrls([]);
-              setPendingBase64Images([]);
-              setCurrentId(latestItem.id);
+              analysis.viewStockItem(latestItem.id);
               setShowReportView(false);
             }
           }}
@@ -885,13 +420,8 @@ const App: React.FC = () => {
           setIsGoogleAIStudio(isStudio);
         }}
         onDataChanged={() => {
-          // インポート後にデータを再読み込みし、選択状態をリセット
           refreshStock();
-          setCurrentId(null);
-          // pending もクリア
-          setPendingResult(null);
-          setPendingImageUrls([]);
-          setPendingBase64Images([]);
+          analysis.clearPendingState();
         }}
       />
 
@@ -907,7 +437,7 @@ const App: React.FC = () => {
           onComplete={handleApiKeySetupComplete}
           onCancel={() => {
             setShowApiKeySetup(false);
-            setPendingAnalysis(null);
+            analysis.setPendingAnalysis(null);
           }}
         />
       )}

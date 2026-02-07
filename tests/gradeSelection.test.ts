@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { LOAD_GRADES, getLoadGrade } from '../constants';
+import { LOAD_GRADES } from '../domain/specs';
+import { getLoadGrade } from '../domain/logic';
 import { getTruckClass, selectStockByGrade, GradedStockItem } from '../services/stockService';
 import { addVehicle } from '../services/referenceImages';
 import * as idb from '../services/indexedDBService';

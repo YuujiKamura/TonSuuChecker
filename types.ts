@@ -1,4 +1,3 @@
-
 export interface EstimationResult {
   isTargetDetected: boolean;
   truckType: string;
@@ -90,24 +89,5 @@ export interface StockItem {
   chatHistory?: ChatMessage[];
 }
 
-// 判定状態を導出（actualTonnageとmaxCapacityから計算）
-export type JudgmentStatus = 'OK' | 'NG' | 'unknown';
-
-export const getJudgmentStatus = (item: StockItem): JudgmentStatus => {
-  if (item.actualTonnage === undefined || item.maxCapacity === undefined) {
-    return 'unknown';
-  }
-  return item.actualTonnage <= item.maxCapacity ? 'OK' : 'NG';
-};
-
-export const isJudged = (item: StockItem): boolean => {
-  return item.actualTonnage !== undefined && item.maxCapacity !== undefined;
-};
-
-// 解析進捗の詳細状態
-export interface AnalysisProgress {
-  phase: 'preparing' | 'loading_references' | 'loading_stock' | 'inference' | 'merging' | 'done';
-  detail: string;
-  current?: number;  // 現在の推論回数
-  total?: number;    // 目標推論回数
-}
+// Re-exports for backward compatibility
+export type { AnalysisProgress } from './types/ui';
