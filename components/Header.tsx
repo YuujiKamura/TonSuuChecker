@@ -4,6 +4,8 @@ declare const __COMMIT_HASH__: string;
 import React from 'react';
 import { Truck, Database } from 'lucide-react';
 
+type ApiKeyStatus = 'unchecked' | 'checking' | 'valid' | 'invalid' | 'expired' | 'quota_exceeded' | 'missing';
+
 interface HeaderProps {
   onReset: () => void;
   costDisplay?: string;
@@ -11,7 +13,79 @@ interface HeaderProps {
   onCostClick?: () => void;
   storageUsed?: number;  // bytes
   storageQuota?: number; // bytes
+  apiKeyStatus?: ApiKeyStatus;
+  onStatusClick?: () => void;  // クリックで再検証
 }
+
+interface StatusDisplay {
+  label: string;
+  textClass: string;
+  dotClass: string;
+  title: string;
+  prominent: boolean;
+}
+
+const getStatusDisplay = (status: ApiKeyStatus | undefined): StatusDisplay => {
+  switch (status) {
+    case 'checking':
+      return {
+        label: '検証中',
+        textClass: 'text-blue-400',
+        dotClass: 'bg-blue-500 animate-pulse',
+        title: 'APIキーを検証中...',
+        prominent: false,
+      };
+    case 'valid':
+      return {
+        label: 'Active',
+        textClass: 'text-green-400',
+        dotClass: 'bg-green-500 shadow-[0_0_8px_#22c55e]',
+        title: 'APIキー有効（タップで再検証）',
+        prominent: false,
+      };
+    case 'invalid':
+      return {
+        label: '無効',
+        textClass: 'text-red-400',
+        dotClass: 'bg-red-500 animate-pulse',
+        title: 'APIキーが無効です',
+        prominent: true,
+      };
+    case 'expired':
+      return {
+        label: '期限切れ',
+        textClass: 'text-red-400',
+        dotClass: 'bg-red-500 animate-pulse',
+        title: 'APIキーの期限が切れています',
+        prominent: true,
+      };
+    case 'quota_exceeded':
+      return {
+        label: '制限中',
+        textClass: 'text-amber-400',
+        dotClass: 'bg-amber-500 animate-pulse',
+        title: 'API利用制限に達しています',
+        prominent: false,
+      };
+    case 'missing':
+      return {
+        label: '未設定',
+        textClass: 'text-red-400',
+        dotClass: 'bg-red-500',
+        title: 'APIキーが設定されていません',
+        prominent: true,
+      };
+    case 'unchecked':
+    default:
+      return {
+        label: '---',
+        textClass: 'text-slate-500',
+        dotClass: 'bg-slate-500',
+        title: '未検証',
+        prominent: false,
+      };
+  }
+};
 
 // バイト数を読みやすい形式に変換
 const formatBytes = (bytes: number): string => {
@@ -22,8 +96,9 @@ const formatBytes = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCostClick, storageUsed, storageQuota }) => {
+const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCostClick, storageUsed, storageQuota, apiKeyStatus, onStatusClick }) => {
   const storagePercent = storageQuota ? Math.round((storageUsed || 0) / storageQuota * 100) : 0;
+  const { label: statusLabel, textClass: statusTextClass, dotClass: statusDotClass, title: statusTitle, prominent } = getStatusDisplay(apiKeyStatus);
 
   return (
     <header className="bg-slate-950/90 backdrop-blur-xl text-white h-16 flex items-center justify-between px-4 sticky top-0 z-[100] border-b border-slate-800 shadow-2xl">
@@ -81,11 +156,19 @@ const Header: React.FC<HeaderProps> = ({ onReset, costDisplay, isFreeTier, onCos
             {costDisplay}
           </button>
         )}
-        <div className="flex flex-col items-end">
-          <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">Status</span>
-          <span className="text-[10px] font-black text-slate-300 uppercase">Active</span>
-        </div>
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></div>
+        <button
+          onClick={onStatusClick}
+          className={`flex items-center gap-1.5 active:scale-95 transition-transform ${
+            prominent ? 'px-2 py-1 rounded-lg border border-red-500/50 bg-red-500/10' : ''
+          }`}
+          title={statusTitle}
+        >
+          <div className="flex flex-col items-end">
+            <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">API</span>
+            <span className={`text-[10px] font-black uppercase ${statusTextClass}`}>{statusLabel}</span>
+          </div>
+          <div className={`${prominent ? 'w-2.5 h-2.5' : 'w-2 h-2'} rounded-full ${statusDotClass}`}></div>
+        </button>
       </div>
     </header>
   );
