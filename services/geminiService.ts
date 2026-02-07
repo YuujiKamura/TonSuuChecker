@@ -10,7 +10,7 @@ import { mergeResults } from "../utils/analysisUtils";
 import { buildInferencePrompt, buildReferenceImageSection, buildTaggedStockSection } from "../prompts/inferencePrompt";
 
 // Re-exports for backward compatibility
-export { getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, detectApiKeySource } from "./configService";
+export { getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from "./configService";
 export { mergeResults } from "../utils/analysisUtils";
 
 // クォータ制限エラーかどうかを判定（共通関数）

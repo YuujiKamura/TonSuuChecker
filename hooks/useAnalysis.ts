@@ -60,10 +60,9 @@ export interface UseAnalysisReturn {
   history: StockItem[];
   progressPercent: string;
 
-  // Pending state setters (needed by App.tsx for stock list view)
-  setPendingResult: React.Dispatch<React.SetStateAction<EstimationResult | null>>;
-  setPendingImageUrls: React.Dispatch<React.SetStateAction<string[]>>;
-  setPendingBase64Images: React.Dispatch<React.SetStateAction<string[]>>;
+  // Encapsulated state transitions
+  viewStockItem: (itemId: string) => void;
+  clearPendingState: () => void;
   setMaxCapacity: React.Dispatch<React.SetStateAction<number | undefined>>;
 
   // Functions
@@ -486,6 +485,22 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     }
   }, [currentId, stockItems, addLog]);
 
+  // 既存のストックアイテムを結果表示用に選択
+  const viewStockItem = useCallback((itemId: string) => {
+    setPendingResult(null);
+    setPendingImageUrls([]);
+    setPendingBase64Images([]);
+    setCurrentId(itemId);
+  }, []);
+
+  // pending状態をクリアして初期状態に戻す
+  const clearPendingState = useCallback(() => {
+    setPendingResult(null);
+    setPendingImageUrls([]);
+    setPendingBase64Images([]);
+    setCurrentId(null);
+  }, []);
+
   return {
     // State
     loading,
@@ -518,10 +533,9 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     history,
     progressPercent,
 
-    // Pending state setters
-    setPendingResult,
-    setPendingImageUrls,
-    setPendingBase64Images,
+    // Encapsulated state transitions
+    viewStockItem,
+    clearPendingState,
     setMaxCapacity,
 
     // Functions

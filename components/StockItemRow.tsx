@@ -2,7 +2,8 @@ import React, { useState, useCallback, useRef } from 'react';
 import { StockItem } from '../types';
 import { Trash2, Brain, Sparkles, Loader2, Eye, Camera, FolderOpen } from 'lucide-react';
 import { getEffectiveDateTime, formatDateTime } from '../services/exifUtils';
-import { readImageFile, buildStockUpdate } from '../hooks/useStockList';
+import { readImageFile } from '../utils/imageUtils';
+import { buildStockUpdate } from '../domain/stockItem';
 import { extractFeatures } from '../services/geminiService';
 
 interface StockItemRowProps {
