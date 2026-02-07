@@ -7,6 +7,7 @@ import {
   getPrimaryMaterialVoidRatios,
   getTruckSpecsSummary,
 } from '../domain/specs.ts';
+import { ranges } from '../domain/promptSpec.ts';
 
 // 車両規格をプロンプト用テキストに変換
 export const TRUCK_SPECS_PROMPT = Object.entries(TRUCK_SPECS)
@@ -45,12 +46,18 @@ ${LOAD_GRADES.map(g =>
 
 ※ 過去の実測データは等級別に提供されます。「この見た目で何トンだったか」を参考に推定してください。`;
 
-// 重量計算式プロンプト（コード側計算の説明用）
+// 重量計算式プロンプト（コード側計算の説明用）- ranges は prompt-spec.json SSOT から取得
+const h = ranges.height;
+const s = ranges.slope;
+const fr = ranges.fillRatioL; // L/W/Z は同じ range
+const pd = ranges.packingDensity;
 export const WEIGHT_FORMULA_PROMPT = `重量計算はコード側で行います。AIは以下の幾何学的パラメータを推定してください:
-- height: 積載高さ m（0.05m刻み、後板=0.30m/ヒンジ=0.50mを目印）
-- slope: 前後方向の高低差 m (0.0〜0.3)
-- fillRatioL/W/Z: 長さ/幅/高さ方向の充填率 (各0.7〜1.0)
-- packingDensity: ガラの詰まり具合 (0.7〜0.9)
+- height: 積載高さ m（${h.step}m刻み、後板=${h.calibration['後板']}m/ヒンジ=${h.calibration['ヒンジ']}mを目印）
+- slope: 前後方向の高低差 m (${s.min}〜${s.max})
+- fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
+- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
+- packingDensity: ガラの詰まり具合 (${pd.min}〜${pd.max})
 
 ■ 素材別密度（参考情報）
 ${MATERIAL_DENSITIES_PROMPT}`;
@@ -78,11 +85,13 @@ function getSystemPrompt(): string {
 
 ### パラメータ推定（重量計算はコード側で行う）
 AIの役割は以下の幾何学的パラメータを画像から推定すること:
-- upperArea: 荷台上面の積載割合 (0.2〜0.6)
-- height: 積載高さ m (0.05m刻み、後板=0.30m/ヒンジ=0.50mを目印に)
-- slope: 前後方向の高低差 m (0.0〜0.3)
-- fillRatioL/W/Z: 長さ/幅/高さ方向の充填率 (各0.7〜1.0)
-- packingDensity: ガラの詰まり具合 (0.7〜0.9)
+- upperArea: 荷台上面の積載割合 (${ranges.upperArea.min}〜${ranges.upperArea.max})
+- height: 積載高さ m (${h.step}m刻み、後板=${h.calibration['後板']}m/ヒンジ=${h.calibration['ヒンジ']}mを目印に)
+- slope: 前後方向の高低差 m (${s.min}〜${s.max})
+- fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
+- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
+- packingDensity: ガラの詰まり具合 (${pd.min}〜${pd.max})
 
 ※ estimatedVolumeM3やestimatedTonnageは出力不要（コード側で計算する）
 
