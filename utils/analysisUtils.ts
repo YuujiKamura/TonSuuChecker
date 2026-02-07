@@ -1,9 +1,10 @@
 import { EstimationResult } from "../types";
 import { calculateTonnage } from "./calculation";
+import { ranges } from '../domain/promptSpec';
 
-// Default parameter values (prompt-spec.json mid-range)
-const DEFAULT_FILL_RATIO = 0.85;
-const DEFAULT_PACKING_DENSITY = 0.8;
+// Default parameter values (derived from prompt-spec.json ranges)
+const DEFAULT_FILL_RATIO = (ranges.fillRatioL.min + ranges.fillRatioL.max) / 2;
+const DEFAULT_PACKING_DENSITY = (ranges.packingDensity.min + ranges.packingDensity.max) / 2;
 
 /**
  * 配列から最頻値を取得する
