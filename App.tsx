@@ -70,7 +70,6 @@ const App: React.FC = () => {
     showCamera, setShowCamera,
     currentResult, currentImageUrls, currentBase64Images,
     maxCapacity, setMaxCapacity,
-    setPendingResult, setPendingImageUrls, setPendingBase64Images,
     requestAnalysis, startAnalysis, resetAnalysis,
     handleSaveAsLearning, handleApiKeySetupComplete,
   } = analysis;
@@ -366,10 +365,7 @@ const App: React.FC = () => {
             const latestItem = stockItems.find(s => s.id === item.id) ?? item;
             const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              setPendingResult(null);
-              setPendingImageUrls([]);
-              setPendingBase64Images([]);
-              setCurrentId(latestItem.id);
+              analysis.viewStockItem(latestItem.id);
               setShowStockList(false);
             }
           }}
@@ -404,10 +400,7 @@ const App: React.FC = () => {
             const latestItem = stockItems.find(s => s.id === item.id) ?? item;
             const latestEstimation = latestItem.estimations?.[0] ?? latestItem.result;
             if (latestEstimation) {
-              setPendingResult(null);
-              setPendingImageUrls([]);
-              setPendingBase64Images([]);
-              setCurrentId(latestItem.id);
+              analysis.viewStockItem(latestItem.id);
               setShowReportView(false);
             }
           }}
@@ -428,10 +421,7 @@ const App: React.FC = () => {
         }}
         onDataChanged={() => {
           refreshStock();
-          setCurrentId(null);
-          setPendingResult(null);
-          setPendingImageUrls([]);
-          setPendingBase64Images([]);
+          analysis.clearPendingState();
         }}
       />
 
