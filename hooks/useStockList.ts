@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { StockItem } from '../types';
-import { extractFeatures } from '../services/geminiService';
 import { extractPhotoTakenAt } from '../services/exifUtils';
 
 // --- localStorage helpers ---
@@ -53,6 +52,14 @@ export const readImageFile = (file: File): Promise<{ base64: string; dataUrl: st
   });
 };
 
+// --- Safe parseFloat with NaN fallback ---
+const safeParseFloat = (input: string): number | undefined => {
+  if (!input) return undefined;
+  const value = parseFloat(input);
+  if (isNaN(value)) return undefined;
+  return value;
+};
+
 // --- New entry creation helper ---
 export const createStockItem = (params: {
   imageBase64: string | null;
@@ -69,8 +76,8 @@ export const createStockItem = (params: {
     photoTakenAt: params.photoTakenAt,
     base64Images: params.imageBase64 ? [params.imageBase64] : [],
     imageUrls: params.imageUrl ? [params.imageUrl] : [],
-    actualTonnage: params.tonnage ? parseFloat(params.tonnage) : undefined,
-    maxCapacity: params.maxCapacity ? parseFloat(params.maxCapacity) : undefined,
+    actualTonnage: safeParseFloat(params.tonnage),
+    maxCapacity: safeParseFloat(params.maxCapacity),
     memo: params.memo || undefined,
     manifestNumber: params.manifestNumber.replace(/\D/g, '') || undefined
   };
@@ -87,8 +94,8 @@ export const buildStockUpdate = (params: {
   photoTakenAt?: number;
 }): Partial<StockItem> => {
   const updates: Partial<StockItem> = {
-    actualTonnage: params.tonnage ? parseFloat(params.tonnage) : undefined,
-    maxCapacity: params.maxCapacity ? parseFloat(params.maxCapacity) : undefined,
+    actualTonnage: safeParseFloat(params.tonnage),
+    maxCapacity: safeParseFloat(params.maxCapacity),
     memo: params.memo || undefined,
     manifestNumber: params.manifestNumber.replace(/\D/g, '') || undefined
   };
@@ -106,24 +113,9 @@ export const buildStockUpdate = (params: {
 export interface UseStockListParams {
   items: StockItem[];
   onAdd: (item: StockItem) => void;
-  onUpdate: (id: string, updates: Partial<StockItem>) => void;
 }
 
-export function useStockList({ items, onAdd, onUpdate }: UseStockListParams) {
-  // Edit state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTonnage, setEditTonnage] = useState('');
-  const [editMaxCapacity, setEditMaxCapacity] = useState('');
-  const [editMemo, setEditMemo] = useState('');
-  const [editManifestNumber, setEditManifestNumber] = useState('');
-  const [editImageBase64, setEditImageBase64] = useState<string | null>(null);
-  const [editImageUrl, setEditImageUrl] = useState<string | null>(null);
-  const [editPhotoTakenAt, setEditPhotoTakenAt] = useState<number | undefined>(undefined);
-
-  // Feature extraction state
-  const [extractingId, setExtractingId] = useState<string | null>(null);
-  const [showFeatures, setShowFeatures] = useState<string | null>(null);
-
+export function useStockList({ items, onAdd }: UseStockListParams) {
   // Modal state
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -140,67 +132,6 @@ export function useStockList({ items, onAdd, onUpdate }: UseStockListParams) {
   // Derived data
   const analyzedItems = items.filter(item => (item.estimations && item.estimations.length > 0) || item.result);
   const unanalyzedItems = items.filter(item => !((item.estimations && item.estimations.length > 0) || item.result));
-
-  // Edit actions
-  const startEdit = useCallback((item: StockItem) => {
-    setEditingId(item.id);
-    setEditTonnage(item.actualTonnage?.toString() || '');
-    setEditMaxCapacity(item.maxCapacity?.toString() || '');
-    setEditMemo(item.memo || '');
-    setEditManifestNumber(item.manifestNumber || '');
-    setEditImageBase64(item.base64Images[0] || null);
-    setEditImageUrl(item.imageUrls[0] || null);
-    setEditPhotoTakenAt(item.photoTakenAt);
-  }, []);
-
-  const saveEdit = useCallback((id: string) => {
-    const updates = buildStockUpdate({
-      tonnage: editTonnage, maxCapacity: editMaxCapacity,
-      memo: editMemo, manifestNumber: editManifestNumber,
-      imageBase64: editImageBase64, imageUrl: editImageUrl,
-      photoTakenAt: editPhotoTakenAt
-    });
-    onUpdate(id, updates);
-    setEditingId(null);
-  }, [editTonnage, editMaxCapacity, editMemo, editManifestNumber, editImageBase64, editImageUrl, editPhotoTakenAt, onUpdate]);
-
-  const cancelEdit = useCallback(() => {
-    setEditingId(null);
-    setEditTonnage(''); setEditMaxCapacity('');
-    setEditMemo(''); setEditManifestNumber('');
-    setEditImageBase64(null); setEditImageUrl(null);
-    setEditPhotoTakenAt(undefined);
-  }, []);
-
-  const handleEditImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const result = await readImageFile(file);
-    setEditImageBase64(result.base64);
-    setEditImageUrl(result.dataUrl);
-    setEditPhotoTakenAt(result.photoTakenAt);
-    e.target.value = '';
-  }, []);
-
-  // Feature extraction
-  const handleExtractFeatures = useCallback(async (item: StockItem) => {
-    if (!item.actualTonnage || !item.base64Images[0]) return;
-    setExtractingId(item.id);
-    try {
-      const { features, rawResponse } = await extractFeatures(
-        item.base64Images[0], item.actualTonnage, undefined, item.maxCapacity, item.memo
-      );
-      onUpdate(item.id, { extractedFeatures: features, featureRawResponse: rawResponse });
-    } catch (err) {
-      console.error('特徴抽出エラー:', err);
-    } finally {
-      setExtractingId(null);
-    }
-  }, [onUpdate]);
-
-  const toggleFeatures = useCallback((itemId: string) => {
-    setShowFeatures(prev => prev === itemId ? null : itemId);
-  }, []);
 
   // Add form actions
   const handleNewImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,11 +166,6 @@ export function useStockList({ items, onAdd, onUpdate }: UseStockListParams) {
 
   return {
     analyzedItems, unanalyzedItems,
-    editingId, editTonnage, setEditTonnage, editMaxCapacity, setEditMaxCapacity,
-    editMemo, setEditMemo, editManifestNumber, setEditManifestNumber,
-    editImageBase64, editImageUrl, editPhotoTakenAt,
-    startEdit, saveEdit, cancelEdit, handleEditImageSelect,
-    extractingId, showFeatures, handleExtractFeatures, toggleFeatures,
     showExportModal, setShowExportModal,
     showAddForm, setShowAddForm,
     newTonnage, setNewTonnage, newMaxCapacity, setNewMaxCapacity,

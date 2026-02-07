@@ -58,6 +58,7 @@ export interface UseAnalysisReturn {
   currentImageUrls: string[];
   currentBase64Images: string[];
   history: StockItem[];
+  progressPercent: string;
 
   // Pending state setters (needed by App.tsx for stock list view)
   setPendingResult: React.Dispatch<React.SetStateAction<EstimationResult | null>>;
@@ -140,6 +141,21 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     ),
     [stockItems]
   );
+
+  const progressPercent = useMemo(() => {
+    if (isTargetLocked) return '100%';
+    if (!analysisProgress) return '10%';
+    const phaseWeights: Record<string, number> = {
+      preparing: 10, loading_references: 20, loading_stock: 30,
+      inference: 40, merging: 90, done: 100
+    };
+    const basePercent = phaseWeights[analysisProgress.phase] || 10;
+    if (analysisProgress.phase === 'inference' && analysisProgress.total && analysisProgress.current) {
+      const inferenceProgress = (analysisProgress.current / analysisProgress.total) * 50;
+      return `${basePercent + inferenceProgress}%`;
+    }
+    return `${basePercent}%`;
+  }, [analysisProgress, isTargetLocked]);
 
   // --- useEffects ---
 
@@ -500,6 +516,7 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     currentImageUrls,
     currentBase64Images,
     history,
+    progressPercent,
 
     // Pending state setters
     setPendingResult,

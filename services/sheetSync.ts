@@ -1,6 +1,7 @@
 // スプレッドシート同期サービス（画像・実測データ含む）
 
-import { StockItem, getJudgmentStatus } from '../types';
+import { StockItem } from '../types';
+import { getJudgmentStatus } from '../utils/judgment';
 
 export interface SyncRecord {
   id: string;

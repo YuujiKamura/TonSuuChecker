@@ -4,7 +4,8 @@ import { EstimationResult, ChatMessage } from '../types';
 import { Save, Check, ChevronDown, ChevronUp, Download, Image, FileJson, RefreshCcw } from 'lucide-react';
 import AIChatSection from './AIChatSection';
 import * as chatService from '../services/chatService';
-import { getLoadGrade, LoadGrade } from '../constants';
+import { LoadGrade } from '../domain/specs';
+import { getLoadGrade } from '../domain/logic';
 
 // 画像ダウンロード関数
 const downloadImage = (base64: string, filename: string) => {
