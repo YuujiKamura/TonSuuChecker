@@ -385,15 +385,17 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     } catch (err: any) {
       if (activeRequestId.current !== requestId) return;
       const message = err?.message || '';
+      // err.message だけでなく toString() も検査（ApiError は JSON を含む場合がある）
+      const fullError = String(err);
 
       if (isQuotaError(err)) {
         setIsRateLimited(true);
         addLog("Quota Limit reached. Slowing down...", 'error');
         if (!isAuto) setError(QUOTA_ERROR_MESSAGE);
-      } else if (message.includes('API_KEY_INVALID') || message.includes('API key not valid')) {
+      } else if (fullError.includes('API_KEY_INVALID') || message.includes('API key not valid') || message.includes('API key expired')) {
         addLog(`Error: Invalid API Key`, 'error');
-        if (!isAuto) setError('APIキーが無効です。設定から正しいキーを入力してください。');
-      } else if (message.includes('400') || message.includes('INVALID_ARGUMENT')) {
+        if (!isAuto) setError('APIキーが無効または期限切れです。設定から新しいキーを入力してください。');
+      } else if (message.includes('INVALID_ARGUMENT') || (message.includes('400') && !fullError.includes('API_KEY'))) {
         addLog(`Error: ${message}`, 'error');
         if (!isAuto) setError('画像データが不正です。再撮影してください。');
       } else if (message.includes('fetch') || message.includes('network') || message.includes('Failed to fetch')) {
