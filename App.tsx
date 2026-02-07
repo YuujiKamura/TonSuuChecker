@@ -29,6 +29,7 @@ const App: React.FC = () => {
     todaysCost, refreshCost,
     storageUsed, storageQuota,
     stockItems, refreshStock,
+    apiKeyStatus, checkApiKey,
   } = appData;
 
   // --- UI visibility (App.tsx owns these) ---
@@ -83,6 +84,8 @@ const App: React.FC = () => {
         onCostClick={() => setShowCostDashboard(true)}
         storageUsed={storageUsed}
         storageQuota={storageQuota}
+        apiKeyStatus={apiKeyStatus}
+        onStatusClick={checkApiKey}
       />
 
       <main className="flex-grow min-h-0 relative overflow-x-hidden overflow-y-auto">

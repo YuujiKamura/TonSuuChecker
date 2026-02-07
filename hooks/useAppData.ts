@@ -4,8 +4,11 @@ import { refreshVehicleCache } from '../services/referenceImages';
 import { getTodayCost, refreshCostCache } from '../services/costTracker';
 import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage } from '../services/indexedDBService';
 import { getApiKey, isGoogleAIStudioKey } from '../services/geminiService';
+import { validateApiKey, ApiKeyStatus } from '../services/configService';
 import { initFromUrlParams } from '../services/sheetSync';
 import { StockItem } from '../types';
+
+export type { ApiKeyStatus } from '../services/configService';
 
 export interface UseAppDataReturn {
   // Settings
@@ -19,6 +22,8 @@ export interface UseAppDataReturn {
   setHasApiKey: React.Dispatch<React.SetStateAction<boolean>>;
   isGoogleAIStudio: boolean;
   setIsGoogleAIStudio: React.Dispatch<React.SetStateAction<boolean>>;
+  apiKeyStatus: ApiKeyStatus;
+  checkApiKey: () => Promise<void>;
 
   // Cost
   todaysCost: number;
@@ -47,6 +52,7 @@ export default function useAppData(): UseAppDataReturn {
   // API key
   const [hasApiKey, setHasApiKey] = useState(false);
   const [isGoogleAIStudio, setIsGoogleAIStudio] = useState(false);
+  const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>('unchecked');
   const [todaysCost, setTodaysCost] = useState(0);
 
   // Storage
@@ -72,11 +78,31 @@ export default function useAppData(): UseAppDataReturn {
     setStorageQuota(usage.quota);
   };
 
+  // APIキーの有効性を検証
+  const checkApiKey = async () => {
+    setApiKeyStatus('checking');
+    const status = await validateApiKey();
+    setApiKeyStatus(status);
+    // If validation reveals the key is missing/invalid, also update hasApiKey
+    if (status === 'missing' || status === 'invalid' || status === 'expired') {
+      setHasApiKey(status !== 'missing' && status !== 'invalid');
+    }
+  };
+
   // APIキーの状態を初期化時にチェック
   useEffect(() => {
     const initializeApp = async () => {
       const apiKey = getApiKey();
       setHasApiKey(!!apiKey);
+
+      // 非同期でキーの有効性を検証（UIブロックしない）
+      if (apiKey) {
+        validateApiKey().then(status => {
+          setApiKeyStatus(status);
+        });
+      } else {
+        setApiKeyStatus('missing');
+      }
 
       // 既存のキーがあるが、ソースが不明な場合は確認を促す
       if (apiKey && !isGoogleAIStudioKey() && !localStorage.getItem('gemini_api_key_source')) {
@@ -127,6 +153,8 @@ export default function useAppData(): UseAppDataReturn {
     setHasApiKey,
     isGoogleAIStudio,
     setIsGoogleAIStudio,
+    apiKeyStatus,
+    checkApiKey,
 
     // Cost
     todaysCost,
