@@ -54,6 +54,24 @@ export function getTruckBedArea(cls: string): number {
   return s ? s.bedLength * s.bedWidth : calculation.defaultBedAreaM2;
 }
 
+// クランプ: AI応答値をranges範囲内に強制
+export function clampToRanges(result: Record<string, unknown>): void {
+  const fields: [string, Range][] = [
+    ['upperArea', ranges.upperArea],
+    ['height', ranges.height],
+    ['slope', ranges.slope],
+    ['fillRatioL', ranges.fillRatioL],
+    ['fillRatioW', ranges.fillRatioW],
+    ['fillRatioZ', ranges.fillRatioZ],
+    ['packingDensity', ranges.packingDensity],
+  ];
+  for (const [key, range] of fields) {
+    if (typeof result[key] === 'number') {
+      result[key] = Math.min(Math.max(result[key] as number, range.min), range.max);
+    }
+  }
+}
+
 // --- WASM integration ---
 // Note: WASM module is initialized by calculation.ts's initWasm(), called from index.tsx.
 // Once initialized, wasmBuildCorePrompt() is available without separate init here.
