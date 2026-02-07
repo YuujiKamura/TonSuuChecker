@@ -7,6 +7,7 @@ import { getRecentLearningFeedback } from "./indexedDBService";
 import { GradedStockItem, selectStockByGrade, getTruckClass, TruckClass } from "./stockService";
 import { getApiKey, checkIsFreeTier } from "./configService";
 import { mergeResults } from "../utils/analysisUtils";
+import { calculateTonnage } from "../utils/calculation";
 import { buildInferencePrompt, buildReferenceImageSection, buildTaggedStockSection } from "../prompts/inferencePrompt";
 
 // Re-exports for backward compatibility
@@ -36,19 +37,18 @@ const ESTIMATION_RESPONSE_SCHEMA = {
     licensePlate: { type: Type.STRING, nullable: true },
     licenseNumber: { type: Type.STRING, nullable: true },
     materialType: { type: Type.STRING },
-    estimatedVolumeM3: { type: Type.NUMBER },
-    estimatedTonnage: { type: Type.NUMBER },
-    estimatedMaxCapacity: { type: Type.NUMBER },
-    maxCapacityReasoning: { type: Type.STRING },
-    frustumRatio: { type: Type.NUMBER, description: '錐台形状に対する充填割合 (0.3〜1.0)' },
+    upperArea: { type: Type.NUMBER, description: '荷台床面積に対する上面積の比率 (0.2~0.6)' },
+    height: { type: Type.NUMBER, description: '積載高さ m (0.0~0.6, 0.05m刻み)' },
+    slope: { type: Type.NUMBER, description: '前後方向の高低差 m (0.0~0.3)' },
+    packingDensity: { type: Type.NUMBER, description: 'ガラの詰まり具合 (0.7~0.9)' },
+    fillRatioL: { type: Type.NUMBER, description: '長さ方向の充填率 (0.7~1.0)' },
+    fillRatioW: { type: Type.NUMBER, description: '幅方向の充填率 (0.7~1.0)' },
+    fillRatioZ: { type: Type.NUMBER, description: '高さ方向の充填率 (0.7~1.0)' },
     confidenceScore: { type: Type.NUMBER },
     reasoning: { type: Type.STRING },
-    loadCondition: { type: Type.STRING, nullable: true },  // 積載状態
-    chunkSize: { type: Type.STRING, nullable: true },      // 塊サイズ
-    lowerArea: { type: Type.NUMBER, nullable: true },      // 底面積
-    upperArea: { type: Type.NUMBER, nullable: true },      // 上面積
-    height: { type: Type.NUMBER, nullable: true },         // 高さ
-    voidRatio: { type: Type.NUMBER, nullable: true },      // 空隙率
+    // Web-only extensions
+    estimatedMaxCapacity: { type: Type.NUMBER },
+    maxCapacityReasoning: { type: Type.STRING },
     materialBreakdown: {
       type: Type.ARRAY,
       items: {
@@ -62,7 +62,7 @@ const ESTIMATION_RESPONSE_SCHEMA = {
       }
     }
   },
-  required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "frustumRatio", "confidenceScore", "reasoning", "materialBreakdown"]
+  required: ["isTargetDetected", "truckType", "materialType", "upperArea", "height", "slope", "packingDensity", "fillRatioL", "fillRatioW", "fillRatioZ", "confidenceScore", "reasoning", "estimatedMaxCapacity", "maxCapacityReasoning", "materialBreakdown"]
 } as const;
 
 async function runSingleInference(
@@ -119,7 +119,22 @@ async function runSingleInference(
   if (!text) throw new Error("APIレスポンスが空です");
 
   try {
-    return { ...JSON.parse(text), ensembleCount: 1 };
+    const parsed = JSON.parse(text);
+    // Code-side calculation (CLI版と同じ: AIはパラメータのみ→コード側で体積・トン数計算)
+    const { volume, tonnage } = calculateTonnage({
+      fillRatioW: parsed.fillRatioW ?? 0.85,
+      height: parsed.height ?? 0,
+      slope: parsed.slope ?? 0,
+      fillRatioZ: parsed.fillRatioZ ?? 0.85,
+      packingDensity: parsed.packingDensity ?? 0.8,
+      materialType: parsed.materialType ?? '',
+    }, parsed.truckType);
+    return {
+      ...parsed,
+      estimatedVolumeM3: volume,
+      estimatedTonnage: tonnage,
+      ensembleCount: 1,
+    };
   } catch (e) {
     throw new Error(`APIレスポンスのJSON解析に失敗しました: ${e instanceof Error ? e.message : String(e)}\nレスポンス先頭200文字: ${text.slice(0, 200)}`);
   }

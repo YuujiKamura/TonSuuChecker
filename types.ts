@@ -1,29 +1,45 @@
+export type TruckType = '2t' | '4t' | '増トン' | '10t';
+export type MaterialType = '土砂' | 'As殻' | 'Co殻' | '開粒度As殻';
+
 export interface EstimationResult {
+  // Core (from prompt-spec.json)
   isTargetDetected: boolean;
-  truckType: string;
+  truckType: TruckType | string;
   licensePlate?: string;
-  licenseNumber?: string;
-  materialType: string;
-  estimatedVolumeM3: number;
-  estimatedTonnage: number;
-  estimatedMaxCapacity?: number;  // AIが見た目から推定した最大積載量(トン)
-  maxCapacityReasoning?: string;  // 最大積載量の推定根拠
-  frustumRatio?: number;  // 錐台形状に対する充填割合 (0.3~1.0)
+  materialType: MaterialType | string;
+  upperArea: number;
+  height: number;
+  slope: number;
+  packingDensity: number;
+  fillRatioL: number;
+  fillRatioW: number;
+  fillRatioZ: number;
   confidenceScore: number;
   reasoning: string;
+
+  // Computed (code-side)
+  estimatedVolumeM3: number;
+  estimatedTonnage: number;
+
+  // Web-only extensions
+  licenseNumber?: string;
+  estimatedMaxCapacity?: number;
+  maxCapacityReasoning?: string;
+  materialBreakdown: MaterialBreakdown[];
   ensembleCount: number;
-  materialBreakdown: {
-    material: string;
-    percentage: number;
-    density: number;
-  }[];
-  // 積載状態と計算パラメータ
-  loadCondition?: string;     // 積載状態（すり切り/軽い山盛り/山盛り/高い山盛り）
-  chunkSize?: string;         // 塊サイズ（細かい/普通/大きい）→空隙率判定の根拠
-  lowerArea?: number;         // 底面積 (m²)
-  upperArea?: number;         // 上面積 (m²)
-  height?: number;            // 積載高さ (m)
-  voidRatio?: number;         // 適用した空隙率
+
+  // Deprecated (旧データ互換)
+  frustumRatio?: number;
+  voidRatio?: number;
+  loadCondition?: string;
+  chunkSize?: string;
+  lowerArea?: number;
+}
+
+export interface MaterialBreakdown {
+  material: string;
+  percentage: number;
+  density: number;
 }
 
 export interface AnalysisHistory {
