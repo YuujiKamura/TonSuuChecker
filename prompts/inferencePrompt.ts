@@ -1,5 +1,6 @@
+import { Part } from "@google/genai";
 import { ChatMessage, LearningFeedback, StockItem } from "../types";
-import { TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT, LOAD_GRADES_PROMPT } from "./weightEstimation";
+import { LOAD_GRADES_PROMPT } from "./weightEstimation";
 import { GradedStockItem } from "../services/stockService";
 
 /**
@@ -71,8 +72,8 @@ function buildMaxCapacityInstruction(maxCapacity?: number): string {
  */
 export function buildTaggedStockSection(
   taggedStock?: StockItem[]
-): { prompt: string; imageParts: any[] } {
-  const imageParts: any[] = [];
+): { prompt: string; imageParts: Part[] } {
+  const imageParts: Part[] = [];
   let prompt = '';
 
   if (!taggedStock || taggedStock.length === 0) {
@@ -150,8 +151,8 @@ ${learningFeedback.map((fb, idx) => {
  */
 export function buildReferenceImageSection(
   referenceImages: Array<{ name: string; base64: string; maxCapacity: number; mimeType?: string }>
-): { prompt: string; imageParts: any[] } {
-  const imageParts: any[] = [];
+): { prompt: string; imageParts: Part[] } {
+  const imageParts: Part[] = [];
   let prompt = '';
 
   if (referenceImages.length === 0) {
@@ -193,109 +194,17 @@ export function buildInferencePrompt(options: InferencePromptOptions): string {
     taggedStockPrompt,
   } = options;
 
+  // Core prompt: CLI版のコンパクトプロンプト形式
+  const corePrompt = `Output ONLY JSON: {"isTargetDetected":true,"truckType":"?","licensePlate":null,"materialType":"?","upperArea":0,"height":0,"slope":0,"packingDensity":0,"fillRatioL":0,"fillRatioW":0,"fillRatioZ":0,"confidenceScore":0,"reasoning":"describe what you see"} Adjust each value based on the image: upperArea(0.2~0.6) height(0.0~0.6, 0.05m刻みで推定せよ。後板(テールゲート上縁)=0.30m, ヒンジ金具=0.50m。荷山の最高点がどちらの目印の何cm上/下かを見て数値化せよ) slope(0.0~0.3, 荷山の前後方向の高低差m: 手前が低ければ正値) fillRatioL(0.7~1.0, 長さ方向の充填率) fillRatioW(0.7~1.0, 幅方向の充填率) fillRatioZ(0.7~1.0, 高さ方向の充填率) packingDensity(0.7~0.9, ガラの詰まり具合) ※fillRatioL/W/Zはそれぞれ独立して推定すること`;
+
+  // Web extensions
   const maxCapacityInstruction = buildMaxCapacityInstruction(maxCapacity);
   const userFeedbackSection = buildUserFeedbackSection(userFeedback);
   const learningFeedbackSection = buildLearningFeedbackSection(learningFeedback);
 
-  return `画像の内容を判定し、重量を推定してください。
+  return `${corePrompt}
 
 ${maxCapacityInstruction}
-
-【車両規格別 荷台容積（基準値）】
-${TRUCK_SPECS_PROMPT}
-※ すり切り=あおり高さまで、山盛り=すり切り×1.3
-
-【重量計算の基準】
-${WEIGHT_FORMULA_PROMPT}
-
-■ 体積の判定方法
-1. 車両規格を特定し、上記の基準容積を参照
-2. 荷台の埋まり具合を目視で判定（例: すり切りの80%、山盛り等）
-3. 基準容積 × 埋まり具合 = 見かけ体積
-
-【空隙率の判定基準】★必ず2段階で判定すること
-
-STEP1: 塊サイズで基準値を決定
-- 細かい（〜30cm）: 0.30
-- 普通（30〜60cm）: 0.35
-- 大きい（60cm〜）: 0.40
-
-STEP2: 積み方で補正値を加算（必須）
-- きっちり詰めている（隙間が少ない）: +0.00
-- 普通に積んでいる: +0.05
-- 乱雑に積んでいる（隙間が見える）: +0.10
-- 非常に疎（隙間だらけ）: +0.15
-
-最終空隙率 = STEP1 + STEP2
-
-【計算例】
-- 大きい塊(0.40) + 乱雑(+0.10) = 0.50
-- 大きい塊(0.40) + 非常に疎(+0.15) = 0.55
-- 普通の塊(0.35) + 普通(+0.05) = 0.40
-
-★「隙間が多い」と判断したら、必ず補正を加算せよ（0.40のまま使うな）
-
-【高さ推定】★最重要：高さの過小評価は重量の過小評価に直結する
-
-■ 高さとは「最高点」のこと（平均ではない）
-- 高さ = 荷台床面から積載物の最高点までの距離
-- 山の傾斜は「上面積比率」で調整するので、高さは最高点で測る
-- 平らに均した想定の高さではない
-
-■ 高さの測り方（自由推定）
-1. 後板（あおり）の上端を基準点とする（4tダンプ: 0.32m）
-2. 積載物の最高点が後板上端からどれだけ上にあるかを判定
-3. 後板と同じ高さ分上に出ていれば「2.0倍」= 0.64m
-4. 小数点以下まで自由に推定（1.75倍、1.92倍など）
-
-■ 判定の目安
-- 後板上端ギリギリ → 1.0倍 → 0.32m
-- 後板の半分の高さ分、上に出ている → 1.5倍 → 0.48m
-- 後板と同じ高さ分、上に出ている → 2.0倍 → 0.64m
-- 後板より高く出ている → 2.5倍以上もありうる
-
-■ 上面積比率（山の形状）
-- 平らな山（台形に近い）: 70-80%
-- 普通の山盛り: 55-65%
-- 尖った山（三角形に近い）: 40-50%
-
-★警告: 高さを控えめに見積もる癖があるなら、見た目より1.2倍して報告せよ
-
-【幻覚禁止】存在しない空間を創作するな
-- 「隅に空間がある」「一部が空いている」等は、明確に見える場合のみ記載
-- 見えないものを推測で補わない
-- 荷台がガラで埋まっているなら「みっちり積載」と判定する
-- 上面積比率は、山の形状（平ら/山型/尖った山型）から判定する
-
-【体積計算式】（台形体として計算）
-体積 = (底面積 + 上面積) / 2 × 高さ
-- 4tダンプ底面積: 3.4m × 2.06m = 7.0m²
-- 増トン底面積: 4.0m × 2.2m = 8.8m²
-
-例: 4tダンプ、高さ0.51m（1.5倍）、上面積55%の場合
-→ (7.0 + 3.85) / 2 × 0.51 = 2.77m³
-
-【積載量の現実チェック】
-- 4tダンプでも高く積めば4t超になることは普通にある
-- 推定値が最大積載量を超えても、それが視覚的に妥当なら正しい推定として報告する
-- 「積みすぎ」かどうかの判断は推定精度とは別問題
-
-■ 錐台充填割合（frustumRatio: 0.3〜1.0）
-- 荷台を目一杯積んだ時の理想的な錐台形状に対して、実際にどれくらい充填されているかの割合
-- 1.0 = 錐台にきっちり充填（山盛り・満載）
-- 0.7〜0.8 = やや少なめだが十分に積載
-- 0.5 = 半分程度
-- 0.3 = 少量
-- 【重要】後板付近の脱落防止用の傾斜は減点しないこと（安全対策であり荷量不足ではない）
-- frustumRatioは体積計算に反映すること（estimatedVolumeM3に反映済みの値を出力）
-
-【回答ルール（厳守）】
-- 事実のみを記述し、推測・創作・持論は一切禁止
-- reasoningには以下の形式で記載:
-  「車両: ○tダンプ。積載状態: ○○。体積: (○m²+○m²)/2×○m=○m³。素材: ○○、塊サイズ○○。密度○t/m³、空隙率○を適用。計算: ○×○×(1-○)=○t」
-- 計算式: 体積 × 密度 × (1-空隙率) = 推定重量
-- maxCapacityReasoningには視覚的根拠のみを記載（確認できない情報は「確認不可」）
-- 与えられたパラメータ（密度・空隙率）をそのまま使用すること。独自の数値を使わないこと
 ${hasTaggedStock ? '- 【重要】実測データがある場合は、類似の積載状況を参考に推定精度を向上させること' : '- 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること'}
 ${refImagePrompt}${taggedStockPrompt}
 ${userFeedbackSection}
