@@ -1,6 +1,6 @@
 import { EstimationResult } from "../types";
 import { calculateTonnage } from "./calculation";
-import { ranges } from '../domain/promptSpec';
+import { ranges, clampToRanges } from '../domain/promptSpec';
 
 // Default parameter values (derived from prompt-spec.json ranges)
 const DEFAULT_FILL_RATIO = (ranges.fillRatioL.min + ranges.fillRatioL.max) / 2;
@@ -64,7 +64,7 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
     Math.abs(curr.estimatedTonnage - tonnage) < Math.abs(prev.estimatedTonnage - tonnage) ? curr : prev
   );
 
-  return {
+  const merged = {
     ...closestToAvg,
     isTargetDetected: true,
     truckType: finalTruckType,
@@ -84,4 +84,6 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
     ensembleCount: count,
     reasoning: `【統合推論】有効サンプル:${resultCount}/${count}。${closestToAvg.reasoning}`
   };
+  clampToRanges(merged);
+  return merged;
 }
