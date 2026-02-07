@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "sync-spec": "cp ../tonsuu-core/prompt-spec.json ./prompt-spec.json",
+    "dev": "npm run sync-spec && vite",
+    "build": "npm run sync-spec && vite build",
     "preview": "vite preview",
     "report": "npx tsx scripts/generateReport.ts",
     "report:sample": "npx tsx scripts/generateReport.ts --sample",
