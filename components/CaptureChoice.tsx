@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Brain, Archive, X, Scale, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
-import { SYSTEM_PROMPT, LOAD_GRADES_PROMPT } from '../constants';
+import { SYSTEM_PROMPT, LOAD_GRADES_PROMPT } from '../prompts/weightEstimation';
 
 interface CaptureChoiceProps {
   imageUrl: string;
