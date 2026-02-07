@@ -2,6 +2,7 @@ import { Part } from "@google/genai";
 import { ChatMessage, LearningFeedback, StockItem } from "../types";
 import { LOAD_GRADES_PROMPT } from "./weightEstimation";
 import { GradedStockItem } from "../services/stockService";
+import { buildCorePrompt } from "../domain/promptSpec.ts";
 
 /**
  * maxCapacityが未指定の場合に使用する、車両サイズ推定用の詳細プロンプト
@@ -194,8 +195,8 @@ export function buildInferencePrompt(options: InferencePromptOptions): string {
     taggedStockPrompt,
   } = options;
 
-  // Core prompt: CLI版のコンパクトプロンプト形式
-  const corePrompt = `Output ONLY JSON: {"isTargetDetected":true,"truckType":"?","licensePlate":null,"materialType":"?","upperArea":0,"height":0,"slope":0,"packingDensity":0,"fillRatioL":0,"fillRatioW":0,"fillRatioZ":0,"confidenceScore":0,"reasoning":"describe what you see"} Adjust each value based on the image: upperArea(0.2~0.6) height(0.0~0.6, 0.05m刻みで推定せよ。後板(テールゲート上縁)=0.30m, ヒンジ金具=0.50m。荷山の最高点がどちらの目印の何cm上/下かを見て数値化せよ) slope(0.0~0.3, 荷山の前後方向の高低差m: 手前が低ければ正値) fillRatioL(0.7~1.0, 長さ方向の充填率) fillRatioW(0.7~1.0, 幅方向の充填率) fillRatioZ(0.7~1.0, 高さ方向の充填率) packingDensity(0.7~0.9, ガラの詰まり具合) ※fillRatioL/W/Zはそれぞれ独立して推定すること`;
+  // Core prompt: CLI版のコンパクトプロンプト形式（prompt-spec.json SSOT から生成）
+  const corePrompt = buildCorePrompt();
 
   // Web extensions
   const maxCapacityInstruction = buildMaxCapacityInstruction(maxCapacity);

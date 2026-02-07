@@ -9,6 +9,7 @@ import { getApiKey, checkIsFreeTier } from "./configService";
 import { mergeResults } from "../utils/analysisUtils";
 import { calculateTonnage } from "../utils/calculation";
 import { buildInferencePrompt, buildReferenceImageSection, buildTaggedStockSection } from "../prompts/inferencePrompt";
+import { ranges } from "../domain/promptSpec.ts";
 
 // Re-exports for backward compatibility
 export { getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from "./configService";
@@ -37,13 +38,13 @@ const ESTIMATION_RESPONSE_SCHEMA = {
     licensePlate: { type: Type.STRING, nullable: true },
     licenseNumber: { type: Type.STRING, nullable: true },
     materialType: { type: Type.STRING },
-    upperArea: { type: Type.NUMBER, description: '荷台床面積に対する上面積の比率 (0.2~0.6)' },
-    height: { type: Type.NUMBER, description: '積載高さ m (0.0~0.6, 0.05m刻み)' },
-    slope: { type: Type.NUMBER, description: '前後方向の高低差 m (0.0~0.3)' },
-    packingDensity: { type: Type.NUMBER, description: 'ガラの詰まり具合 (0.7~0.9)' },
-    fillRatioL: { type: Type.NUMBER, description: '長さ方向の充填率 (0.7~1.0)' },
-    fillRatioW: { type: Type.NUMBER, description: '幅方向の充填率 (0.7~1.0)' },
-    fillRatioZ: { type: Type.NUMBER, description: '高さ方向の充填率 (0.7~1.0)' },
+    upperArea: { type: Type.NUMBER, description: `荷台床面積に対する上面積の比率 (${ranges.upperArea.min}~${ranges.upperArea.max})` },
+    height: { type: Type.NUMBER, description: `積載高さ m (${ranges.height.min}~${ranges.height.max}, ${ranges.height.step}m刻み)` },
+    slope: { type: Type.NUMBER, description: `前後方向の高低差 m (${ranges.slope.min}~${ranges.slope.max})` },
+    packingDensity: { type: Type.NUMBER, description: `ガラの詰まり具合 (${ranges.packingDensity.min}~${ranges.packingDensity.max})` },
+    fillRatioL: { type: Type.NUMBER, description: `長さ方向の充填率 (${ranges.fillRatioL.min}~${ranges.fillRatioL.max})` },
+    fillRatioW: { type: Type.NUMBER, description: `幅方向の充填率 (${ranges.fillRatioW.min}~${ranges.fillRatioW.max})` },
+    fillRatioZ: { type: Type.NUMBER, description: `高さ方向の充填率 (${ranges.fillRatioZ.min}~${ranges.fillRatioZ.max})` },
     confidenceScore: { type: Type.NUMBER },
     reasoning: { type: Type.STRING },
     // Web-only extensions
@@ -63,7 +64,7 @@ const ESTIMATION_RESPONSE_SCHEMA = {
     }
   },
   required: ["isTargetDetected", "truckType", "materialType", "upperArea", "height", "slope", "packingDensity", "fillRatioL", "fillRatioW", "fillRatioZ", "confidenceScore", "reasoning", "estimatedMaxCapacity", "maxCapacityReasoning", "materialBreakdown"]
-} as const;
+};
 
 async function runSingleInference(
   ai: GoogleGenAI,
@@ -346,12 +347,12 @@ ${WEIGHT_FORMULA_PROMPT}
 
 【抽出パラメータ】
 - material_type: 積載物の種類（土砂/As殻/Co殻/開粒度As殻/混合）
-- height: 積載高さ m（0.05m刻み、後板=0.30m/ヒンジ=0.50mを目印）
-- slope: 前後方向の高低差 m (0.0〜0.3)
-- fillRatioL: 長さ方向の充填率 (0.7〜1.0)
-- fillRatioW: 幅方向の充填率 (0.7〜1.0)
-- fillRatioZ: 高さ方向の充填率 (0.7〜1.0)
-- packingDensity: ガラの詰まり具合 (0.7〜0.9)
+- height: 積載高さ m（${ranges.height.step}m刻み、後板=${ranges.height.calibration['後板']}m/ヒンジ=${ranges.height.calibration['ヒンジ']}mを目印）
+- slope: 前後方向の高低差 m (${ranges.slope.min}〜${ranges.slope.max})
+- fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
+- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
+- packingDensity: ガラの詰まり具合 (${ranges.packingDensity.min}〜${ranges.packingDensity.max})
 - surface_profile: 表面形状（flat/mounded/peaked）
 ` : `
 あなたは積載量推定の専門家です。
@@ -378,12 +379,12 @@ ${WEIGHT_FORMULA_PROMPT}
 
 【必須パラメータ】
 - material_type: 積載物の種類（土砂/As殻/Co殻/開粒度As殻/混合）
-- height: 積載高さ m（0.05m刻み、後板=0.30m/ヒンジ=0.50mを目印）
-- slope: 前後方向の高低差 m (0.0〜0.3)
-- fillRatioL: 長さ方向の充填率 (0.7〜1.0)
-- fillRatioW: 幅方向の充填率 (0.7〜1.0)
-- fillRatioZ: 高さ方向の充填率 (0.7〜1.0)
-- packingDensity: ガラの詰まり具合 (0.7〜0.9)
+- height: 積載高さ m（${ranges.height.step}m刻み、後板=${ranges.height.calibration['後板']}m/ヒンジ=${ranges.height.calibration['ヒンジ']}mを目印）
+- slope: 前後方向の高低差 m (${ranges.slope.min}〜${ranges.slope.max})
+- fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
+- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
+- packingDensity: ガラの詰まり具合 (${ranges.packingDensity.min}〜${ranges.packingDensity.max})
 - surface_profile: 表面形状（flat/mounded/peaked）
 `;
 

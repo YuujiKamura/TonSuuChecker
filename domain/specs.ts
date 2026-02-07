@@ -1,3 +1,6 @@
+// 車両規格・素材密度は prompt-spec.json (SSOT) から取得
+import { truckSpecs as specTrucks, materials as specMaterials, type TruckSpecEntry } from './promptSpec.ts';
+
 // 車両規格マスタ（荷台寸法・容積の基準値）
 export interface TruckSpec {
   maxCapacity: number;      // 最大積載量 (t)
@@ -9,58 +12,35 @@ export interface TruckSpec {
   soilEquivalent: number;   // 土砂換算容量 (m³) ※比重1.8で計算
 }
 
-export const TRUCK_SPECS: Record<string, TruckSpec> = {
-  '2t': {
-    maxCapacity: 2,
-    bedLength: 3.0,
-    bedWidth: 1.6,
-    bedHeight: 0.32,
-    levelVolume: 1.5,
-    heapVolume: 2.0,
-    soilEquivalent: 1.1
-  },
-  '4t': {
-    // いすゞフォワード基準
-    maxCapacity: 4,
-    bedLength: 3.4,
-    bedWidth: 2.06,
-    bedHeight: 0.32,
-    levelVolume: 2.2,
-    heapVolume: 2.9,
-    soilEquivalent: 2.2
-  },
-  '増トン': {
-    // 増トン車: 中型フレームベースで積載量を増やした車両（5〜8t積載）
-    // 日野レンジャー、いすゞフォワード、三菱ファイター等のメーカー純正ラインナップ
-    // 見分け方: 荷台のボリューム感が4tより明らかに大きいが、10tほどではない
-    maxCapacity: 6.5,  // 一般的な増トンダンプ
-    bedLength: 4.0,
-    bedWidth: 2.2,
-    bedHeight: 0.40,
-    levelVolume: 3.5,
-    heapVolume: 4.6,
-    soilEquivalent: 3.6
-  },
-  '10t': {
-    maxCapacity: 10,
-    bedLength: 5.3,
-    bedWidth: 2.3,
-    bedHeight: 0.50,
-    levelVolume: 6.0,
-    heapVolume: 7.8,
-    soilEquivalent: 5.5
+// prompt-spec.json の truckSpecs から soilEquivalent を追加計算して生成
+function buildTruckSpecs(): Record<string, TruckSpec> {
+  const result: Record<string, TruckSpec> = {};
+  for (const [key, s] of Object.entries(specTrucks)) {
+    result[key] = {
+      ...s,
+      soilEquivalent: Math.round(s.maxCapacity / (specMaterials['土砂']?.density ?? 1.8) * 10) / 10,
+    };
   }
-};
+  return result;
+}
 
-// 素材別密度マスタ (t/m³)
-export const MATERIAL_DENSITIES: Record<string, number> = {
-  '土砂': 1.8,
-  'As殻': 2.5,
-  'アスファルトガラ': 2.5,
-  'Co殻': 2.5,
-  'コンクリートガラ': 2.5,
-  '開粒度As殻': 2.35,
-};
+export const TRUCK_SPECS: Record<string, TruckSpec> = buildTruckSpecs();
+
+// 素材別密度マスタ (t/m³) - prompt-spec.json から生成 + エイリアス追加
+function buildMaterialDensities(): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [name, m] of Object.entries(specMaterials)) {
+    result[name] = m.density;
+  }
+  // エイリアス（Web UI で表記揺れに対応）
+  result['アスファルトガラ'] = result['As殻'];
+  result['コンクリートガラ'] = result['Co殻'];
+  return result;
+}
+
+export const MATERIAL_DENSITIES: Record<string, number> = buildMaterialDensities();
+
+// --- 以下は prompt-spec.json に無い独自データ（そのまま維持） ---
 
 // 空隙率基準マスタ（見た目による判断用）
 export const VOID_RATIOS = {
