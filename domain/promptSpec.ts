@@ -1,7 +1,7 @@
 // SSOT loader: prompt-spec.json から全設定値を供給する
 // Rust側の PROMPT_SPEC + accessor 関数に相当
 import spec from '../prompt-spec.json';
-import wasmInit, {
+import {
   buildCorePrompt as wasmBuildCorePrompt,
 } from '../lib/tonsuu-core/tonsuu_core.js';
 
@@ -55,18 +55,19 @@ export function getTruckBedArea(cls: string): number {
 }
 
 // --- WASM integration ---
-let _cachedCorePrompt: string | null = null;
-
-export async function initWasm(): Promise<void> {
-  if (_cachedCorePrompt !== null) return;
-  await wasmInit();
-  _cachedCorePrompt = wasmBuildCorePrompt();
-}
+// Note: WASM module is initialized by calculation.ts's initWasm(), called from index.tsx.
+// Once initialized, wasmBuildCorePrompt() is available without separate init here.
+let _cachedPrompt: string | null = null;
 
 export function buildCorePrompt(): string {
-  if (_cachedCorePrompt !== null) return _cachedCorePrompt;
-  // Fallback: JS implementation (used before WASM init)
-  return spec.promptFormat
-    .replaceAll('{jsonTemplate}', JSON.stringify(spec.jsonTemplate))
-    .replaceAll('{rangeGuide}', spec.rangeGuide);
+  if (_cachedPrompt !== null) return _cachedPrompt;
+  try {
+    _cachedPrompt = wasmBuildCorePrompt();
+    return _cachedPrompt;
+  } catch {
+    // Fallback: JS implementation (used before WASM init completes)
+    return spec.promptFormat
+      .replaceAll('{jsonTemplate}', JSON.stringify(spec.jsonTemplate))
+      .replaceAll('{rangeGuide}', spec.rangeGuide);
+  }
 }
