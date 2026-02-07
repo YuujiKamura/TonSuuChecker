@@ -45,19 +45,15 @@ ${LOAD_GRADES.map(g =>
 
 ※ 過去の実測データは等級別に提供されます。「この見た目で何トンだったか」を参考に推定してください。`;
 
-// 重量計算式プロンプト（共通）
-export const WEIGHT_FORMULA_PROMPT = `重量 = 見かけ体積(m³) × 密度(t/m³) × (1 - 空隙率)
+// 重量計算式プロンプト（コード側計算の説明用）
+export const WEIGHT_FORMULA_PROMPT = `重量計算はコード側で行います。AIは以下の幾何学的パラメータを推定してください:
+- height: 積載高さ m（0.05m刻み、後板=0.30m/ヒンジ=0.50mを目印）
+- slope: 前後方向の高低差 m (0.0〜0.3)
+- fillRatioL/W/Z: 長さ/幅/高さ方向の充填率 (各0.7〜1.0)
+- packingDensity: ガラの詰まり具合 (0.7〜0.9)
 
-■ 素材別パラメータ（重要：素材によって密度・空隙率が大きく異なる）
-${MATERIAL_DENSITIES_PROMPT}
-
-■ 素材別空隙率（必ず素材特性に基づいて適用すること）
-${MATERIAL_VOID_RATIOS_PROMPT}
-
-【計算例】
-- 土砂2.0m³の場合: 2.0 × 1.8 × (1-0.05) = 3.42t
-- As殻2.0m³の場合: 2.0 × 2.5 × (1-0.30) = 3.50t
-- ガラは密度が高いが空隙率も高いため、土砂と同程度の重量になることが多い`;
+■ 素材別密度（参考情報）
+${MATERIAL_DENSITIES_PROMPT}`;
 
 /** SYSTEM_PROMPT を構築する（CLI版と統一: AIはパラメータ推定のみ、計算はコード側） */
 function getSystemPrompt(): string {

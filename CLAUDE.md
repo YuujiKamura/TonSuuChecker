@@ -1,22 +1,12 @@
 # プロジェクト固有のルール
 
-## PR作成の自動化
+## プリコミット設計レビュー
 
-作業が完了してコミット＆プッシュした後は、ユーザーに「PRつくって」と言われる前に自動的にPRを作成すること。
+`ai-code-review` (`C:\Users\yuuji\ai-code-review`) の pre-commit hook でコミット前に自動設計レビューを実行する。
 
-### PR作成の手順
-1. `git log` でコミット履歴を確認
-2. 変更内容からPRタイトルと本文を生成
-3. PR作成用URLを提示（`gh` コマンドが使えない場合）
-
-### PR本文のフォーマット
-```markdown
-## Summary
-- 変更内容を箇条書き
-
-## Test plan
-- [ ] テスト項目
-```
+- フックは `review --hook` で staged diff を AI に投げ、`⚠` が含まれるとコミットをブロックする
+- インストール: `review --hook-install`
+- 手動実行: `review --hook --backend gemini`
 
 ## クォータエラー判定
 

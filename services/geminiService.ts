@@ -331,7 +331,7 @@ export const extractFeatures = async (
 ${WEIGHT_FORMULA_PROMPT}
 
 【タスク】
-車両データは既知なので、積載物のパラメータのみ抽出してください。
+車両データは既知なので、積載物の幾何学的パラメータのみ抽出してください。
 
 【出力形式】JSON配列
 [
@@ -346,13 +346,13 @@ ${WEIGHT_FORMULA_PROMPT}
 
 【抽出パラメータ】
 - material_type: 積載物の種類（土砂/As殻/Co殻/開粒度As殻/混合）
-- load_height_ratio: 後板高さに対する積載高さの比率
-- apparent_volume_m3: 見かけ体積の推定値（m³）
-- void_ratio: 空隙率の推定値（0.10〜0.30）
+- height: 積載高さ m（0.05m刻み、後板=0.30m/ヒンジ=0.50mを目印）
+- slope: 前後方向の高低差 m (0.0〜0.3)
+- fillRatioL: 長さ方向の充填率 (0.7〜1.0)
+- fillRatioW: 幅方向の充填率 (0.7〜1.0)
+- fillRatioZ: 高さ方向の充填率 (0.7〜1.0)
+- packingDensity: ガラの詰まり具合 (0.7〜0.9)
 - surface_profile: 表面形状（flat/mounded/peaked）
-
-【検証】
-見かけ体積 × 密度 × (1-空隙率) ≒ ${actualTonnage}t になるか確認
 ` : `
 あなたは積載量推定の専門家です。
 この画像は実測 ${actualTonnage}t で、${tag === 'OK' ? '適正積載' : '過積載'}と判定されました。
@@ -361,12 +361,9 @@ ${maxCapacity ? `最大積載量は ${maxCapacity}t です。` : ''}
 【重量計算式】
 ${WEIGHT_FORMULA_PROMPT}
 
-【寸法測定の基準】
-大型車ナンバープレート幅: 440mm（44cm）
-→ 画像内のプレート幅ピクセル数を基準に実寸を換算
-
 【タスク】
-この画像から、実測${actualTonnage}tを再現するために必要なパラメータを抽出してください。
+この画像から、実測${actualTonnage}tを再現するために必要な幾何学的パラメータを抽出してください。
+重量計算はコード側で行うので、AIはパラメータ推定のみ行うこと。
 
 【出力形式】JSON配列
 [
@@ -375,22 +372,19 @@ ${WEIGHT_FORMULA_PROMPT}
     "value": 数値または文字列,
     "unit": "単位（あれば）",
     "description": "このパラメータの意味",
-    "reference": "測定基準（例: ナンバープレート幅基準）"
+    "reference": "測定基準（例: 後板高さ基準）"
   }
 ]
 
 【必須パラメータ】
 - material_type: 積載物の種類（土砂/As殻/Co殻/開粒度As殻/混合）
-- plate_width_px: ナンバープレート幅のピクセル数
-- tailgate_height_px: 後板（あおり）高さのピクセル数
-- tailgate_height_m: 後板の実寸（プレート幅基準で換算、単位:m）
-- load_height_ratio: 後板高さに対する積載高さの比率
-- apparent_volume_m3: 見かけ体積の推定値（m³）
-- void_ratio: 空隙率の推定値（0.10〜0.30）
+- height: 積載高さ m（0.05m刻み、後板=0.30m/ヒンジ=0.50mを目印）
+- slope: 前後方向の高低差 m (0.0〜0.3)
+- fillRatioL: 長さ方向の充填率 (0.7〜1.0)
+- fillRatioW: 幅方向の充填率 (0.7〜1.0)
+- fillRatioZ: 高さ方向の充填率 (0.7〜1.0)
+- packingDensity: ガラの詰まり具合 (0.7〜0.9)
 - surface_profile: 表面形状（flat/mounded/peaked）
-
-【検証】
-見かけ体積 × 密度 × (1-空隙率) ≒ ${actualTonnage}t になるか確認
 `;
 
   const response = await ai.models.generateContent({
