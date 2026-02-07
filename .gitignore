@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 tmpclaude-*
 public/pdf.worker.min.mjs
+
+# SSOT: prompt-spec.json は lib/tonsuu-core/ 内のみ（wasm-packで配布）
+/prompt-spec.json
