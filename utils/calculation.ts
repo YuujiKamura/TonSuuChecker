@@ -1,8 +1,7 @@
-// CLI版 calculate_volume_and_tonnage() の忠実なTS移植
-// 全定数は prompt-spec.json (SSOT) から取得
-import { truckSpecs, calculation, getMaterialDensity } from '../domain/promptSpec.ts';
+// WASM版 calculateTonnage - tonsuu-core から計算ロジックを呼び出す
+import init, { calculateTonnage as wasmCalculate } from '../lib/tonsuu-core/tonsuu_core.js';
 
-interface CoreParams {
+export interface CoreParams {
   fillRatioW: number;
   height: number;
   slope: number;
@@ -11,19 +10,24 @@ interface CoreParams {
   materialType: string;
 }
 
+let wasmReady: Promise<void> | null = null;
+
+export function initWasm(): Promise<void> {
+  if (!wasmReady) {
+    wasmReady = init().then(() => {});
+  }
+  return wasmReady;
+}
+
 export function calculateTonnage(params: CoreParams, truckClass?: string): { volume: number; tonnage: number } {
-  const spec = truckClass ? truckSpecs[truckClass] : null;
-  const bedArea = spec ? spec.bedLength * spec.bedWidth : calculation.defaultBedAreaM2;
-
-  const upperAreaM2 = params.fillRatioW * bedArea;
-  const effectiveHeight = Math.max(params.height - params.slope / 2, 0);
-  const volume = (upperAreaM2 + bedArea) / 2 * effectiveHeight;
-
-  const density = getMaterialDensity(params.materialType);
-  const tonnage = volume * density * params.fillRatioZ * params.packingDensity;
-
-  return {
-    volume: Math.round(volume * 1000) / 1000,
-    tonnage: Math.round(tonnage * 100) / 100,
-  };
+  const json = wasmCalculate(
+    params.fillRatioW,
+    params.height,
+    params.slope,
+    params.fillRatioZ,
+    params.packingDensity,
+    params.materialType,
+    truckClass ?? null,
+  );
+  return JSON.parse(json);
 }

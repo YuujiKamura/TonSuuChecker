@@ -1,0 +1,20 @@
+{
+  "name": "tonsuu-core",
+  "type": "module",
+  "collaborators": [
+    "yuuji"
+  ],
+  "description": "トン数チェッカー コアライブラリ (WASM + native)",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "tonsuu_core_bg.wasm",
+    "tonsuu_core.js",
+    "tonsuu_core.d.ts"
+  ],
+  "main": "tonsuu_core.js",
+  "types": "tonsuu_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
