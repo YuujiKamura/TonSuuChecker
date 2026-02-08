@@ -3,7 +3,7 @@
 
 export function buildCorePrompt(): string;
 
-export function calculateTonnage(fill_ratio_w: number, height: number, slope: number, fill_ratio_z: number, packing_density: number, material_type: string, truck_class?: string | null): string;
+export function calculateTonnage(fill_ratio_w: number, height: number, fill_ratio_z: number, packing_density: number, material_type: string, truck_class?: string | null): string;
 
 export function getJsonTemplate(): string;
 
@@ -15,10 +15,10 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly calculateTonnage: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number];
     readonly buildCorePrompt: () => [number, number];
     readonly getJsonTemplate: () => [number, number];
     readonly getRangeGuide: () => [number, number];
-    readonly calculateTonnage: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
     readonly validateParams: (a: number, b: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;

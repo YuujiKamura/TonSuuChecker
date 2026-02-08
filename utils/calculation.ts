@@ -22,7 +22,6 @@ export function calculateTonnage(params: CoreParams, truckClass?: string): { vol
   const json = wasmCalculate(
     params.fillRatioW,
     params.height,
-    0,  // slope: CLI版で削除済み、WASM互換のため0を渡す
     params.fillRatioZ,
     params.packingDensity,
     params.materialType,
