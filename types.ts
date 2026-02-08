@@ -7,9 +7,9 @@ export interface EstimationResult {
   truckType: TruckType | string;
   licensePlate?: string;
   materialType: MaterialType | string;
-  upperArea: number;
+  upperArea?: number;  // Deprecated (CLI版で削除済み、旧データ互換)
   height: number;
-  slope: number;
+  slope?: number;  // Deprecated (CLI版で削除済み、旧データ互換)
   packingDensity: number;
   fillRatioL: number;
   fillRatioW: number;

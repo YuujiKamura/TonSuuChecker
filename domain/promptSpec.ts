@@ -23,9 +23,7 @@ export interface MaterialEntry {
 }
 
 export interface Ranges {
-  upperArea: Range;
   height: HeightRange;
-  slope: Range;
   fillRatioL: Range;
   fillRatioW: Range;
   fillRatioZ: Range;
@@ -57,9 +55,7 @@ export function getTruckBedArea(cls: string): number {
 // クランプ: AI応答値をranges範囲内に強制
 export function clampToRanges(result: Record<string, unknown>): void {
   const fields: [string, Range][] = [
-    ['upperArea', ranges.upperArea],
     ['height', ranges.height],
-    ['slope', ranges.slope],
     ['fillRatioL', ranges.fillRatioL],
     ['fillRatioW', ranges.fillRatioW],
     ['fillRatioZ', ranges.fillRatioZ],
