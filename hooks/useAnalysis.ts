@@ -10,8 +10,6 @@ import { EstimationResult, StockItem, ChatMessage, LearningFeedback, AnalysisPro
 // 学習フィードバック要約の最大文字数
 const FEEDBACK_SUMMARY_MAX_LENGTH = 200;
 
-export type AnalysisMode = 'multi-param' | 'box-overlay';
-
 // BoxOverlayResult -> EstimationResult 変換（既存UIとの互換性のため）
 function boxOverlayToEstimationResult(box: BoxOverlayResult): EstimationResult {
   return {
@@ -75,8 +73,6 @@ export interface UseAnalysisReturn {
   setPendingAnalysis: React.Dispatch<React.SetStateAction<{ base64s: string[]; urls: string[]; capacity?: number } | null>>;
   showCamera: boolean;
   setShowCamera: React.Dispatch<React.SetStateAction<boolean>>;
-  analysisMode: AnalysisMode;
-  setAnalysisMode: React.Dispatch<React.SetStateAction<AnalysisMode>>;
 
   // Derived
   currentItem: StockItem | null;
@@ -135,7 +131,6 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
   const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
   const [pendingAnalysis, setPendingAnalysis] = useState<{base64s: string[], urls: string[], capacity?: number} | null>(null);
   const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
-  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('box-overlay');
   const requestCounter = useRef(0);
   const activeRequestId = useRef(0);
 
@@ -283,8 +278,8 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     try {
       const abortSignal = { get cancelled() { return activeRequestId.current !== requestId; } };
 
-      // Box-overlay mode (geometry-calibrated estimation)
-      if (analysisMode === 'box-overlay' && !isAuto) {
+      // Box-overlay mode (geometry-calibrated estimation) - always used for manual analysis
+      if (!isAuto) {
         const progressHandler = (progress: AnalysisProgress) => {
           if (activeRequestId.current !== requestId) return;
           setAnalysisProgress(progress);
@@ -356,13 +351,10 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
         }
 
         refreshCost();
-        // box-overlay path done, skip multi-param path below
         return;
       }
 
-      // --- Multi-param mode (legacy) ---
-
-      // 自動監視時は Lite モデル (gemini-flash-lite-latest) を優先
+      // --- Auto-monitoring mode (lightweight multi-param scan) ---
       const taggedItems = await getTaggedItems();
       const results = await analyzeGaraImageEnsemble(
         base64s,
@@ -525,7 +517,7 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
         setIsTargetLocked(false);
       }
     }
-  }, [hasApiKey, ensembleTarget, selectedModel, analysisMode, history, currentId, refreshStock, refreshCost, addLog, setShowApiKeySetup]);
+  }, [hasApiKey, ensembleTarget, selectedModel, history, currentId, refreshStock, refreshCost, addLog, setShowApiKeySetup]);
 
   const resetAnalysis = useCallback(() => {
     activeRequestId.current = 0;
@@ -639,8 +631,6 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     setPendingAnalysis,
     showCamera,
     setShowCamera,
-    analysisMode,
-    setAnalysisMode,
 
     // Derived
     currentItem,
