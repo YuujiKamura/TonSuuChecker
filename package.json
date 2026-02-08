@@ -10,7 +10,9 @@
     "report": "npx tsx scripts/generateReport.ts",
     "report:sample": "npx tsx scripts/generateReport.ts --sample",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "gt": "npx tsx tests/ground_truth.ts",
+    "gt:all": "TONSUU_GT_ALL=1 npx tsx tests/ground_truth.ts"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",
