@@ -48,14 +48,11 @@ ${LOAD_GRADES.map(g =>
 
 // 重量計算式プロンプト（コード側計算の説明用）- ranges は prompt-spec.json SSOT から取得
 const h = ranges.height;
-const s = ranges.slope;
-const fr = ranges.fillRatioL; // L/W/Z は同じ range
 const pd = ranges.packingDensity;
 export const WEIGHT_FORMULA_PROMPT = `重量計算はコード側で行います。AIは以下の幾何学的パラメータを推定してください:
 - height: 積載高さ m（${h.step}m刻み、後板=${h.calibration['後板']}m/ヒンジ=${h.calibration['ヒンジ']}mを目印）
-- slope: 前後方向の高低差 m (${s.min}〜${s.max})
 - fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
-- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioW: 上面の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
 - fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
 - packingDensity: ガラの詰まり具合 (${pd.min}〜${pd.max})
 
@@ -85,11 +82,9 @@ function getSystemPrompt(): string {
 
 ### パラメータ推定（重量計算はコード側で行う）
 AIの役割は以下の幾何学的パラメータを画像から推定すること:
-- upperArea: 荷台上面の積載割合 (${ranges.upperArea.min}〜${ranges.upperArea.max})
 - height: 積載高さ m (${h.step}m刻み、後板=${h.calibration['後板']}m/ヒンジ=${h.calibration['ヒンジ']}mを目印に)
-- slope: 前後方向の高低差 m (${s.min}〜${s.max})
 - fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
-- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioW: 上面の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
 - fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
 - packingDensity: ガラの詰まり具合 (${pd.min}〜${pd.max})
 

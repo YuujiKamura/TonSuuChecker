@@ -38,12 +38,10 @@ const ESTIMATION_RESPONSE_SCHEMA = {
     licensePlate: { type: Type.STRING, nullable: true },
     licenseNumber: { type: Type.STRING, nullable: true },
     materialType: { type: Type.STRING },
-    upperArea: { type: Type.NUMBER, minimum: ranges.upperArea.min, maximum: ranges.upperArea.max, description: `荷台床面積に対する上面積の比率 (${ranges.upperArea.min}~${ranges.upperArea.max})` },
     height: { type: Type.NUMBER, minimum: ranges.height.min, maximum: ranges.height.max, description: `積載高さ m (${ranges.height.min}~${ranges.height.max}, ${ranges.height.step}m刻み)` },
-    slope: { type: Type.NUMBER, minimum: ranges.slope.min, maximum: ranges.slope.max, description: `前後方向の高低差 m (${ranges.slope.min}~${ranges.slope.max})` },
     packingDensity: { type: Type.NUMBER, minimum: ranges.packingDensity.min, maximum: ranges.packingDensity.max, description: `ガラの詰まり具合 (${ranges.packingDensity.min}~${ranges.packingDensity.max})` },
     fillRatioL: { type: Type.NUMBER, minimum: ranges.fillRatioL.min, maximum: ranges.fillRatioL.max, description: `長さ方向の充填率 (${ranges.fillRatioL.min}~${ranges.fillRatioL.max})` },
-    fillRatioW: { type: Type.NUMBER, minimum: ranges.fillRatioW.min, maximum: ranges.fillRatioW.max, description: `幅方向の充填率 (${ranges.fillRatioW.min}~${ranges.fillRatioW.max})` },
+    fillRatioW: { type: Type.NUMBER, minimum: ranges.fillRatioW.min, maximum: ranges.fillRatioW.max, description: `上面の充填率 (${ranges.fillRatioW.min}~${ranges.fillRatioW.max})` },
     fillRatioZ: { type: Type.NUMBER, minimum: ranges.fillRatioZ.min, maximum: ranges.fillRatioZ.max, description: `高さ方向の充填率 (${ranges.fillRatioZ.min}~${ranges.fillRatioZ.max})` },
     confidenceScore: { type: Type.NUMBER },
     reasoning: { type: Type.STRING },
@@ -63,7 +61,7 @@ const ESTIMATION_RESPONSE_SCHEMA = {
       }
     }
   },
-  required: ["isTargetDetected", "truckType", "materialType", "upperArea", "height", "slope", "packingDensity", "fillRatioL", "fillRatioW", "fillRatioZ", "confidenceScore", "reasoning", "estimatedMaxCapacity", "maxCapacityReasoning", "materialBreakdown"]
+  required: ["isTargetDetected", "truckType", "materialType", "height", "packingDensity", "fillRatioL", "fillRatioW", "fillRatioZ", "confidenceScore", "reasoning", "estimatedMaxCapacity", "maxCapacityReasoning", "materialBreakdown"]
 };
 
 async function runSingleInference(
@@ -126,7 +124,6 @@ async function runSingleInference(
     const { volume, tonnage } = calculateTonnage({
       fillRatioW: parsed.fillRatioW ?? 0.85,
       height: parsed.height ?? 0,
-      slope: parsed.slope ?? 0,
       fillRatioZ: parsed.fillRatioZ ?? 0.85,
       packingDensity: parsed.packingDensity ?? 0.8,
       materialType: parsed.materialType ?? '',
@@ -349,9 +346,8 @@ ${WEIGHT_FORMULA_PROMPT}
 【抽出パラメータ】
 - material_type: 積載物の種類（土砂/As殻/Co殻/開粒度As殻/混合）
 - height: 積載高さ m（${ranges.height.step}m刻み、後板=${ranges.height.calibration['後板']}m/ヒンジ=${ranges.height.calibration['ヒンジ']}mを目印）
-- slope: 前後方向の高低差 m (${ranges.slope.min}〜${ranges.slope.max})
 - fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
-- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioW: 上面の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
 - fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
 - packingDensity: ガラの詰まり具合 (${ranges.packingDensity.min}〜${ranges.packingDensity.max})
 - surface_profile: 表面形状（flat/mounded/peaked）
@@ -381,9 +377,8 @@ ${WEIGHT_FORMULA_PROMPT}
 【必須パラメータ】
 - material_type: 積載物の種類（土砂/As殻/Co殻/開粒度As殻/混合）
 - height: 積載高さ m（${ranges.height.step}m刻み、後板=${ranges.height.calibration['後板']}m/ヒンジ=${ranges.height.calibration['ヒンジ']}mを目印）
-- slope: 前後方向の高低差 m (${ranges.slope.min}〜${ranges.slope.max})
 - fillRatioL: 長さ方向の充填率 (${ranges.fillRatioL.min}〜${ranges.fillRatioL.max})
-- fillRatioW: 幅方向の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
+- fillRatioW: 上面の充填率 (${ranges.fillRatioW.min}〜${ranges.fillRatioW.max})
 - fillRatioZ: 高さ方向の充填率 (${ranges.fillRatioZ.min}〜${ranges.fillRatioZ.max})
 - packingDensity: ガラの詰まり具合 (${ranges.packingDensity.min}〜${ranges.packingDensity.max})
 - surface_profile: 表面形状（flat/mounded/peaked）

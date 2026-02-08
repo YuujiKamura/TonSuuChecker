@@ -36,9 +36,7 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
   const resultCount = validResults.length;
 
   // Average new core parameters
-  const avgUpperArea = validResults.reduce((sum, r) => sum + (r.upperArea ?? 0), 0) / resultCount;
   const avgHeight = validResults.reduce((sum, r) => sum + (r.height ?? 0), 0) / resultCount;
-  const avgSlope = validResults.reduce((sum, r) => sum + (r.slope ?? 0), 0) / resultCount;
   const avgFillRatioL = validResults.reduce((sum, r) => sum + (r.fillRatioL ?? DEFAULT_FILL_RATIO), 0) / resultCount;
   const avgFillRatioW = validResults.reduce((sum, r) => sum + (r.fillRatioW ?? DEFAULT_FILL_RATIO), 0) / resultCount;
   const avgFillRatioZ = validResults.reduce((sum, r) => sum + (r.fillRatioZ ?? DEFAULT_FILL_RATIO), 0) / resultCount;
@@ -54,7 +52,6 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
   const { volume, tonnage } = calculateTonnage({
     fillRatioW: avgFillRatioW,
     height: avgHeight,
-    slope: avgSlope,
     fillRatioZ: avgFillRatioZ,
     packingDensity: avgPackingDensity,
     materialType: finalMaterialType,
@@ -71,9 +68,7 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
     licensePlate: finalLicensePlate,
     licenseNumber: finalLicenseNumber,
     materialType: finalMaterialType,
-    upperArea: Number(avgUpperArea.toFixed(3)),
     height: Number(avgHeight.toFixed(3)),
-    slope: Number(avgSlope.toFixed(3)),
     fillRatioL: Number(avgFillRatioL.toFixed(3)),
     fillRatioW: Number(avgFillRatioW.toFixed(3)),
     fillRatioZ: Number(avgFillRatioZ.toFixed(3)),
