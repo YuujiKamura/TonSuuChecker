@@ -100,7 +100,7 @@ const ReportView: React.FC<ReportViewProps> = ({
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className={`flex-1 text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>建設廃棄物処理実績集計表</h1>
+        <h1 className={`flex-1 sr-only sm:not-sr-only text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>建設廃棄物処理実績集計表</h1>
         <button
           onClick={toggleTheme}
           className={`p-2 rounded transition-all shrink-0 ${isDark ? 'text-slate-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
