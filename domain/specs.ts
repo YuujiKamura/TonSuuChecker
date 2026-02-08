@@ -6,7 +6,7 @@ export interface TruckSpec {
   maxCapacity: number;      // 最大積載量 (t)
   bedLength: number;        // 荷台長 (m)
   bedWidth: number;         // 荷台幅 (m)
-  bedHeight: number;        // あおり高 (m)
+  bedHeight: number;        // 後板高 (m)
   levelVolume: number;      // すり切り容量 (m³)
   heapVolume: number;       // 山盛り容量 (m³) ※係数1.3
   soilEquivalent: number;   // 土砂換算容量 (m³) ※比重1.8で計算

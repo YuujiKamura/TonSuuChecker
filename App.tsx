@@ -73,6 +73,7 @@ const App: React.FC = () => {
     maxCapacity, setMaxCapacity,
     requestAnalysis, startAnalysis, resetAnalysis,
     handleSaveAsLearning, handleApiKeySetupComplete,
+    analysisMode, setAnalysisMode,
   } = analysis;
 
   return (
@@ -107,6 +108,8 @@ const App: React.FC = () => {
             imageUrl={pendingCapture.url}
             initialMaxCapacity={maxCapacity}
             source={currentId ? 'stock' : 'capture'}
+            analysisMode={analysisMode}
+            onAnalysisModeChange={setAnalysisMode}
             onAnalyze={(capacity) => {
               const { base64, url } = pendingCapture!;
               setPendingCapture(null);
@@ -230,6 +233,9 @@ const App: React.FC = () => {
                     <div className="flex items-center justify-center gap-3 mb-3 text-xs">
                       <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded font-mono">
                         {selectedModel === 'gemini-3-pro-preview' ? 'PRO' : 'Flash'}
+                      </span>
+                      <span className={`px-2 py-1 rounded font-bold ${analysisMode === 'box-overlay' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                        {analysisMode === 'box-overlay' ? '幾何学' : '従来'}
                       </span>
                       <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded">
                         推論 x{ensembleTarget}

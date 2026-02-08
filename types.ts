@@ -105,5 +105,20 @@ export interface StockItem {
   chatHistory?: ChatMessage[];
 }
 
+// Box-overlay geometry-calibrated estimation result
+export interface BoxOverlayResult {
+  method: 'box-overlay';
+  truckClass: string;
+  materialType: string;
+  heightM: number;
+  fillRatioL: number;
+  fillRatioW: number;
+  packingDensity: number;
+  estimatedVolumeM3: number;
+  estimatedTonnage: number;
+  density: number;
+  reasoning: string;
+}
+
 // Re-exports for backward compatibility
 export type { AnalysisProgress } from './types/ui';

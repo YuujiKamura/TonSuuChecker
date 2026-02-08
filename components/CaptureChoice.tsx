@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Brain, Archive, X, Scale, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { SYSTEM_PROMPT, LOAD_GRADES_PROMPT } from '../prompts/weightEstimation';
 
+type AnalysisMode = 'multi-param' | 'box-overlay';
+
 interface CaptureChoiceProps {
   imageUrl: string;
   onAnalyze: (maxCapacity?: number) => void;
@@ -9,9 +11,11 @@ interface CaptureChoiceProps {
   onCancel: () => void;
   initialMaxCapacity?: number;
   source?: 'capture' | 'stock';  // 解析のソース（カメラ/アップロード or ストック）
+  analysisMode?: AnalysisMode;
+  onAnalysisModeChange?: (mode: AnalysisMode) => void;
 }
 
-const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onStock, onCancel, initialMaxCapacity, source = 'capture' }) => {
+const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onStock, onCancel, initialMaxCapacity, source = 'capture', analysisMode = 'box-overlay', onAnalysisModeChange }) => {
   const [customCapacity, setCustomCapacity] = useState<string>(initialMaxCapacity ? initialMaxCapacity.toString() : '');
   const [showPrompt, setShowPrompt] = useState(false);
 
@@ -71,6 +75,38 @@ const CaptureChoice: React.FC<CaptureChoiceProps> = ({ imageUrl, onAnalyze, onSt
               )}
             </div>
           </div>
+
+          {/* 解析方式切替 */}
+          {onAnalysisModeChange && (
+            <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain size={14} className="text-blue-500" />
+                <span className="text-xs font-bold text-slate-400">解析方式</span>
+              </div>
+              <div className="flex rounded-lg overflow-hidden border border-slate-600">
+                <button
+                  onClick={() => onAnalysisModeChange('box-overlay')}
+                  className={`flex-1 px-3 py-2 text-xs font-bold transition-all ${
+                    analysisMode === 'box-overlay'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  幾何学方式
+                </button>
+                <button
+                  onClick={() => onAnalysisModeChange('multi-param')}
+                  className={`flex-1 px-3 py-2 text-xs font-bold transition-all ${
+                    analysisMode === 'multi-param'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  従来方式
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* アクションボタン */}
           <div className="flex gap-4 justify-center">
