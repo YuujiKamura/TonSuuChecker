@@ -1,0 +1,51 @@
+[
+  {
+    "file": "isuzu_white_1121_disposal.jpg",
+    "description": "ISUZU白4tダンプ(11-21) 処分場 As殻少なめ",
+    "actual_tonnage": 3.05,
+    "truck_class": "4t",
+    "material": "As殻"
+  },
+  {
+    "file": "white_1177_loading.jpg",
+    "description": "白4tダンプ(11-77) Kubota重機で積込中 As殻山盛り",
+    "actual_tonnage": 4.32,
+    "truck_class": "4t",
+    "material": "As殻"
+  },
+  {
+    "file": "white_1177_side.jpg",
+    "description": "白4tダンプ(11-77) 別角度 重機横 As殻",
+    "actual_tonnage": 3.83,
+    "truck_class": "4t",
+    "material": "As殻"
+  },
+  {
+    "file": "red_1122_heaped.jpg",
+    "description": "赤4tダンプ(11-22) As殻山盛り 現場撮影",
+    "actual_tonnage": 4.01,
+    "truck_class": "4t",
+    "material": "As殻"
+  },
+  {
+    "file": "isuzu_green_8267_disposal.jpg",
+    "description": "ISUZU緑4tダンプ(82-67) 処分場 As殻/Co殻",
+    "actual_tonnage": 3.25,
+    "truck_class": "4t",
+    "material": "As殻/Co殻"
+  },
+  {
+    "file": "red_1122_disposal.jpg",
+    "description": "赤4tダンプ(11-22) 処分場 As殻少なめ",
+    "actual_tonnage": 3.07,
+    "truck_class": "4t",
+    "material": "As殻"
+  },
+  {
+    "file": "isuzu_white_cloudy_heaped.jpg",
+    "description": "ISUZU白4tダンプ As殻/Co殻 山盛り",
+    "actual_tonnage": 4.30,
+    "truck_class": "4t",
+    "material": "As殻/Co殻"
+  }
+]
