@@ -2,11 +2,35 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { getStockItems, saveStockItem, updateStockItem, addEstimation, getTaggedItems } from '../services/stockService';
 import { extractPhotoTakenAt } from '../services/exifUtils';
 import { analyzeGaraImageEnsemble, mergeResults, setApiKey, isQuotaError, QUOTA_ERROR_MESSAGE } from '../services/geminiService';
+import { analyzeBoxOverlayEnsemble } from '../services/boxOverlayService';
+import { BoxOverlayResult } from '../types';
 import { saveLearningFeedback } from '../services/indexedDBService';
 import { EstimationResult, StockItem, ChatMessage, LearningFeedback, AnalysisProgress } from '../types';
 
 // 学習フィードバック要約の最大文字数
 const FEEDBACK_SUMMARY_MAX_LENGTH = 200;
+
+export type AnalysisMode = 'multi-param' | 'box-overlay';
+
+// BoxOverlayResult -> EstimationResult 変換（既存UIとの互換性のため）
+function boxOverlayToEstimationResult(box: BoxOverlayResult): EstimationResult {
+  return {
+    isTargetDetected: true,
+    truckType: box.truckClass,
+    materialType: box.materialType,
+    height: box.heightM,
+    packingDensity: box.packingDensity,
+    fillRatioL: box.fillRatioL,
+    fillRatioW: box.fillRatioW,
+    fillRatioZ: 1.0, // box-overlay does not use fillRatioZ
+    confidenceScore: 0.8,
+    reasoning: `[box-overlay] ${box.reasoning}`,
+    estimatedVolumeM3: box.estimatedVolumeM3,
+    estimatedTonnage: box.estimatedTonnage,
+    materialBreakdown: [{ material: box.materialType, percentage: 100, density: box.density }],
+    ensembleCount: 1,
+  };
+}
 
 export interface LogEntry {
   id: string;
@@ -51,6 +75,8 @@ export interface UseAnalysisReturn {
   setPendingAnalysis: React.Dispatch<React.SetStateAction<{ base64s: string[]; urls: string[]; capacity?: number } | null>>;
   showCamera: boolean;
   setShowCamera: React.Dispatch<React.SetStateAction<boolean>>;
+  analysisMode: AnalysisMode;
+  setAnalysisMode: React.Dispatch<React.SetStateAction<AnalysisMode>>;
 
   // Derived
   currentItem: StockItem | null;
@@ -109,6 +135,7 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
   const [pendingCapture, setPendingCapture] = useState<{base64: string, url: string} | null>(null);
   const [pendingAnalysis, setPendingAnalysis] = useState<{base64s: string[], urls: string[], capacity?: number} | null>(null);
   const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('box-overlay');
   const requestCounter = useRef(0);
   const activeRequestId = useRef(0);
 
@@ -146,12 +173,23 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     if (!analysisProgress) return '10%';
     const phaseWeights: Record<string, number> = {
       preparing: 10, loading_references: 20, loading_stock: 30,
-      inference: 40, merging: 90, done: 100
+      inference: 40, geometry: 30, fill: 60, calculating: 85,
+      merging: 90, done: 100
     };
     const basePercent = phaseWeights[analysisProgress.phase] || 10;
-    if (analysisProgress.phase === 'inference' && analysisProgress.total && analysisProgress.current) {
-      const inferenceProgress = (analysisProgress.current / analysisProgress.total) * 50;
-      return `${basePercent + inferenceProgress}%`;
+    if (analysisProgress.total && analysisProgress.current) {
+      if (analysisProgress.phase === 'inference') {
+        const inferenceProgress = (analysisProgress.current / analysisProgress.total) * 50;
+        return `${basePercent + inferenceProgress}%`;
+      }
+      if (analysisProgress.phase === 'geometry') {
+        const geoProgress = (analysisProgress.current / analysisProgress.total) * 25;
+        return `${basePercent + geoProgress}%`;
+      }
+      if (analysisProgress.phase === 'fill') {
+        const fillProgress = (analysisProgress.current / analysisProgress.total) * 20;
+        return `${basePercent + fillProgress}%`;
+      }
     }
     return `${basePercent}%`;
   }, [analysisProgress, isTargetLocked]);
@@ -244,6 +282,85 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
 
     try {
       const abortSignal = { get cancelled() { return activeRequestId.current !== requestId; } };
+
+      // Box-overlay mode (geometry-calibrated estimation)
+      if (analysisMode === 'box-overlay' && !isAuto) {
+        const progressHandler = (progress: AnalysisProgress) => {
+          if (activeRequestId.current !== requestId) return;
+          setAnalysisProgress(progress);
+          const elapsed = Math.round((Date.now() - analysisStartTime.current) / 1000);
+          const now = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setProgressLog(prev => {
+            if (prev.length > 0 && prev[prev.length - 1].msg === progress.detail) return prev;
+            return [...prev, { time: now, msg: progress.detail, elapsed }];
+          });
+        };
+
+        const boxResult = await analyzeBoxOverlayEnsemble(
+          base64s,
+          ensembleTarget,
+          '4t',    // default truck class for box-overlay
+          'As殻',  // default material
+          undefined, // onProgress (not used for box-overlay)
+          abortSignal,
+          selectedModel,
+          progressHandler,
+        );
+
+        if (activeRequestId.current !== requestId) return;
+
+        const merged = boxOverlayToEstimationResult(boxResult);
+        setIsRateLimited(false);
+
+        const itemId = currentId || crypto.randomUUID();
+        setPendingResult(merged);
+        setCurrentId(itemId);
+        setRawInferences([merged]);
+
+        // Save to stock
+        if (base64s.length > 0) {
+          try {
+            const existingStock = await getStockItems();
+            let existingItem: StockItem | undefined;
+            if (currentId) {
+              existingItem = existingStock.find(item => item.id === currentId);
+            }
+            if (!existingItem) {
+              existingItem = existingStock.find(item =>
+                item.imageUrls.length === urls.length && item.imageUrls[0] === urls[0]
+              );
+            }
+            if (existingItem) {
+              await addEstimation(existingItem.id, merged);
+              if (!existingItem.photoTakenAt && base64s[0]) {
+                const photoTakenAt = await extractPhotoTakenAt(base64s[0]);
+                if (photoTakenAt) await updateStockItem(existingItem.id, { photoTakenAt });
+              }
+            } else {
+              const photoTakenAt = base64s[0] ? await extractPhotoTakenAt(base64s[0]) : undefined;
+              const stockItem: StockItem = {
+                id: itemId,
+                timestamp: Date.now(),
+                photoTakenAt,
+                base64Images: base64s,
+                imageUrls: urls,
+                result: merged,
+                estimations: [merged],
+              };
+              await saveStockItem(stockItem);
+            }
+            await refreshStock();
+          } catch (err) {
+            console.error('ストック追加エラー:', err);
+          }
+        }
+
+        refreshCost();
+        // box-overlay path done, skip multi-param path below
+        return;
+      }
+
+      // --- Multi-param mode (legacy) ---
 
       // 自動監視時は Lite モデル (gemini-flash-lite-latest) を優先
       const taggedItems = await getTaggedItems();
@@ -408,7 +525,7 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
         setIsTargetLocked(false);
       }
     }
-  }, [hasApiKey, ensembleTarget, selectedModel, history, currentId, refreshStock, refreshCost, addLog, setShowApiKeySetup]);
+  }, [hasApiKey, ensembleTarget, selectedModel, analysisMode, history, currentId, refreshStock, refreshCost, addLog, setShowApiKeySetup]);
 
   const resetAnalysis = useCallback(() => {
     activeRequestId.current = 0;
@@ -522,6 +639,8 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
     setPendingAnalysis,
     showCamera,
     setShowCamera,
+    analysisMode,
+    setAnalysisMode,
 
     // Derived
     currentItem,
