@@ -27,9 +27,9 @@ const FILL_PROMPT =
   "fillRatioL (0.3~0.9): fraction of bed LENGTH covered by cargo AT THE TOP (peak/ridge). " +
   "From a rear view, the bed length is NOT visible. " +
   "If you cannot clearly determine fillRatioL, set it to 0.8. " +
-  "fillRatioW (0.3~0.9): fraction of bed WIDTH covered by cargo at ~90% of peak height (slightly below the very top). " +
+  "fillRatioW (0.7~0.9): fraction of bed WIDTH covered by cargo at ~90% of peak height (slightly below the very top). " +
   "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
-  "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
+  "0.8~0.9 = nearly flat top. 0.7~0.8 = moderate mound. " +
   "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled. " +
   "KEY CUE: Look at the コボレーン (spill guard frames) on top of the side panels. " +
   "If any part of these frames is visible (not hidden by cargo), set taper 0.5~0.8 — the more frame visible, the lower. " +
@@ -478,7 +478,7 @@ export const analyzeBoxOverlayEnsemble = async (
   }
 
   const fillL = clamp(average(fillLList), 0.3, 0.9);
-  const fillW = clamp(average(fillWList), 0.3, 0.9);
+  const fillW = clamp(average(fillWList), 0.7, 0.9);
   const taper = clamp(average(taperList), 0.5, 1.0);
   const packing = clamp(average(packingList), 0.7, 0.9);
 
