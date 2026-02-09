@@ -8,6 +8,8 @@ import { saveAnalysisLog } from "./indexedDBService";
 import {
   calculateTonnage as wasmCalculateTonnage,
   heightFromGeometry as wasmHeightFromGeometry,
+  parseGeometry as wasmParseGeometry,
+  parseFill as wasmParseFill,
 } from '../lib/tonsuu-core/tonsuu_core.js';
 import spec from '../prompt-spec.json';
 
@@ -50,7 +52,14 @@ async function detectGeometry(
   }
 
   if (!fullText) throw new Error("Geometry: APIレスポンスが空です");
-  const parsed = parseJsonSafe<GeometryResponse>(fullText, "Geometry");
+  const wasmResult = JSON.parse(wasmParseGeometry(fullText));
+  if (!wasmResult.ok) throw new Error(`Geometry: ${wasmResult.error}`);
+  const parsed: GeometryResponse = {
+    plateBox: wasmResult.plateBox,
+    tailgateTopY: wasmResult.tailgateTopY,
+    tailgateBottomY: wasmResult.tailgateBottomY,
+    cargoTopY: wasmResult.cargoTopY,
+  };
   return { parsed, rawText: fullText };
 }
 
@@ -82,7 +91,15 @@ async function estimateFill(
   }
 
   if (!fullText) throw new Error("Fill: APIレスポンスが空です");
-  const parsed = parseJsonSafe<FillResponse>(fullText, "Fill");
+  const wasmResult = JSON.parse(wasmParseFill(fullText));
+  if (!wasmResult.ok) throw new Error(`Fill: ${wasmResult.error}`);
+  const parsed: FillResponse = {
+    fillRatioL: wasmResult.fillRatioL,
+    fillRatioW: wasmResult.fillRatioW,
+    taperRatio: wasmResult.taperRatio,
+    packingDensity: wasmResult.packingDensity,
+    reasoning: wasmResult.reasoning,
+  };
   return { parsed, rawText: fullText };
 }
 
@@ -134,37 +151,6 @@ function calculateBoxOverlay(
 }
 
 // --- Helpers ---
-
-/** APIレスポンスから最初のJSONオブジェクトを抽出してパースする */
-function parseJsonSafe<T>(text: string, label: string): T {
-  // まず素直にパース
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    // 失敗した場合：最初の { から対応する } までを抽出
-    // 文字列リテラル内の {} はスキップする
-    const start = text.indexOf('{');
-    if (start === -1) throw new Error(`${label}: JSONオブジェクトが見つかりません`);
-    let depth = 0;
-    let inString = false;
-    let escape = false;
-    for (let i = start; i < text.length; i++) {
-      const ch = text[i];
-      if (escape) { escape = false; continue; }
-      if (ch === '\\' && inString) { escape = true; continue; }
-      if (ch === '"') { inString = !inString; continue; }
-      if (inString) continue;
-      if (ch === '{') depth++;
-      else if (ch === '}') depth--;
-      if (depth === 0) {
-        const extracted = text.slice(start, i + 1);
-        console.warn(`${label}: JSONに余分なテキストあり、抽出してパース (pos ${start}-${i})`);
-        return JSON.parse(extracted) as T;
-      }
-    }
-    throw new Error(`${label}: 不完全なJSONオブジェクト`);
-  }
-}
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max);
