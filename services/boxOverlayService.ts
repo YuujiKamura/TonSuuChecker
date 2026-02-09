@@ -364,7 +364,7 @@ export const analyzeBoxOverlayEnsemble = async (
       endPhase(`幾何学検出${runLabel}`);
       await notify({
         phase: "geometry",
-        detail: `幾何学検出${runLabel}: 荷高=${cargoHeightM.toFixed(2)}m`,
+        detail: `幾何学検出${runLabel}: H=${cargoHeightM.toFixed(2)}m [${scaleMethod}] tgTop=${tgTop.toFixed(3)} cargo=${cargoTop.toFixed(3)} tgBot=${tgBot.toFixed(3)}`,
         current: i + 1,
         total: ensembleCount,
       }, true);
