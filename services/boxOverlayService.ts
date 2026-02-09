@@ -163,6 +163,9 @@ function round4(v: number): number {
 
 // --- Main entry point ---
 
+// 段階遷移の最小表示時間（ms）。瞬時に切り替わると読めないため。
+const STAGE_MIN_DISPLAY_MS = 400;
+
 export const analyzeBoxOverlayEnsemble = async (
   base64Images: string[],
   ensembleCount: number = 2,
@@ -173,11 +176,19 @@ export const analyzeBoxOverlayEnsemble = async (
   modelName: string = "gemini-3-flash-preview",
   onDetailedProgress?: (progress: AnalysisProgress) => void,
 ): Promise<BoxOverlayResult> => {
-  const notify = (progress: AnalysisProgress) => {
+  let lastNotifyTime = 0;
+  const notify = async (progress: AnalysisProgress, wait = false) => {
+    if (wait && lastNotifyTime > 0) {
+      const elapsed = Date.now() - lastNotifyTime;
+      if (elapsed < STAGE_MIN_DISPLAY_MS) {
+        await new Promise(r => setTimeout(r, STAGE_MIN_DISPLAY_MS - elapsed));
+      }
+    }
     onDetailedProgress?.(progress);
+    lastNotifyTime = Date.now();
   };
 
-  notify({ phase: "preparing", detail: "Box-overlay解析を準備中..." });
+  await notify({ phase: "preparing", detail: "Box-overlay解析を準備中..." });
 
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("APIキーが設定されていません");
@@ -199,12 +210,12 @@ export const analyzeBoxOverlayEnsemble = async (
 
     const runLabel = ensembleCount > 1 ? ` (${i + 1}/${ensembleCount})` : "";
 
-    notify({
+    await notify({
       phase: "geometry",
       detail: `Gemini APIにリクエスト送信中...${runLabel}`,
       current: i + 1,
       total: ensembleCount,
-    });
+    }, true);
 
     try {
       const geo = await detectGeometry(ai, imageParts, modelName, () => {
@@ -257,12 +268,12 @@ export const analyzeBoxOverlayEnsemble = async (
       console.log(
         `  tg_h_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
       );
-      notify({
+      await notify({
         phase: "geometry",
         detail: `幾何学検出${runLabel}: 荷高=${cargoHeightM.toFixed(2)}m`,
         current: i + 1,
         total: ensembleCount,
-      });
+      }, true);
       heightMList.push(cargoHeightM);
     } catch (err) {
       notify({
@@ -295,12 +306,12 @@ export const analyzeBoxOverlayEnsemble = async (
 
     const fillRunLabel = ensembleCount > 1 ? ` (${i + 1}/${ensembleCount})` : "";
 
-    notify({
+    await notify({
       phase: "fill",
       detail: `充填率推定 リクエスト送信中...${fillRunLabel}`,
       current: i + 1,
       total: ensembleCount,
-    });
+    }, true);
 
     try {
       const fill = await estimateFill(ai, imageParts, modelName, () => {
@@ -317,12 +328,12 @@ export const analyzeBoxOverlayEnsemble = async (
       const fw = fill.fillRatioW ?? 0.8;
       const pd = fill.packingDensity ?? 0.7;
 
-      notify({
+      await notify({
         phase: "fill",
         detail: `充填率推定${fillRunLabel}: L=${fl} W=${fw} P=${pd}`,
         current: i + 1,
         total: ensembleCount,
-      });
+      }, true);
 
       console.log(`Fill run ${i + 1}: L=${fl}, W=${fw}, p=${pd}`);
 
@@ -352,7 +363,7 @@ export const analyzeBoxOverlayEnsemble = async (
   const packing = clamp(average(packingList), 0.5, 0.9);
 
   // Step 3: Calculate tonnage
-  notify({ phase: "calculating", detail: "体積・重量計算中..." });
+  await notify({ phase: "calculating", detail: "体積・重量計算中..." }, true);
 
   const calc = calculateBoxOverlay(heightM, fillL, fillW, packing, truckClass, material);
 
