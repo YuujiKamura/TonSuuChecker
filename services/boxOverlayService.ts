@@ -13,14 +13,13 @@ const GEOMETRY_PROMPT =
   "plateBox = bounding box of the rear license plate (normalized 0-1, [left,top,right,bottom]). " +
   "tailgateTopY = Y coordinate (normalized 0-1) of the TOP edge of the tailgate (後板上端/rim). " +
   "tailgateBottomY = Y coordinate (normalized 0-1) of the BOTTOM edge of the tailgate (後板下端). " +
-  "cargoTopY = Y coordinate (normalized 0-1) of the HIGHEST point of the cargo pile. " +
+  "cargoTopY = Y coordinate (normalized 0-1) of the HIGHEST point of the cargo mound. " +
+  "This is NOT the cargo surface near the tailgate — it is the absolute highest pixel of any cargo visible in the image. " +
+  "Cargo often extends well above the tailgate rim. Scan the entire image top-to-bottom to find the highest cargo pixel. " +
   "The tailgate is the flat metal panel at the rear of the truck bed. " +
   "tailgateTopY < tailgateBottomY < plateBox[3] (top has smaller Y). " +
-  "cargoTopY < tailgateTopY if cargo is heaped above the rim. " +
-  "cargoTopY > tailgateTopY if cargo is below the rim. " +
-  "IMPORTANT: In near-direct rear views, cargo piled above the tailgate may appear " +
-  "compressed in the vertical direction due to perspective. Look carefully at the actual " +
-  "top edge of the cargo mound — it is often higher than it first appears. " +
+  "cargoTopY < tailgateTopY if cargo is heaped above the rim (common). " +
+  "cargoTopY > tailgateTopY only if cargo is below the rim (rare, nearly empty). " +
   "All coordinates normalized 0.0-1.0.";
 
 const FILL_PROMPT =
