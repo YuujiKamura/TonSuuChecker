@@ -31,16 +31,16 @@ const FILL_PROMPT =
   "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
   "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
   "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled. " +
-  "From the rear, judge depth by the cargo mound's apparent size and position: " +
-  "A mound that reaches the tailgate and fills the full frame = high taper (0.8~1.0). " +
-  "A mound that appears to sit back from the tailgate with space above the tailgate top = moderate taper (0.7~0.8). " +
-  "A small, distant-looking mound that only occupies the far half of the bed = low taper (0.5~0.7). " +
-  "Also check the cargo surface slope: if the top surface slopes steeply downward toward the rear, " +
-  "cargo is concentrated toward the front. " +
-  "1.0 = cargo fills full bed length up to the tailgate. " +
-  "0.8~0.9 = nearly full, slight gap at front or back. " +
-  "0.7~0.8 = moderate gap, cargo clearly shorter than bed. " +
-  "0.5~0.7 = cargo concentrated in front, mound appears distant and small. " +
+  "KEY CUE: Look at the コボレーン (spill guard frames) on top of the side panels. " +
+  "If these frames are visible toward the front of the truck (not hidden by cargo), " +
+  "the cargo does NOT fill the full bed length — it slopes down along the length. " +
+  "More visible frame toward the front = lower taper. " +
+  "Also check the cargo surface slope from rear view: " +
+  "if the top surface slopes downward toward the front, cargo is tapered. " +
+  "1.0 = cargo fills full bed length, frames hidden by cargo on both sides. " +
+  "0.8~0.9 = nearly full, frames barely visible at the very front. " +
+  "0.7~0.8 = frames visible in front half, cargo clearly slopes down. " +
+  "0.5~0.7 = cargo concentrated near rear, large portion of frames exposed. " +
   "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
   "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
