@@ -313,25 +313,36 @@ export const analyzeBoxOverlayEnsemble = async (
         `Geometry run ${i + 1}: plate=${JSON.stringify(plateBox)}, tg_top=${tgTop.toFixed(3)}, tg_bot=${tgBot.toFixed(3)}, cargo_top=${cargoTop.toFixed(3)}`
       );
 
-      if (tgTop <= 0 || tgBot <= 0 || tgTop >= tgBot) {
+      if (tgTop <= 0) {
         notify({
           phase: "geometry",
-          detail: `幾何学検出${runLabel}: 後板位置が不正、スキップ`,
+          detail: `幾何学検出${runLabel}: 後板上端が不正、スキップ`,
           current: i + 1,
           total: ensembleCount,
         });
-        console.warn(`Geometry run ${i + 1}: tailgate detection invalid, skip`);
+        console.warn(`Geometry run ${i + 1}: tailgateTopY invalid, skip`);
         continue;
       }
 
-      // Convert cargoTopY to height in meters above bed floor
-      const tgHeightNorm = tgBot - tgTop;
-      const mPerNorm = spec.bedHeight / tgHeightNorm;
-      const cargoHeightNorm = tgBot - cargoTop;
-      const cargoHeightM = clamp(cargoHeightNorm * mPerNorm, 0.0, 0.8);
+      // ナンバープレート高さ（大板 = 220mm）をスケール基準にする
+      // → 後板下端が写っていなくても正確に計算可能
+      const PLATE_HEIGHT_M = 0.22; // 日本の大板ナンバープレート高さ
+      const plateHeightNorm = plateBox[3] - plateBox[1];
+      if (plateHeightNorm <= 0.01) {
+        console.warn(`Geometry run ${i + 1}: plate height too small, skip`);
+        continue;
+      }
+      const mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
+      // 荷高 = 後板高さ + (後板上端から荷頂までの距離)
+      // cargoTop < tgTop → 荷がリムより上 → 正の加算
+      // cargoTop > tgTop → 荷がリムより下 → 負の加算（高さが後板高以下）
+      const cargoHeightM = clamp(
+        spec.bedHeight + (tgTop - cargoTop) * mPerNorm,
+        0.0, 0.8,
+      );
 
       console.log(
-        `  tg_h_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
+        `  plate_h_norm=${plateHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m (tgBot=${tgBot.toFixed(3)} unused)`
       );
       endPhase(`幾何学検出${runLabel}`);
       await notify({
