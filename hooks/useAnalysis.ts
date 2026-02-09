@@ -4,6 +4,7 @@ import { extractPhotoTakenAt } from '../services/exifUtils';
 import { analyzeGaraImageEnsemble, mergeResults, setApiKey, isQuotaError, QUOTA_ERROR_MESSAGE } from '../services/geminiService';
 import { analyzeBoxOverlayEnsemble } from '../services/boxOverlayService';
 import { BoxOverlayResult } from '../types';
+import { truckSpecs } from '../domain/promptSpec';
 import { saveLearningFeedback } from '../services/indexedDBService';
 import { EstimationResult, StockItem, ChatMessage, LearningFeedback, AnalysisProgress } from '../types';
 
@@ -12,6 +13,9 @@ const FEEDBACK_SUMMARY_MAX_LENGTH = 200;
 
 // BoxOverlayResult -> EstimationResult 変換（既存UIとの互換性のため）
 function boxOverlayToEstimationResult(box: BoxOverlayResult): EstimationResult {
+  // truckClassからprompt-specのmaxCapacityを取得
+  const specMaxCapacity = truckSpecs[box.truckClass]?.maxCapacity;
+
   return {
     isTargetDetected: true,
     truckType: box.truckClass,
@@ -26,6 +30,7 @@ function boxOverlayToEstimationResult(box: BoxOverlayResult): EstimationResult {
     reasoning: `[box-overlay] ${box.reasoning}`,
     estimatedVolumeM3: box.estimatedVolumeM3,
     estimatedTonnage: box.estimatedTonnage,
+    estimatedMaxCapacity: specMaxCapacity,
     materialBreakdown: [{ material: box.materialType, percentage: 100, density: box.density }],
     ensembleCount: 1,
     phaseTimings: box.phaseTimings,
