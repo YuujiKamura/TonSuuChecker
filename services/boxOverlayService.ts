@@ -321,9 +321,10 @@ export const analyzeBoxOverlayEnsemble = async (
         continue;
       }
 
-      // スケール計算: プレート・後板の両方を試し、使えるものを併用
+      // スケール計算: 後板優先、後板が使えないときのみプレート
+      // プレートは一部しか写っていないことがあり、スケールが不正確になりやすい
       const PLATE_HEIGHT_M = 0.22; // 日本の大板ナンバープレート高さ
-      const PLATE_MIN_NORM = 0.03; // これ以下はプレートが小さすぎて不正確
+      const PLATE_MIN_NORM = 0.03;
 
       const plateHeightNorm = plateBox && plateBox.length === 4 ? plateBox[3] - plateBox[1] : 0;
       const hasPlate = plateHeightNorm > PLATE_MIN_NORM;
@@ -340,34 +341,22 @@ export const analyzeBoxOverlayEnsemble = async (
         continue;
       }
 
-      // 各方式で荷高を算出
-      let heightByPlate: number | null = null;
-      let heightByTailgate: number | null = null;
-
-      if (hasPlate) {
-        const mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
-        heightByPlate = spec.bedHeight + (tgTop - cargoTop) * mPerNorm;
-        console.log(`  plate: plateH_norm=${plateHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${heightByPlate.toFixed(3)}m`);
-      }
-      if (hasTailgate) {
-        const tgHeightNorm = tgBot - tgTop;
-        const mPerNorm = spec.bedHeight / tgHeightNorm;
-        heightByTailgate = (tgBot - cargoTop) * mPerNorm;
-        console.log(`  tailgate: tgH_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${heightByTailgate.toFixed(3)}m`);
-      }
-
-      // 両方あれば平均、片方だけならそちらを使用
       let cargoHeightM: number;
       let scaleMethod: string;
-      if (heightByPlate != null && heightByTailgate != null) {
-        cargoHeightM = (heightByPlate + heightByTailgate) / 2;
-        scaleMethod = "avg";
-      } else if (heightByPlate != null) {
-        cargoHeightM = heightByPlate;
-        scaleMethod = "plate";
-      } else {
-        cargoHeightM = heightByTailgate!;
+
+      if (hasTailgate) {
+        // 優先: 後板基準（後板の上下端が両方見えている）
+        const tgHeightNorm = tgBot - tgTop;
+        const mPerNorm = spec.bedHeight / tgHeightNorm;
+        cargoHeightM = (tgBot - cargoTop) * mPerNorm;
         scaleMethod = "tailgate";
+        console.log(`  tailgate: tgH_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${cargoHeightM.toFixed(3)}m`);
+      } else {
+        // フォールバック: プレート基準（後板下端が見えないとき）
+        const mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
+        cargoHeightM = spec.bedHeight + (tgTop - cargoTop) * mPerNorm;
+        scaleMethod = "plate";
+        console.log(`  plate: plateH_norm=${plateHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${cargoHeightM.toFixed(3)}m`);
       }
       cargoHeightM = clamp(cargoHeightM, 0.0, 0.8);
 
