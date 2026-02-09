@@ -120,13 +120,13 @@ async function estimateFill(
   return parseJsonSafe<FillResponse>(fullText, "Fill");
 }
 
-/** L方向テーパー補間 + W方向単純平均で体積を計算。
+/** L方向テーパー乗算 + W方向単純平均で体積を計算。
  *  fillL/fillW = mound上端面の充填率（0~1）
  *  底面の充填率は BOTTOM_FILL（0.9）とする。
- *  taper = L方向の底面寄り補間ウェイト（0.5~1.0）
- *    1.0 = 箱型（L方向は底面のまま）
- *    0.5 = 線形テーパー（底面と上面の単純平均）
- *  effectiveL = fillL + (BOTTOM_FILL - fillL) × taper
+ *  taper = L方向の形状係数（0.5~1.0）
+ *    1.0 = 箱型（fillLそのまま）
+ *    0.5 = 急斜面（fillLの半分）
+ *  effectiveL = fillL × taper
  *  effectiveW = (BOTTOM_FILL + fillW) / 2   ← W方向は単純平均
  *  V = bedL × bedW × H × effectiveL × effectiveW
  */
@@ -145,8 +145,8 @@ function calculateBoxOverlay(
   if (!spec) throw new Error(`Unknown truck class: ${truckClass}`);
   const density = materials[materialType]?.density ?? 2.5;
 
-  // L方向: taperで底面と上面を補間（後ろから見えないのでtaperで推定）
-  const effectiveL = fillL + (BOTTOM_FILL - fillL) * taper;
+  // L方向: fillL × taper（テーパーで減衰、増やさない）
+  const effectiveL = fillL * taper;
   // W方向: 底面と上面の単純平均（後ろから見えるのでAI値をそのまま使用）
   const effectiveW = (BOTTOM_FILL + fillW) / 2;
   const volume = spec.bedLength * spec.bedWidth * heightM * effectiveL * effectiveW;
