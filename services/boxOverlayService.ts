@@ -32,15 +32,9 @@ const FILL_PROMPT =
   "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
   "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled. " +
   "KEY CUE: Look at the コボレーン (spill guard frames) on top of the side panels. " +
-  "If these frames are visible toward the front of the truck (not hidden by cargo), " +
-  "the cargo does NOT fill the full bed length — it slopes down along the length. " +
-  "More visible frame toward the front = lower taper. " +
-  "Also check the cargo surface slope from rear view: " +
-  "if the top surface slopes downward toward the front, cargo is tapered. " +
-  "1.0 = cargo fills full bed length, frames hidden by cargo on both sides. " +
-  "0.8~0.9 = nearly full, frames barely visible at the very front. " +
-  "0.7~0.8 = frames visible in front half, cargo clearly slopes down. " +
-  "0.5~0.7 = cargo concentrated near rear, large portion of frames exposed. " +
+  "If any part of these frames is visible (not hidden by cargo), set taper 0.5~0.8 — the more frame visible, the lower. " +
+  "1.0 = frames completely hidden, cargo fills full length. " +
+  "0.8~0.9 = frames barely visible at the very front only. " +
   "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
   "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
