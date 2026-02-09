@@ -20,7 +20,8 @@ function boxOverlayToEstimationResult(box: BoxOverlayResult): EstimationResult {
     packingDensity: box.packingDensity,
     fillRatioL: box.fillRatioL,
     fillRatioW: box.fillRatioW,
-    fillRatioZ: 1.0, // box-overlay does not use fillRatioZ
+    fillRatioZ: 1.0,
+    taperRatio: box.taperRatio,
     confidenceScore: 0.8,
     reasoning: `[box-overlay] ${box.reasoning}`,
     estimatedVolumeM3: box.estimatedVolumeM3,

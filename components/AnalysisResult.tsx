@@ -291,6 +291,34 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
               </div>
             </div>
 
+            {/* 計算パラメータ */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 mb-1">計算パラメータ</p>
+              <div className="bg-slate-950/50 rounded-lg p-2 font-mono text-xs space-y-0.5">
+                {[
+                  { label: '荷高 (H)', value: result.height, unit: 'm' },
+                  { label: '長さ充填率 (L)', value: result.fillRatioL, unit: '' },
+                  { label: '幅充填率 (W)', value: result.fillRatioW, unit: '' },
+                  ...(result.taperRatio != null ? [{ label: '錐台係数 (T)', value: result.taperRatio, unit: '' }] : []),
+                  { label: '充填密度 (P)', value: result.packingDensity, unit: '' },
+                  { label: '材料密度', value: result.materialBreakdown[0]?.density, unit: 't/m³' },
+                ].map((p, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <span className="text-slate-400">{p.label}</span>
+                    <span className="text-white">{p.value != null ? p.value.toFixed(3) : '-'}{p.unit && <span className="text-slate-500 ml-1">{p.unit}</span>}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                  <span className="text-slate-400">体積</span>
+                  <span className="text-cyan-400">{result.estimatedVolumeM3.toFixed(4)}<span className="text-slate-500 ml-1">m³</span></span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold">推定重量</span>
+                  <span className="text-yellow-400 font-bold">{result.estimatedTonnage.toFixed(2)}<span className="text-slate-500 ml-1">t</span></span>
+                </div>
+              </div>
+            </div>
+
             {/* フェーズタイミング */}
             {result.phaseTimings && result.phaseTimings.length > 0 && (
               <div>
