@@ -90,7 +90,7 @@ async function detectGeometry(
   }
 
   if (!fullText) throw new Error("Geometry: APIレスポンスが空です");
-  return JSON.parse(fullText) as GeometryResponse;
+  return parseJsonSafe<GeometryResponse>(fullText, "Geometry");
 }
 
 async function estimateFill(
@@ -121,7 +121,7 @@ async function estimateFill(
   }
 
   if (!fullText) throw new Error("Fill: APIレスポンスが空です");
-  return JSON.parse(fullText) as FillResponse;
+  return parseJsonSafe<FillResponse>(fullText, "Fill");
 }
 
 function calculateBoxOverlay(
@@ -144,6 +144,29 @@ function calculateBoxOverlay(
 }
 
 // --- Helpers ---
+
+/** APIレスポンスから最初のJSONオブジェクトを抽出してパースする */
+function parseJsonSafe<T>(text: string, label: string): T {
+  // まず素直にパース
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // 失敗した場合：最初の { から対応する } までを抽出
+    const start = text.indexOf('{');
+    if (start === -1) throw new Error(`${label}: JSONオブジェクトが見つかりません`);
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') depth--;
+      if (depth === 0) {
+        const extracted = text.slice(start, i + 1);
+        console.warn(`${label}: JSONに余分なテキストあり、抽出してパース (pos ${start}-${i})`);
+        return JSON.parse(extracted) as T;
+      }
+    }
+    throw new Error(`${label}: 不完全なJSONオブジェクト`);
+  }
+}
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max);
