@@ -361,12 +361,19 @@ export const analyzeBoxOverlayEnsemble = async (
       console.log(
         `  scale=${scaleMethod}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
       );
+
+      // ジオメトリ生座標をパラメータに反映
+      partialParams.tgTopY = round3(tgTop);
+      partialParams.cargoTopY = round3(cargoTop);
+      partialParams.tgBotY = round3(tgBot);
+
       endPhase(`幾何学検出${runLabel}`);
       await notify({
         phase: "geometry",
-        detail: `幾何学検出${runLabel}: H=${cargoHeightM.toFixed(2)}m [${scaleMethod}] tgTop=${tgTop.toFixed(3)} cargo=${cargoTop.toFixed(3)} tgBot=${tgBot.toFixed(3)}`,
+        detail: `幾何学検出${runLabel}: 荷高=${cargoHeightM.toFixed(2)}m [${scaleMethod}]`,
         current: i + 1,
         total: ensembleCount,
+        params: { ...partialParams },
       }, true);
       heightMList.push(cargoHeightM);
     } catch (err) {
@@ -496,6 +503,9 @@ export const analyzeBoxOverlayEnsemble = async (
     method: "box-overlay",
     truckClass,
     materialType: material,
+    tgTopY: partialParams.tgTopY,
+    cargoTopY: partialParams.cargoTopY,
+    tgBotY: partialParams.tgBotY,
     heightM: round3(heightM),
     fillRatioL: round3(fillL),
     fillRatioW: round3(fillW),

@@ -15,6 +15,9 @@ interface ParamDef {
 }
 
 const PARAM_DEFS: ParamDef[] = [
+  { key: 'tgTopY', label: '後板上端Y', shortLabel: 'tgT', unit: '', decimals: 3 },
+  { key: 'cargoTopY', label: '荷頂Y', shortLabel: 'cgT', unit: '', decimals: 3 },
+  { key: 'tgBotY', label: '後板下端Y', shortLabel: 'tgB', unit: '', decimals: 3 },
   { key: 'heightM', label: '荷高 (H)', shortLabel: 'H', unit: 'm', decimals: 3 },
   { key: 'fillRatioL', label: '長さ充填率 (L)', shortLabel: 'L', unit: '', decimals: 3 },
   { key: 'fillRatioW', label: '幅充填率 (W)', shortLabel: 'W', unit: '', decimals: 3 },

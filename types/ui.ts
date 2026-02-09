@@ -1,5 +1,10 @@
 // 推論中に段階的に埋まる計算パラメータ
 export interface PartialCalcParams {
+  // ジオメトリ生座標
+  tgTopY?: number;
+  cargoTopY?: number;
+  tgBotY?: number;
+  // 計算パラメータ
   heightM?: number;
   fillRatioL?: number;
   fillRatioW?: number;
