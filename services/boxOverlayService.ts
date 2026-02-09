@@ -30,12 +30,15 @@ const FILL_PROMPT =
   "fillRatioW (0.3~0.9): fraction of bed WIDTH covered by cargo at ~90% of peak height (slightly below the very top). " +
   "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
   "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
-  "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled (frustum shape factor). " +
-  "Most dump truck loads fill the bed nearly fully along the length. " +
-  "1.0 = top surface is parallel to sideboard, full length filled. " +
-  "0.8~0.9 = nearly full, slight taper at ends. " +
-  "0.7~0.8 = moderate taper, cargo clearly shorter than bed. " +
-  "0.5~0.7 = sparse, cargo piled only in part of the bed. " +
+  "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled. " +
+  "Look carefully at depth cues from the rear view: " +
+  "If cargo fills the bed right up to the tailgate, taper is high (0.8~1.0). " +
+  "If you can see empty bed floor near the tailgate, or cargo appears to recede/sit far back, taper is low (0.5~0.7). " +
+  "If cargo is piled only in the front half of the bed, the mound will appear distant and small from the rear. " +
+  "1.0 = cargo fills full bed length up to the tailgate. " +
+  "0.8~0.9 = nearly full, slight gap at front or back. " +
+  "0.7~0.8 = moderate gap, cargo clearly shorter than bed. " +
+  "0.5~0.7 = cargo concentrated in front, visible empty bed floor near tailgate. " +
   "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
   "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
