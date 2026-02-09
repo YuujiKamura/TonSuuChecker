@@ -32,7 +32,7 @@ const FILL_PROMPT =
   "IMPORTANT: From a rear view, the bed length is NOT visible — you cannot judge how far cargo extends front-to-back. " +
   "If you cannot clearly determine fillRatioL from the image, set it to 0.9 (assume nearly full length). " +
   "Only reduce below 0.9 if there is clear visual evidence (e.g., side view showing empty space, or cargo obviously piled only in part of the bed). " +
-  "fillRatioW (0.8~1.0): fraction of the bed WIDTH covered by cargo AT THE BASE (bottom of the pile). " +
+  "fillRatioW (0.8~0.9): fraction of the bed WIDTH covered by cargo AT THE BASE (bottom of the pile). " +
   "This measures whether cargo reaches the side walls at the base level. " +
   "Almost always 0.95-1.0 for dump trucks since cargo spreads across the full width at the bottom. " +
   "Only reduce below 0.95 if cargo is clearly piled in a narrow strip not reaching the side walls. " +
@@ -434,7 +434,7 @@ export const analyzeBoxOverlayEnsemble = async (
   }
 
   const fillL = clamp(average(fillLList), 0.0, 0.9);
-  const fillW = clamp(average(fillWList), 0.8, 1.0);
+  const fillW = clamp(average(fillWList), 0.8, 0.9);
   const taper = clamp(average(taperList), 0.3, 1.0);
   const packing = clamp(average(packingList), 0.65, 0.9);
 
