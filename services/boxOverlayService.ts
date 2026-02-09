@@ -35,9 +35,9 @@ const FILL_PROMPT =
   "0.8~0.9 = gentle slope, gradual transition. " +
   "0.6~0.8 = moderate slope, visible curvature. " +
   "0.5~0.6 = steep slope, sharp drop from peak. " +
-  "packingDensity (0.65~0.9): how tightly packed the debris chunks are. " +
+  "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
-  "Loosely thrown = 0.65-0.7, moderate = 0.7-0.8, tightly packed = 0.8-0.9.";
+  "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
 
 // --- Types for AI responses ---
 
@@ -444,7 +444,7 @@ export const analyzeBoxOverlayEnsemble = async (
   const fillL = clamp(average(fillLList), 0.3, 0.9);
   const fillW = clamp(average(fillWList), 0.3, 0.9);
   const taper = clamp(average(taperList), 0.5, 1.0);
-  const packing = clamp(average(packingList), 0.65, 0.9);
+  const packing = clamp(average(packingList), 0.7, 0.9);
 
   // パラメータに充填率を反映
   partialParams.fillRatioL = round3(fillL);
