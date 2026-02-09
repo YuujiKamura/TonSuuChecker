@@ -30,9 +30,9 @@ const FILL_PROMPT =
   "fillRatioW (0.3~0.9): fraction of bed WIDTH covered by cargo at ~90% of peak height (slightly below the very top). " +
   "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
   "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
-  "taperRatio (0.5~0.9): how much of the bed LENGTH is effectively filled (frustum shape factor). " +
+  "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled (frustum shape factor). " +
   "Most dump truck loads fill the bed nearly fully along the length. " +
-  "0.9 = frustum shape, cargo fills nearly the full bed length. " +
+  "1.0 = top surface is parallel to sideboard, full length filled. " +
   "0.8~0.9 = nearly full, slight taper at ends. " +
   "0.7~0.8 = moderate taper, cargo clearly shorter than bed. " +
   "0.5~0.7 = sparse, cargo piled only in part of the bed. " +
@@ -486,7 +486,7 @@ export const analyzeBoxOverlayEnsemble = async (
 
   const fillL = clamp(average(fillLList), 0.3, 0.9);
   const fillW = clamp(average(fillWList), 0.3, 0.9);
-  const taper = clamp(average(taperList), 0.5, 0.9);
+  const taper = clamp(average(taperList), 0.5, 1.0);
   const packing = clamp(average(packingList), 0.7, 0.9);
 
   // パラメータに充填率を反映
