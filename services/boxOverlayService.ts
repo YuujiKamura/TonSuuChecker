@@ -1,6 +1,7 @@
 import { GoogleGenAI, Part } from "@google/genai";
 import { saveCostEntry } from "./costTracker";
 import { BoxOverlayResult, AnalysisProgress, PhaseTiming } from "../types";
+import { PartialCalcParams } from "../types/ui";
 import { getApiKey, checkIsFreeTier } from "./configService";
 import { truckSpecs, materials } from "../domain/promptSpec";
 
@@ -204,6 +205,9 @@ export const analyzeBoxOverlayEnsemble = async (
     timings.push({ label, durationMs: Date.now() - phaseStart });
   };
 
+  // --- 段階的に埋まるパラメータ ---
+  const partialParams: PartialCalcParams = {};
+
   await notify({ phase: "preparing", detail: "Box-overlay解析を準備中..." });
   startPhase();
 
@@ -315,6 +319,16 @@ export const analyzeBoxOverlayEnsemble = async (
     `Height estimates: [${heightMList.map((h) => h.toFixed(3)).join(", ")}] -> median=${heightM.toFixed(3)}m`
   );
 
+  // パラメータに荷高を反映
+  partialParams.heightM = round3(heightM);
+  const density = materials[material]?.density ?? 2.5;
+  partialParams.density = density;
+  await notify({
+    phase: "geometry",
+    detail: `荷高確定: ${heightM.toFixed(3)}m`,
+    params: { ...partialParams },
+  }, true);
+
   // Step 2: Estimate fill ratios (ensemble, average)
   const fillLList: number[] = [];
   const fillWList: number[] = [];
@@ -389,8 +403,19 @@ export const analyzeBoxOverlayEnsemble = async (
   const taper = clamp(average(taperList), 0.3, 1.0);
   const packing = clamp(average(packingList), 0.5, 0.9);
 
+  // パラメータに充填率を反映
+  partialParams.fillRatioL = round3(fillL);
+  partialParams.fillRatioW = round3(fillW);
+  partialParams.taperRatio = round3(taper);
+  partialParams.packingDensity = round3(packing);
+  await notify({
+    phase: "fill",
+    detail: `充填率確定: L=${fillL.toFixed(3)} W=${fillW.toFixed(3)} T=${taper.toFixed(3)} P=${packing.toFixed(3)}`,
+    params: { ...partialParams },
+  }, true);
+
   // Step 3: Calculate tonnage
-  await notify({ phase: "calculating", detail: "体積・重量計算中..." }, true);
+  await notify({ phase: "calculating", detail: "体積・重量計算中...", params: { ...partialParams } }, true);
   startPhase();
 
   const calc = calculateBoxOverlay(heightM, fillL, fillW, taper, packing, truckClass, material);
@@ -412,8 +437,12 @@ export const analyzeBoxOverlayEnsemble = async (
     phaseTimings: timings,
   };
 
+  // パラメータに最終結果を反映
+  partialParams.estimatedVolumeM3 = round4(calc.volume);
+  partialParams.estimatedTonnage = round2(calc.tonnage);
+
   onProgress?.(1, result);
-  notify({ phase: "done", detail: "Box-overlay解析完了" });
+  notify({ phase: "done", detail: "Box-overlay解析完了", params: { ...partialParams } });
 
   return result;
 };

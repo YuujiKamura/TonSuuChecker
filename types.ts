@@ -133,4 +133,4 @@ export interface BoxOverlayResult {
 }
 
 // Re-exports for backward compatibility
-export type { AnalysisProgress } from './types/ui';
+export type { AnalysisProgress, PartialCalcParams } from './types/ui';
