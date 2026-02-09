@@ -22,6 +22,9 @@ export interface EstimationResult {
   estimatedTonnage: number;
 
   // Web-only extensions
+  tgTopY?: number;
+  cargoTopY?: number;
+  tgBotY?: number;
   taperRatio?: number;
   licenseNumber?: string;
   estimatedMaxCapacity?: number;
@@ -120,6 +123,9 @@ export interface BoxOverlayResult {
   method: 'box-overlay';
   truckClass: string;
   materialType: string;
+  tgTopY?: number;
+  cargoTopY?: number;
+  tgBotY?: number;
   heightM: number;
   fillRatioL: number;
   fillRatioW: number;

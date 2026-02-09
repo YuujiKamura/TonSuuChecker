@@ -298,6 +298,9 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
             <div>
               <p className="text-[10px] font-bold text-slate-500 mb-1">計算パラメータ</p>
               <CalculationParams params={{
+                tgTopY: result.tgTopY,
+                cargoTopY: result.cargoTopY,
+                tgBotY: result.tgBotY,
                 heightM: result.height,
                 fillRatioL: result.fillRatioL,
                 fillRatioW: result.fillRatioW,
