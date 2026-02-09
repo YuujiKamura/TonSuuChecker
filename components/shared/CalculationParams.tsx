@@ -18,7 +18,7 @@ const PARAM_DEFS: ParamDef[] = [
   { key: 'heightM', label: '荷高 (H)', shortLabel: 'H', unit: 'm', decimals: 3 },
   { key: 'fillRatioL', label: '長さ充填率 (L)', shortLabel: 'L', unit: '', decimals: 3 },
   { key: 'fillRatioW', label: '幅充填率 (W)', shortLabel: 'W', unit: '', decimals: 3 },
-  { key: 'taperRatio', label: '錐台係数 (T)', shortLabel: 'T', unit: '', decimals: 3 },
+  { key: 'taperRatio', label: '斜面係数 (T)', shortLabel: 'T', unit: '', decimals: 3 },
   { key: 'packingDensity', label: '充填密度 (P)', shortLabel: 'P', unit: '', decimals: 3 },
   { key: 'density', label: '材料密度', shortLabel: 'ρ', unit: 't/m³', decimals: 2 },
 ];
