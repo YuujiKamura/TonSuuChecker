@@ -398,7 +398,7 @@ export const analyzeBoxOverlayEnsemble = async (
 
       const fl = fill.fillRatioL ?? 0.8;
       const fw = fill.fillRatioW ?? 0.7;
-      const tp = fill.taperRatio ?? 0.85;
+      const tp = fill.taperRatio ?? 0.75;
       const pd = fill.packingDensity ?? 0.7;
 
       endPhase(`充填率推定${fillRunLabel}`);

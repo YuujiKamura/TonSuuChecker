@@ -125,7 +125,7 @@ async function runSingleInference(
       height: parsed.height ?? 0,
       fillRatioL: parsed.fillRatioL ?? 0.8,
       fillRatioW: parsed.fillRatioW ?? 0.85,
-      taperRatio: 0.85,  // multi-param doesn't estimate taper; use default
+      taperRatio: 0.75,  // multi-param doesn't estimate taper; use default
       packingDensity: parsed.packingDensity ?? 0.8,
       materialType: parsed.materialType ?? '',
     }, parsed.truckType);
