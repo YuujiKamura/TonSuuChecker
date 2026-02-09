@@ -3,7 +3,15 @@
 
 export function calculateTonnage(height: number, fill_ratio_l: number, fill_ratio_w: number, taper_ratio: number, packing_density: number, material_type: string, truck_class?: string | null): string;
 
+export function getFillPrompt(): string;
+
+export function getGeometryPrompt(): string;
+
 export function heightFromGeometry(tg_top: number, tg_bot: number, cargo_top: number, plate_box_json: string | null | undefined, bed_height: number): string;
+
+export function parseFill(text: string): string;
+
+export function parseGeometry(text: string): string;
 
 export function validateParams(json: string): string;
 
@@ -13,6 +21,10 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly calculateTonnage: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
     readonly heightFromGeometry: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+    readonly getFillPrompt: () => [number, number];
+    readonly getGeometryPrompt: () => [number, number];
+    readonly parseFill: (a: number, b: number) => [number, number];
+    readonly parseGeometry: (a: number, b: number) => [number, number];
     readonly validateParams: (a: number, b: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
