@@ -16,7 +16,7 @@ import { formatCost } from './services/costTracker';
 import { StockItem } from './types';
 import useAppData from './hooks/useAppData';
 import useAnalysis from './hooks/useAnalysis';
-import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
+import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet, Loader2, CheckCircle2 } from 'lucide-react';
 import CalculationParams from './components/shared/CalculationParams';
 
 const App: React.FC = () => {
@@ -268,9 +268,12 @@ const App: React.FC = () => {
                               : 0;
                             return (
                               <div key={i} className={`flex items-center gap-2 ${i === progressLog.length - 1 ? 'text-blue-400' : 'text-slate-500'}`}>
+                                {i === progressLog.length - 1
+                                  ? <Loader2 size={14} className="animate-spin text-blue-400 shrink-0" />
+                                  : <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                                }
                                 <span className="text-slate-600 tabular-nums w-12">+{log.elapsed || 0}s</span>
                                 {stepTime > 2 && <span className="text-yellow-500 text-[10px]">({stepTime}s)</span>}
-                                {i === progressLog.length - 1 && <span className="animate-pulse">●</span>}
                                 <span className="flex-1">{log.msg}</span>
                               </div>
                             );

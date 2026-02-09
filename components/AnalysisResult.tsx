@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
-import { Save, Check, ChevronDown, ChevronUp, Download, Image, FileJson, RefreshCcw, Clock } from 'lucide-react';
+import { Save, Check, CheckCircle2, ChevronDown, ChevronUp, Download, Image, FileJson, RefreshCcw, Clock } from 'lucide-react';
 import AIChatSection from './AIChatSection';
 import * as chatService from '../services/chatService';
 import { LoadGrade } from '../domain/specs';
@@ -320,7 +320,7 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
                     const pct = totalMs > 0 ? (t.durationMs / totalMs) * 100 : 0;
                     return (
                       <div key={i} className="flex items-center gap-2">
-                        <span className="text-green-500">✓</span>
+                        <CheckCircle2 size={14} className="text-green-500 shrink-0" />
                         <span className="flex-1 text-slate-300 truncate">{t.label}</span>
                         <div className="w-20 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
