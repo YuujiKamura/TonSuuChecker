@@ -98,6 +98,7 @@ async function estimateFill(
     fillRatioW: wasmResult.fillRatioW,
     taperRatio: wasmResult.taperRatio,
     packingDensity: wasmResult.packingDensity,
+    materialType: wasmResult.materialType ?? undefined,
     reasoning: wasmResult.reasoning,
   };
   return { parsed, rawText: fullText };
@@ -175,6 +176,16 @@ function round3(v: number): number {
 
 function round4(v: number): number {
   return Math.round(v * 10000) / 10000;
+}
+
+/** Mode (most frequent) of string array; returns undefined if empty */
+function modeString(values: string[]): string | undefined {
+  if (values.length === 0) return undefined;
+  const counts = new Map<string, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best = values[0], bestCount = 0;
+  for (const [v, c] of counts) { if (c > bestCount) { best = v; bestCount = c; } }
+  return best;
 }
 
 // --- Main entry point ---
@@ -369,6 +380,7 @@ export const analyzeBoxOverlayEnsemble = async (
   const fillWList: number[] = [];
   const taperList: number[] = [];
   const packingList: number[] = [];
+  const detectedMaterials: string[] = [];
   let lastReasoning = "";
   const fillRunLogs: FillRunLog[] = [];
 
@@ -411,12 +423,15 @@ export const analyzeBoxOverlayEnsemble = async (
         total: ensembleCount,
       }, true);
 
-      console.log(`Fill run ${i + 1}: L=${fl}, W=${fw}, T=${tp}, p=${pd}`);
+      console.log(`Fill run ${i + 1}: L=${fl}, W=${fw}, T=${tp}, p=${pd}, mat=${fill.materialType ?? "?"}`);
 
       fillLList.push(fl);
       fillWList.push(fw);
       taperList.push(tp);
       packingList.push(pd);
+      if (fill.materialType && fill.materialType !== "?") {
+        detectedMaterials.push(fill.materialType);
+      }
       if (fill.reasoning) {
         lastReasoning = fill.reasoning;
       }
@@ -455,10 +470,19 @@ export const analyzeBoxOverlayEnsemble = async (
   }, true);
 
   // Step 3: Calculate tonnage (frustum formula)
-  await notify({ phase: "calculating", detail: "体積・重量計算中...", params: { ...partialParams } }, true);
+  // Use AI-detected material if available, otherwise fall back to user selection
+  const effectiveMaterial = modeString(detectedMaterials) ?? material;
+  if (effectiveMaterial !== material) {
+    console.log(`Material auto-detected: "${effectiveMaterial}" (user selected: "${material}")`);
+  }
+
+  // Update density for the effective material
+  partialParams.density = materials[effectiveMaterial]?.density ?? materials[material]?.density ?? 2.5;
+
+  await notify({ phase: "calculating", detail: `体積・重量計算中... [${effectiveMaterial}]`, params: { ...partialParams } }, true);
   startPhase();
 
-  const calc = calculateBoxOverlay(heightM, fillL, fillW, taper, packing, truckClass, material);
+  const calc = calculateBoxOverlay(heightM, fillL, fillW, taper, packing, truckClass, effectiveMaterial);
   endPhase("計算");
 
   if (calc.effectivePacking !== packing) {
@@ -471,7 +495,7 @@ export const analyzeBoxOverlayEnsemble = async (
   const result: BoxOverlayResult = {
     method: "box-overlay",
     truckClass,
-    materialType: material,
+    materialType: effectiveMaterial,
     tgTopY: partialParams.tgTopY,
     cargoTopY: partialParams.cargoTopY,
     tgBotY: partialParams.tgBotY,
