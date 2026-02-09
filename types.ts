@@ -22,6 +22,7 @@ export interface EstimationResult {
   estimatedTonnage: number;
 
   // Web-only extensions
+  taperRatio?: number;
   licenseNumber?: string;
   estimatedMaxCapacity?: number;
   maxCapacityReasoning?: string;
