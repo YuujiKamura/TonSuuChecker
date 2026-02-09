@@ -18,6 +18,9 @@ const GEOMETRY_PROMPT =
   "tailgateTopY < tailgateBottomY < plateBox[3] (top has smaller Y). " +
   "cargoTopY < tailgateTopY if cargo is heaped above the rim. " +
   "cargoTopY > tailgateTopY if cargo is below the rim. " +
+  "IMPORTANT: In near-direct rear views, cargo piled above the tailgate may appear " +
+  "compressed in the vertical direction due to perspective. Look carefully at the actual " +
+  "top edge of the cargo mound — it is often higher than it first appears. " +
   "All coordinates normalized 0.0-1.0.";
 
 const FILL_PROMPT =
@@ -32,9 +35,14 @@ const FILL_PROMPT =
   "0.8~0.9 = nearly flat top. 0.7~0.8 = moderate mound. " +
   "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled. " +
   "KEY CUE: Look at the コボレーン (spill guard frames) on top of the side panels. " +
-  "If any part of these frames is visible (not hidden by cargo), set taper 0.5~0.8 — the more frame visible, the lower. " +
-  "1.0 = frames completely hidden, cargo fills full length. " +
-  "0.8~0.9 = frames mostly hidden; top edge may be visible parallel if cargo peak is low. " +
+  "IMPORTANT: Distinguish WHY frames are visible: " +
+  "If frames are visible UNIFORMLY along the full length (same height everywhere), " +
+  "cargo is simply low but fills the full bed → high taper (0.8~1.0). " +
+  "If frames are visible MORE toward the FRONT (cargo slopes down toward front), " +
+  "cargo does not fill the full length → low taper (0.5~0.7). " +
+  "1.0 = cargo fills full bed length at uniform height. " +
+  "0.8~0.9 = full length filled, frames visible due to low cargo height. " +
+  "0.5~0.7 = cargo slopes down toward front, frames increasingly exposed ahead. " +
   "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
   "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
