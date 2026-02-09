@@ -17,6 +17,7 @@ import { StockItem } from './types';
 import useAppData from './hooks/useAppData';
 import useAnalysis from './hooks/useAnalysis';
 import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
+import CalculationParams from './components/shared/CalculationParams';
 
 const App: React.FC = () => {
   // --- Data & Settings ---
@@ -252,6 +253,11 @@ const App: React.FC = () => {
                         style={{ width: progressPercent }}
                       ></div>
                     </div>
+                    {/* 計算パラメータ（段階表示） */}
+                    {analysisProgress?.params && (
+                      <CalculationParams params={analysisProgress.params} compact />
+                    )}
+
                     {/* 進捗ログリスト */}
                     {progressLog.length > 0 && (
                       <div className="bg-slate-950/50 rounded-lg p-3 max-h-40 overflow-y-auto">
