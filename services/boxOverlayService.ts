@@ -4,9 +4,9 @@ import { BoxOverlayResult, AnalysisProgress, PhaseTiming } from "../types";
 import { getApiKey, checkIsFreeTier } from "./configService";
 import { truckSpecs, materials } from "../domain/promptSpec";
 
-// Shape factor: peak height overestimates volume because cargo is mound-shaped.
-// Empirical correction ~0.85 (between flat-top=1.0 and cone=0.33).
-const SHAPE_FACTOR = 0.85;
+// Default taper ratio fallback (used when AI doesn't return one).
+// 1.0 = flat-top, 0.33 = sharp cone. Typical mound = 0.7-0.85.
+const DEFAULT_TAPER_RATIO = 0.85;
 
 // --- Prompts (from Rust estimate.rs) ---
 
@@ -24,7 +24,7 @@ const GEOMETRY_PROMPT =
   "All coordinates normalized 0.0-1.0.";
 
 const FILL_PROMPT =
-  'Output ONLY JSON: {"fillRatioL": 0.0, "fillRatioW": 0.0, "packingDensity": 0.0, "reasoning": "..."} ' +
+  'Output ONLY JSON: {"fillRatioL": 0.0, "fillRatioW": 0.0, "taperRatio": 0.0, "packingDensity": 0.0, "reasoning": "..."} ' +
   "This is a rear view of a dump truck carrying construction debris (As殻 = asphalt chunks). " +
   "Estimate each parameter INDEPENDENTLY: " +
   "fillRatioL (0.3~0.9): fraction of the bed LENGTH occupied by cargo. " +
@@ -32,6 +32,12 @@ const FILL_PROMPT =
   "Full load with cargo touching both ends = 0.85-0.9. Normal load = 0.6-0.8. Light load = 0.4-0.6. " +
   "fillRatioW (0.5~1.0): fraction of the bed WIDTH covered by cargo at the top surface. " +
   "Usually 0.8-1.0 since cargo spreads across the width. " +
+  "taperRatio (0.3~1.0): mound shape factor from peak to edges. " +
+  "Describes how the cargo cross-section tapers from the peak height down to the bed edges. " +
+  "1.0 = flat top (cargo fills bed like a box, peak height is uniform). " +
+  "0.7~0.85 = gentle mound (typical for bulk debris, slight slope from center). " +
+  "0.5~0.7 = pronounced mound (peaked center, significant slope to sides). " +
+  "0.3~0.5 = sharp peak (cone-like, small pile centered on bed). " +
   "packingDensity (0.5~0.9): how tightly packed the debris chunks are. " +
   "As殻 = asphalt pavement chunks (~5cm thick). " +
   "Large chunks thrown in loosely with visible gaps = 0.5-0.6, moderate = 0.65-0.7, tightly packed = 0.8-0.9.";
@@ -48,6 +54,7 @@ interface GeometryResponse {
 interface FillResponse {
   fillRatioL?: number;
   fillRatioW?: number;
+  taperRatio?: number;
   packingDensity?: number;
   reasoning?: string;
 }
@@ -120,6 +127,7 @@ function calculateBoxOverlay(
   heightM: number,
   fillL: number,
   fillW: number,
+  taper: number,
   packing: number,
   truckClass: string,
   materialType: string,
@@ -128,7 +136,7 @@ function calculateBoxOverlay(
   if (!spec) throw new Error(`Unknown truck class: ${truckClass}`);
   const density = materials[materialType]?.density ?? 2.5;
 
-  const volume = spec.bedLength * spec.bedWidth * heightM * fillL * fillW * SHAPE_FACTOR;
+  const volume = spec.bedLength * spec.bedWidth * heightM * fillL * fillW * taper;
   const tonnage = volume * density * packing;
 
   return { volume, tonnage, density, bedLength: spec.bedLength, bedWidth: spec.bedWidth };
@@ -310,6 +318,7 @@ export const analyzeBoxOverlayEnsemble = async (
   // Step 2: Estimate fill ratios (ensemble, average)
   const fillLList: number[] = [];
   const fillWList: number[] = [];
+  const taperList: number[] = [];
   const packingList: number[] = [];
   let lastReasoning = "";
 
@@ -339,20 +348,22 @@ export const analyzeBoxOverlayEnsemble = async (
 
       const fl = fill.fillRatioL ?? 0.7;
       const fw = fill.fillRatioW ?? 0.8;
+      const tp = fill.taperRatio ?? DEFAULT_TAPER_RATIO;
       const pd = fill.packingDensity ?? 0.7;
 
       endPhase(`充填率推定${fillRunLabel}`);
       await notify({
         phase: "fill",
-        detail: `充填率推定${fillRunLabel}: L=${fl} W=${fw} P=${pd}`,
+        detail: `充填率推定${fillRunLabel}: L=${fl} W=${fw} T=${tp} P=${pd}`,
         current: i + 1,
         total: ensembleCount,
       }, true);
 
-      console.log(`Fill run ${i + 1}: L=${fl}, W=${fw}, p=${pd}`);
+      console.log(`Fill run ${i + 1}: L=${fl}, W=${fw}, T=${tp}, p=${pd}`);
 
       fillLList.push(fl);
       fillWList.push(fw);
+      taperList.push(tp);
       packingList.push(pd);
       if (fill.reasoning) {
         lastReasoning = fill.reasoning;
@@ -375,13 +386,14 @@ export const analyzeBoxOverlayEnsemble = async (
 
   const fillL = clamp(average(fillLList), 0.0, 1.0);
   const fillW = clamp(average(fillWList), 0.0, 1.0);
+  const taper = clamp(average(taperList), 0.3, 1.0);
   const packing = clamp(average(packingList), 0.5, 0.9);
 
   // Step 3: Calculate tonnage
   await notify({ phase: "calculating", detail: "体積・重量計算中..." }, true);
   startPhase();
 
-  const calc = calculateBoxOverlay(heightM, fillL, fillW, packing, truckClass, material);
+  const calc = calculateBoxOverlay(heightM, fillL, fillW, taper, packing, truckClass, material);
   endPhase("計算");
 
   const result: BoxOverlayResult = {
@@ -391,6 +403,7 @@ export const analyzeBoxOverlayEnsemble = async (
     heightM: round3(heightM),
     fillRatioL: round3(fillL),
     fillRatioW: round3(fillW),
+    taperRatio: round3(taper),
     packingDensity: round3(packing),
     estimatedVolumeM3: round4(calc.volume),
     estimatedTonnage: round2(calc.tonnage),
