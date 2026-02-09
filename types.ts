@@ -1,5 +1,5 @@
 export type TruckType = '2t' | '4t' | '増トン' | '10t';
-export type MaterialType = '土砂' | 'As殻' | 'Co殻' | '開粒度As殻';
+export type MaterialType = '土砂' | 'As殻' | 'Co殻' | '開粒度As殻' | '切削ガラ';
 
 export interface EstimationResult {
   // Core (from prompt-spec.json)
@@ -152,6 +152,7 @@ export interface FillResponse {
   fillRatioW?: number;
   taperRatio?: number;
   packingDensity?: number;
+  materialType?: string;
   reasoning?: string;
 }
 
