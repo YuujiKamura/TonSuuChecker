@@ -321,50 +321,55 @@ export const analyzeBoxOverlayEnsemble = async (
         continue;
       }
 
-      // スケール計算: プレート基準 → 後板基準の優先順でフォールバック
+      // スケール計算: プレート・後板の両方を試し、使えるものを併用
       const PLATE_HEIGHT_M = 0.22; // 日本の大板ナンバープレート高さ
-      let mPerNorm: number;
-      let scaleMethod: string;
+      const PLATE_MIN_NORM = 0.03; // これ以下はプレートが小さすぎて不正確
 
-      const hasPlate = plateBox && plateBox.length === 4 && (plateBox[3] - plateBox[1]) > 0.01;
+      const plateHeightNorm = plateBox && plateBox.length === 4 ? plateBox[3] - plateBox[1] : 0;
+      const hasPlate = plateHeightNorm > PLATE_MIN_NORM;
       const hasTailgate = tgBot > 0 && tgBot > tgTop;
 
-      if (hasPlate) {
-        // 優先: ナンバープレート基準（後板下端が不要）
-        const plateHeightNorm = plateBox[3] - plateBox[1];
-        mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
-        scaleMethod = "plate";
-      } else if (hasTailgate) {
-        // フォールバック: 後板の高さ基準（従来方式）
-        const tgHeightNorm = tgBot - tgTop;
-        mPerNorm = spec.bedHeight / tgHeightNorm;
-        scaleMethod = "tailgate";
-      } else {
+      if (!hasPlate && !hasTailgate) {
         notify({
           phase: "geometry",
           detail: `幾何学検出${runLabel}: スケール基準なし、スキップ`,
           current: i + 1,
           total: ensembleCount,
         });
-        console.warn(`Geometry run ${i + 1}: no scale reference (no plate, no valid tailgate), skip`);
+        console.warn(`Geometry run ${i + 1}: no scale reference, skip`);
         continue;
       }
 
-      // 荷高計算
-      let cargoHeightM: number;
-      if (hasPlate || !hasTailgate) {
-        // プレート基準: 荷高 = 後板高さ + (後板上端から荷頂までの距離)
-        cargoHeightM = clamp(
-          spec.bedHeight + (tgTop - cargoTop) * mPerNorm,
-          0.0, 0.8,
-        );
-      } else {
-        // 後板基準: 荷高 = (後板下端から荷頂までの距離) × スケール
-        cargoHeightM = clamp(
-          (tgBot - cargoTop) * mPerNorm,
-          0.0, 0.8,
-        );
+      // 各方式で荷高を算出
+      let heightByPlate: number | null = null;
+      let heightByTailgate: number | null = null;
+
+      if (hasPlate) {
+        const mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
+        heightByPlate = spec.bedHeight + (tgTop - cargoTop) * mPerNorm;
+        console.log(`  plate: plateH_norm=${plateHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${heightByPlate.toFixed(3)}m`);
       }
+      if (hasTailgate) {
+        const tgHeightNorm = tgBot - tgTop;
+        const mPerNorm = spec.bedHeight / tgHeightNorm;
+        heightByTailgate = (tgBot - cargoTop) * mPerNorm;
+        console.log(`  tailgate: tgH_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${heightByTailgate.toFixed(3)}m`);
+      }
+
+      // 両方あれば平均、片方だけならそちらを使用
+      let cargoHeightM: number;
+      let scaleMethod: string;
+      if (heightByPlate != null && heightByTailgate != null) {
+        cargoHeightM = (heightByPlate + heightByTailgate) / 2;
+        scaleMethod = "avg";
+      } else if (heightByPlate != null) {
+        cargoHeightM = heightByPlate;
+        scaleMethod = "plate";
+      } else {
+        cargoHeightM = heightByTailgate!;
+        scaleMethod = "tailgate";
+      }
+      cargoHeightM = clamp(cargoHeightM, 0.0, 0.8);
 
       console.log(
         `  scale=${scaleMethod}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
