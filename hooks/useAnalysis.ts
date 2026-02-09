@@ -313,6 +313,7 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
           abortSignal,
           selectedModel,
           progressHandler,
+          currentId || undefined,  // stockItemId for analysis log
         );
 
         if (activeRequestId.current !== requestId) return;

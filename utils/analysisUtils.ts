@@ -48,11 +48,13 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
   const finalLicensePlate = getMode(validResults.map(r => r.licensePlate));
   const finalMaxCapacity = getMode(validResults.map(r => r.estimatedMaxCapacity));
 
-  // Recalculate from averaged params (CLI版と同じ: パラメータ平均→再計算)
+  // Recalculate from averaged params (box-overlay formula via WASM)
+  // multi-param strategy doesn't have taperRatio, use 0.85 default
   const { volume, tonnage } = calculateTonnage({
-    fillRatioW: avgFillRatioW,
     height: avgHeight,
-    fillRatioZ: avgFillRatioZ,
+    fillRatioL: avgFillRatioL,
+    fillRatioW: avgFillRatioW,
+    taperRatio: 0.85,
     packingDensity: avgPackingDensity,
     materialType: finalMaterialType,
   }, finalTruckType);

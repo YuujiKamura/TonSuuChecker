@@ -1,6 +1,6 @@
 // IndexedDB サービス - idb ラッパーを使用
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { StockItem, EstimationResult, LearningFeedback } from '../types';
+import { StockItem, EstimationResult, LearningFeedback, AnalysisLog } from '../types';
 import { RegisteredVehicle } from './referenceImages';
 
 // DB スキーマ定義
@@ -42,10 +42,15 @@ interface TonCheckerDB extends DBSchema {
     value: LearningFeedback;
     indexes: { 'by-timestamp': number; 'by-type': string };
   };
+  analysisLogs: {
+    key: string;
+    value: AnalysisLog;
+    indexes: { 'by-stockItemId': string; 'by-timestamp': number };
+  };
 }
 
 const DB_NAME = 'TonCheckerDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbInstance: IDBPDatabase<TonCheckerDB> | null = null;
 
@@ -87,6 +92,13 @@ export const getDB = async (): Promise<IDBPDatabase<TonCheckerDB>> => {
         const feedbackStore = db.createObjectStore('learningFeedback', { keyPath: 'id' });
         feedbackStore.createIndex('by-timestamp', 'timestamp');
         feedbackStore.createIndex('by-type', 'feedbackType');
+      }
+
+      // 解析ログストア（v3で追加）
+      if (!db.objectStoreNames.contains('analysisLogs')) {
+        const logStore = db.createObjectStore('analysisLogs', { keyPath: 'id' });
+        logStore.createIndex('by-stockItemId', 'stockItemId');
+        logStore.createIndex('by-timestamp', 'timestamp');
       }
     },
   });
@@ -384,4 +396,23 @@ export const getLearningFeedbackByType = async (type: 'correction' | 'insight' |
 export const getRecentLearningFeedback = async (limit: number = 10): Promise<LearningFeedback[]> => {
   const all = await getAllLearningFeedback();
   return all.slice(0, limit);
+};
+
+// ========== 解析ログ操作 ==========
+
+export const saveAnalysisLog = async (log: AnalysisLog): Promise<void> => {
+  const db = await getDB();
+  await db.put('analysisLogs', log);
+};
+
+export const getAnalysisLogsByStockId = async (stockItemId: string): Promise<AnalysisLog[]> => {
+  const db = await getDB();
+  const items = await db.getAllFromIndex('analysisLogs', 'by-stockItemId', stockItemId);
+  return items.reverse();  // 新しい順
+};
+
+export const getAllAnalysisLogs = async (): Promise<AnalysisLog[]> => {
+  const db = await getDB();
+  const items = await db.getAllFromIndex('analysisLogs', 'by-timestamp');
+  return items.reverse();  // 新しい順
 };

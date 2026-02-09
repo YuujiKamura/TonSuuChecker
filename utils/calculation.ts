@@ -2,9 +2,10 @@
 import init, { calculateTonnage as wasmCalculate } from '../lib/tonsuu-core/tonsuu_core.js';
 
 export interface CoreParams {
-  fillRatioW: number;
   height: number;
-  fillRatioZ: number;
+  fillRatioL: number;
+  fillRatioW: number;
+  taperRatio: number;
   packingDensity: number;
   materialType: string;
 }
@@ -18,11 +19,12 @@ export function initWasm(): Promise<void> {
   return wasmReady;
 }
 
-export function calculateTonnage(params: CoreParams, truckClass?: string): { volume: number; tonnage: number } {
+export function calculateTonnage(params: CoreParams, truckClass?: string): { volume: number; tonnage: number; effectivePacking: number; density: number } {
   const json = wasmCalculate(
-    params.fillRatioW,
     params.height,
-    params.fillRatioZ,
+    params.fillRatioL,
+    params.fillRatioW,
+    params.taperRatio,
     params.packingDensity,
     params.materialType,
     truckClass ?? null,

@@ -138,5 +138,91 @@ export interface BoxOverlayResult {
   phaseTimings?: PhaseTiming[];
 }
 
+// --- AI response types (shared between boxOverlayService and analysisLog) ---
+
+export interface GeometryResponse {
+  plateBox?: number[];
+  tailgateTopY?: number;
+  tailgateBottomY?: number;
+  cargoTopY?: number;
+}
+
+export interface FillResponse {
+  fillRatioL?: number;
+  fillRatioW?: number;
+  taperRatio?: number;
+  packingDensity?: number;
+  reasoning?: string;
+}
+
+// --- Analysis log types (全解析ログ保存) ---
+
+export interface AnalysisLog {
+  id: string;                    // crypto.randomUUID()
+  stockItemId: string;           // 紐付くStockItemのID
+  timestamp: number;
+
+  // バージョン情報
+  modelName: string;
+  ensembleCount: number;
+
+  // プロンプトスナップショット（変更追跡用）
+  geometryPrompt: string;
+  fillPrompt: string;
+
+  // 各アンサンブルランの生データ
+  geometryRuns: GeometryRunLog[];
+  fillRuns: FillRunLog[];
+
+  // 集約後の計算パラメータ
+  calculation: CalculationLog;
+
+  // 最終結果
+  finalResult: BoxOverlayResult;
+
+  // 画像情報
+  imageInfo: ImageInfoLog;
+}
+
+export interface GeometryRunLog {
+  runIndex: number;
+  rawResponse: string;           // AIの生テキスト
+  parsed: GeometryResponse | null;
+  scaleMethod: string;           // "tailgate" | "plate" | "none"
+  mPerNorm: number;
+  cargoHeightM: number;
+  durationMs: number;
+}
+
+export interface FillRunLog {
+  runIndex: number;
+  rawResponse: string;           // AIの生テキスト
+  parsed: FillResponse | null;
+  durationMs: number;
+}
+
+export interface CalculationLog {
+  // 集約値（clamp/average後）
+  heightM: number;
+  fillRatioL: number;
+  fillRatioW: number;
+  taperRatio: number;
+  packingDensity: number;        // AI値
+  // 計算中間値
+  effectiveL: number;
+  effectiveW: number;
+  volume: number;
+  compressionFactor: number;
+  effectivePacking: number;
+  density: number;
+  tonnage: number;
+}
+
+export interface ImageInfoLog {
+  count: number;                 // 画像枚数
+  totalSizeBytes: number;        // base64デコード後概算
+  mimeType: string;
+}
+
 // Re-exports for backward compatibility
 export type { AnalysisProgress, PartialCalcParams } from './types/ui';
