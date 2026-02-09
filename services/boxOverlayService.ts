@@ -34,7 +34,7 @@ const FILL_PROMPT =
   "KEY CUE: Look at the コボレーン (spill guard frames) on top of the side panels. " +
   "If any part of these frames is visible (not hidden by cargo), set taper 0.5~0.8 — the more frame visible, the lower. " +
   "1.0 = frames completely hidden, cargo fills full length. " +
-  "0.8~0.9 = frames barely visible at the very front only. " +
+  "0.8~0.9 = frames mostly hidden; top edge may be visible parallel if cargo peak is low. " +
   "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
   "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
