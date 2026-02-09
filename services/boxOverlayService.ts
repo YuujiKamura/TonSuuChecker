@@ -294,17 +294,6 @@ export const analyzeBoxOverlayEnsemble = async (
       await saveCostEntry(modelName, imageParts.length, isFreeTier);
 
       const plateBox = geo.plateBox;
-      if (!plateBox || plateBox.length !== 4) {
-        notify({
-          phase: "geometry",
-          detail: `幾何学検出${runLabel}: ナンバープレート未検出、スキップ`,
-          current: i + 1,
-          total: ensembleCount,
-        });
-        console.warn(`Geometry run ${i + 1}: plateBox not detected, skip`);
-        continue;
-      }
-
       const tgTop = geo.tailgateTopY ?? 0;
       const tgBot = geo.tailgateBottomY ?? 0;
       const cargoTop = geo.cargoTopY ?? 0;
@@ -324,25 +313,53 @@ export const analyzeBoxOverlayEnsemble = async (
         continue;
       }
 
-      // ナンバープレート高さ（大板 = 220mm）をスケール基準にする
-      // → 後板下端が写っていなくても正確に計算可能
+      // スケール計算: プレート基準 → 後板基準の優先順でフォールバック
       const PLATE_HEIGHT_M = 0.22; // 日本の大板ナンバープレート高さ
-      const plateHeightNorm = plateBox[3] - plateBox[1];
-      if (plateHeightNorm <= 0.01) {
-        console.warn(`Geometry run ${i + 1}: plate height too small, skip`);
+      let mPerNorm: number;
+      let scaleMethod: string;
+
+      const hasPlate = plateBox && plateBox.length === 4 && (plateBox[3] - plateBox[1]) > 0.01;
+      const hasTailgate = tgBot > 0 && tgBot > tgTop;
+
+      if (hasPlate) {
+        // 優先: ナンバープレート基準（後板下端が不要）
+        const plateHeightNorm = plateBox[3] - plateBox[1];
+        mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
+        scaleMethod = "plate";
+      } else if (hasTailgate) {
+        // フォールバック: 後板の高さ基準（従来方式）
+        const tgHeightNorm = tgBot - tgTop;
+        mPerNorm = spec.bedHeight / tgHeightNorm;
+        scaleMethod = "tailgate";
+      } else {
+        notify({
+          phase: "geometry",
+          detail: `幾何学検出${runLabel}: スケール基準なし、スキップ`,
+          current: i + 1,
+          total: ensembleCount,
+        });
+        console.warn(`Geometry run ${i + 1}: no scale reference (no plate, no valid tailgate), skip`);
         continue;
       }
-      const mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
-      // 荷高 = 後板高さ + (後板上端から荷頂までの距離)
-      // cargoTop < tgTop → 荷がリムより上 → 正の加算
-      // cargoTop > tgTop → 荷がリムより下 → 負の加算（高さが後板高以下）
-      const cargoHeightM = clamp(
-        spec.bedHeight + (tgTop - cargoTop) * mPerNorm,
-        0.0, 0.8,
-      );
+
+      // 荷高計算
+      let cargoHeightM: number;
+      if (hasPlate || !hasTailgate) {
+        // プレート基準: 荷高 = 後板高さ + (後板上端から荷頂までの距離)
+        cargoHeightM = clamp(
+          spec.bedHeight + (tgTop - cargoTop) * mPerNorm,
+          0.0, 0.8,
+        );
+      } else {
+        // 後板基準: 荷高 = (後板下端から荷頂までの距離) × スケール
+        cargoHeightM = clamp(
+          (tgBot - cargoTop) * mPerNorm,
+          0.0, 0.8,
+        );
+      }
 
       console.log(
-        `  plate_h_norm=${plateHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m (tgBot=${tgBot.toFixed(3)} unused)`
+        `  scale=${scaleMethod}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
       );
       endPhase(`幾何学検出${runLabel}`);
       await notify({
