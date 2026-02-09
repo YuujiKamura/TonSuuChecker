@@ -30,11 +30,12 @@ const FILL_PROMPT =
   "fillRatioW (0.3~0.9): fraction of bed WIDTH covered by cargo at ~90% of peak height (slightly below the very top). " +
   "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
   "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
-  "taperRatio (0.5~1.0): how gently the mound slopes from peak to edges. " +
-  "1.0 = perfectly flat transition (box-like). " +
-  "0.8~0.9 = gentle slope, gradual transition. " +
-  "0.6~0.8 = moderate slope, visible curvature. " +
-  "0.5~0.6 = steep slope, sharp drop from peak. " +
+  "taperRatio (0.5~0.9): how much of the bed LENGTH is effectively filled (frustum shape factor). " +
+  "Most dump truck loads fill the bed nearly fully along the length. " +
+  "0.9 = frustum shape, cargo fills nearly the full bed length. " +
+  "0.8~0.9 = nearly full, slight taper at ends. " +
+  "0.7~0.8 = moderate taper, cargo clearly shorter than bed. " +
+  "0.5~0.7 = sparse, cargo piled only in part of the bed. " +
   "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
   "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
@@ -485,7 +486,7 @@ export const analyzeBoxOverlayEnsemble = async (
 
   const fillL = clamp(average(fillLList), 0.3, 0.9);
   const fillW = clamp(average(fillWList), 0.3, 0.9);
-  const taper = clamp(average(taperList), 0.5, 1.0);
+  const taper = clamp(average(taperList), 0.5, 0.9);
   const packing = clamp(average(packingList), 0.7, 0.9);
 
   // パラメータに充填率を反映
