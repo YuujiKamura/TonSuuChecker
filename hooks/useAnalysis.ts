@@ -191,14 +191,11 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
 
   // --- useEffects ---
 
-  // loading開始時に進捗をリセット
+  // loading終了時に進捗をクリア
+  // NOTE: loading開始時のリセットはstartAnalysis内で行う（useEffectだとservice側の
+  // notify()が先に設定した進捗を上書きしてしまうため）
   useEffect(() => {
-    if (loading) {
-      setProgressLog([]);
-      setElapsedSeconds(0);
-      analysisStartTime.current = Date.now();
-      setAnalysisProgress({ phase: 'preparing', detail: '解析を開始中...' });
-    } else {
+    if (!loading) {
       setAnalysisProgress(null);
     }
   }, [loading]);
@@ -265,8 +262,14 @@ export default function useAnalysis(params: UseAnalysisParams): UseAnalysisRetur
       setIsBackgroundScanning(true);
       setMonitorGuidance(null);
     } else {
+      // 進捗をリセット（setLoadingより先に同期的に行う。
+      // useEffect経由だとservice側のnotify()が先に設定した進捗を上書きしてしまう）
+      setProgressLog([]);
+      setElapsedSeconds(0);
+      analysisStartTime.current = Date.now();
+      setAnalysisProgress({ phase: 'preparing', detail: '解析を開始中...' });
       setLoading(true);
-      setPendingResult(null);  // 解析開始時に pending をリセット
+      setPendingResult(null);
       setRawInferences([]);
       setPendingImageUrls(urls);
       setPendingBase64Images(base64s);
