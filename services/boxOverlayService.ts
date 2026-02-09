@@ -37,7 +37,7 @@ const FILL_PROMPT =
   "Almost always 0.95-1.0 for dump trucks since cargo spreads across the full width at the bottom. " +
   "Only reduce below 0.95 if cargo is clearly piled in a narrow strip not reaching the side walls. " +
   "NOTE: Do NOT reduce fillRatioW for mound tapering — that is handled by taperRatio separately. " +
-  "taperRatio (0.3~1.0): cross-sectional shape factor (volume fraction of the bounding box H × W). " +
+  "taperRatio (0.3~0.85): cross-sectional shape factor (volume fraction of the bounding box H × W). " +
   "This captures how the mound tapers from base to peak. " +
   "1.0 = flat top (cargo fills bed like a box, uniform height across width). " +
   "0.7~0.85 = gentle mound (typical for bulk debris, slight slope from center). " +
@@ -435,7 +435,7 @@ export const analyzeBoxOverlayEnsemble = async (
 
   const fillL = clamp(average(fillLList), 0.0, 0.9);
   const fillW = clamp(average(fillWList), 0.8, 0.9);
-  const taper = clamp(average(taperList), 0.3, 1.0);
+  const taper = clamp(average(taperList), 0.3, 0.85);
   const packing = clamp(average(packingList), 0.65, 0.9);
 
   // パラメータに充填率を反映
