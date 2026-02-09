@@ -361,7 +361,7 @@ export const analyzeBoxOverlayEnsemble = async (
       cargoHeightM = clamp(cargoHeightM, 0.0, 0.8);
 
       console.log(
-        `  scale=${scaleMethod}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
+        `  scale=${scaleMethod}, cargo_h=${cargoHeightM.toFixed(3)}m`
       );
 
       // ジオメトリ生座標をパラメータに反映
