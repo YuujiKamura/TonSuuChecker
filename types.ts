@@ -122,6 +122,7 @@ export interface BoxOverlayResult {
   heightM: number;
   fillRatioL: number;
   fillRatioW: number;
+  taperRatio: number;
   packingDensity: number;
   estimatedVolumeM3: number;
   estimatedTonnage: number;
