@@ -116,7 +116,9 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
     : null;
 
   // 等級の計算（実測値と最大積載量が両方ある場合）
-  const effectiveMaxCapacity = maxCapacity || result.estimatedMaxCapacity;
+  // maxCapacityが100t超はkg単位の入力ミスとみなし無視
+  const sanitizedMaxCapacity = (maxCapacity && maxCapacity <= 100) ? maxCapacity : undefined;
+  const effectiveMaxCapacity = sanitizedMaxCapacity || result.estimatedMaxCapacity;
   const loadGrade = (actualTonnage && effectiveMaxCapacity)
     ? getLoadGrade(actualTonnage, effectiveMaxCapacity)
     : null;
