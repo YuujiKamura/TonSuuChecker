@@ -27,8 +27,8 @@ const FILL_PROMPT =
   "fillRatioL (0.3~0.9): fraction of bed LENGTH covered by cargo AT THE TOP (peak/ridge). " +
   "From a rear view, the bed length is NOT visible. " +
   "If you cannot clearly determine fillRatioL, set it to 0.8. " +
-  "fillRatioW (0.3~0.9): fraction of bed WIDTH covered by cargo AT THE TOP (peak/ridge). " +
-  "Visible from rear view — how wide is the mound peak compared to the bed width. " +
+  "fillRatioW (0.3~0.9): fraction of bed WIDTH covered by cargo at ~90% of peak height (slightly below the very top). " +
+  "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
   "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
   "taperRatio (0.5~1.0): how gently the mound slopes from peak to edges. " +
   "1.0 = perfectly flat transition (box-like). " +
