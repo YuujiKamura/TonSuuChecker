@@ -154,7 +154,7 @@ function calculateBoxOverlay(
   // 自重圧縮補正: ボリュームが大きいほど下層が圧縮され充填密度が上がる
   // 基準体積 = 水積み容量の70%。それより大きければ密度UP、小さければDOWN
   const refVolume = 2.0;
-  const compressionFactor = 1.0 + 0.08 * (volume - refVolume);
+  const compressionFactor = 1.0 + 0.15 * (volume - refVolume);
   const effectivePacking = clamp(packing * compressionFactor, 0.7, 0.95);
 
   const tonnage = volume * density * effectivePacking;
