@@ -28,9 +28,10 @@ const FILL_PROMPT =
   'Output ONLY JSON: {"fillRatioL": 0.0, "fillRatioW": 0.0, "taperRatio": 0.0, "packingDensity": 0.0, "reasoning": "..."} ' +
   "This is a rear view of a dump truck carrying construction debris (As殻 = asphalt chunks). " +
   "Estimate each parameter INDEPENDENTLY: " +
-  "fillRatioL (0.3~0.9): fraction of the bed LENGTH occupied by cargo. " +
-  "Dump trucks are loaded from above; cargo forms a mound that rarely reaches the very front/rear. " +
-  "Full load with cargo touching both ends = 0.85-0.9. Normal load = 0.6-0.8. Light load = 0.4-0.6. " +
+  "fillRatioL (0.3~1.0): fraction of the bed LENGTH occupied by cargo. " +
+  "IMPORTANT: From a rear view, the bed length is NOT visible — you cannot judge how far cargo extends front-to-back. " +
+  "If you cannot clearly determine fillRatioL from the image, set it to 1.0 (assume full length). " +
+  "Only reduce below 1.0 if there is clear visual evidence (e.g., side view showing empty space, or cargo obviously piled only in part of the bed). " +
   "fillRatioW (0.5~1.0): fraction of the bed WIDTH covered by cargo at the top surface. " +
   "Usually 0.8-1.0 since cargo spreads across the width. " +
   "taperRatio (0.3~1.0): mound shape factor from peak to edges. " +
@@ -152,12 +153,20 @@ function parseJsonSafe<T>(text: string, label: string): T {
     return JSON.parse(text) as T;
   } catch {
     // 失敗した場合：最初の { から対応する } までを抽出
+    // 文字列リテラル内の {} はスキップする
     const start = text.indexOf('{');
     if (start === -1) throw new Error(`${label}: JSONオブジェクトが見つかりません`);
     let depth = 0;
+    let inString = false;
+    let escape = false;
     for (let i = start; i < text.length; i++) {
-      if (text[i] === '{') depth++;
-      else if (text[i] === '}') depth--;
+      const ch = text[i];
+      if (escape) { escape = false; continue; }
+      if (ch === '\\' && inString) { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') depth++;
+      else if (ch === '}') depth--;
       if (depth === 0) {
         const extracted = text.slice(start, i + 1);
         console.warn(`${label}: JSONに余分なテキストあり、抽出してパース (pos ${start}-${i})`);
