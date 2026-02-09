@@ -28,10 +28,10 @@ const FILL_PROMPT =
   'Output ONLY JSON: {"fillRatioL": 0.0, "fillRatioW": 0.0, "taperRatio": 0.0, "packingDensity": 0.0, "reasoning": "..."} ' +
   "This is a rear view of a dump truck carrying construction debris (As殻 = asphalt chunks). " +
   "Estimate each parameter INDEPENDENTLY: " +
-  "fillRatioL (0.3~1.0): fraction of the bed LENGTH occupied by cargo. " +
+  "fillRatioL (0.3~0.9): fraction of the bed LENGTH occupied by cargo. " +
   "IMPORTANT: From a rear view, the bed length is NOT visible — you cannot judge how far cargo extends front-to-back. " +
-  "If you cannot clearly determine fillRatioL from the image, set it to 1.0 (assume full length). " +
-  "Only reduce below 1.0 if there is clear visual evidence (e.g., side view showing empty space, or cargo obviously piled only in part of the bed). " +
+  "If you cannot clearly determine fillRatioL from the image, set it to 0.9 (assume nearly full length). " +
+  "Only reduce below 0.9 if there is clear visual evidence (e.g., side view showing empty space, or cargo obviously piled only in part of the bed). " +
   "fillRatioW (0.5~1.0): fraction of the bed WIDTH covered by cargo at the top surface. " +
   "Usually 0.8-1.0 since cargo spreads across the width. " +
   "taperRatio (0.3~1.0): mound shape factor from peak to edges. " +
@@ -430,7 +430,7 @@ export const analyzeBoxOverlayEnsemble = async (
     throw new Error("充填率推定が全ての試行で失敗しました");
   }
 
-  const fillL = clamp(average(fillLList), 0.0, 1.0);
+  const fillL = clamp(average(fillLList), 0.0, 0.9);
   const fillW = clamp(average(fillWList), 0.0, 1.0);
   const taper = clamp(average(taperList), 0.3, 1.0);
   const packing = clamp(average(packingList), 0.65, 0.9);
