@@ -31,14 +31,16 @@ const FILL_PROMPT =
   "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
   "0.8~0.9 = nearly flat top. 0.5~0.7 = moderate mound. 0.3~0.5 = sharp peak. " +
   "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled. " +
-  "Look carefully at depth cues from the rear view: " +
-  "If cargo fills the bed right up to the tailgate, taper is high (0.8~1.0). " +
-  "If you can see empty bed floor near the tailgate, or cargo appears to recede/sit far back, taper is low (0.5~0.7). " +
-  "If cargo is piled only in the front half of the bed, the mound will appear distant and small from the rear. " +
+  "From the rear, judge depth by the cargo mound's apparent size and position: " +
+  "A mound that reaches the tailgate and fills the full frame = high taper (0.8~1.0). " +
+  "A mound that appears to sit back from the tailgate with space above the tailgate top = moderate taper (0.7~0.8). " +
+  "A small, distant-looking mound that only occupies the far half of the bed = low taper (0.5~0.7). " +
+  "Also check the cargo surface slope: if the top surface slopes steeply downward toward the rear, " +
+  "cargo is concentrated toward the front. " +
   "1.0 = cargo fills full bed length up to the tailgate. " +
   "0.8~0.9 = nearly full, slight gap at front or back. " +
   "0.7~0.8 = moderate gap, cargo clearly shorter than bed. " +
-  "0.5~0.7 = cargo concentrated in front, visible empty bed floor near tailgate. " +
+  "0.5~0.7 = cargo concentrated in front, mound appears distant and small. " +
   "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
   "As殻 = flat asphalt pavement slabs (~5cm thick). " +
   "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
