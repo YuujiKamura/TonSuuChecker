@@ -122,9 +122,10 @@ async function runSingleInference(
     clampToRanges(parsed);
     // Code-side calculation (CLI版と同じ: AIはパラメータのみ→コード側で体積・トン数計算)
     const { volume, tonnage } = calculateTonnage({
-      fillRatioW: parsed.fillRatioW ?? 0.85,
       height: parsed.height ?? 0,
-      fillRatioZ: parsed.fillRatioZ ?? 0.85,
+      fillRatioL: parsed.fillRatioL ?? 0.8,
+      fillRatioW: parsed.fillRatioW ?? 0.85,
+      taperRatio: 0.85,  // multi-param doesn't estimate taper; use default
       packingDensity: parsed.packingDensity ?? 0.8,
       materialType: parsed.materialType ?? '',
     }, parsed.truckType);

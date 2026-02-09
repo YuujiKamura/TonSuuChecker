@@ -1,67 +1,24 @@
 import { GoogleGenAI, Part } from "@google/genai";
 import { saveCostEntry } from "./costTracker";
-import { BoxOverlayResult, AnalysisProgress, PhaseTiming } from "../types";
+import { BoxOverlayResult, AnalysisProgress, PhaseTiming, GeometryResponse, FillResponse, AnalysisLog, GeometryRunLog, FillRunLog, CalculationLog, ImageInfoLog } from "../types";
 import { PartialCalcParams } from "../types/ui";
 import { getApiKey, checkIsFreeTier } from "./configService";
 import { truckSpecs, materials } from "../domain/promptSpec";
+import { saveAnalysisLog } from "./indexedDBService";
+import {
+  calculateTonnage as wasmCalculateTonnage,
+  heightFromGeometry as wasmHeightFromGeometry,
+} from '../lib/tonsuu-core/tonsuu_core.js';
+import spec from '../prompt-spec.json';
 
-// --- Prompts (from Rust estimate.rs) ---
+// --- Prompts (from prompt-spec.json SSOT) ---
 
-const GEOMETRY_PROMPT =
-  'Output ONLY JSON: {"plateBox":[x1,y1,x2,y2], "tailgateTopY": 0.0, "tailgateBottomY": 0.0, "cargoTopY": 0.0} ' +
-  "This is a rear view of a dump truck carrying construction debris. " +
-  "plateBox = bounding box of the rear license plate (normalized 0-1, [left,top,right,bottom]). " +
-  "tailgateTopY = Y coordinate (normalized 0-1) of the TOP edge of the tailgate (後板上端/rim). " +
-  "tailgateBottomY = Y coordinate (normalized 0-1) of the BOTTOM edge of the tailgate (後板下端). " +
-  "cargoTopY = Y coordinate (normalized 0-1) of the HIGHEST point of the cargo mound. " +
-  "This is NOT the cargo surface near the tailgate — it is the absolute highest pixel of any cargo visible in the image. " +
-  "Cargo often extends well above the tailgate rim. Scan the entire image top-to-bottom to find the highest cargo pixel. " +
-  "The tailgate is the flat metal panel at the rear of the truck bed. " +
-  "tailgateTopY < tailgateBottomY < plateBox[3] (top has smaller Y). " +
-  "cargoTopY < tailgateTopY if cargo is heaped above the rim (common). " +
-  "cargoTopY > tailgateTopY only if cargo is below the rim (rare, nearly empty). " +
-  "All coordinates normalized 0.0-1.0.";
+export const GEOMETRY_PROMPT: string = spec.geometryPrompt;
+export const FILL_PROMPT: string = spec.fillPrompt;
 
-const FILL_PROMPT =
-  'Output ONLY JSON: {"fillRatioL": 0.0, "fillRatioW": 0.0, "taperRatio": 0.0, "packingDensity": 0.0, "reasoning": "..."} ' +
-  "This is a rear view of a dump truck carrying construction debris (As殻 = asphalt chunks). " +
-  "The cargo forms a mound shape. Estimate the TOP surface and slope: " +
-  "fillRatioL (0.3~0.9): fraction of bed LENGTH covered by cargo AT THE TOP (peak/ridge). " +
-  "From a rear view, the bed length is NOT visible. " +
-  "If you cannot clearly determine fillRatioL, set it to 0.8. " +
-  "fillRatioW (0.7~0.9): fraction of bed WIDTH covered by cargo at ~90% of peak height (slightly below the very top). " +
-  "Visible from rear view — how wide is the mound at 90% height compared to the bed width. " +
-  "0.8~0.9 = nearly flat top. 0.7~0.8 = moderate mound. " +
-  "taperRatio (0.5~1.0): how much of the bed LENGTH is effectively filled. " +
-  "KEY CUE: Look at the コボレーン (spill guard frames) on top of the side panels. " +
-  "IMPORTANT: Distinguish WHY frames are visible: " +
-  "If frames are visible UNIFORMLY along the full length (same height everywhere), " +
-  "cargo is simply low but fills the full bed → high taper (0.8~1.0). " +
-  "If frames are visible MORE toward the FRONT (cargo slopes down toward front), " +
-  "cargo does not fill the full length → low taper (0.5~0.7). " +
-  "1.0 = cargo fills full bed length at uniform height. " +
-  "0.8~0.9 = full length filled, frames visible due to low cargo height. " +
-  "0.5~0.7 = cargo slopes down toward front, frames increasingly exposed ahead. " +
-  "packingDensity (0.7~0.9): how tightly packed the debris chunks are. " +
-  "As殻 = flat asphalt pavement slabs (~5cm thick). " +
-  "Loosely thrown = 0.7-0.75, moderate = 0.75-0.85, tightly packed = 0.85-0.9.";
-
-// --- Types for AI responses ---
-
-interface GeometryResponse {
-  plateBox?: number[];
-  tailgateTopY?: number;
-  tailgateBottomY?: number;
-  cargoTopY?: number;
-}
-
-interface FillResponse {
-  fillRatioL?: number;
-  fillRatioW?: number;
-  taperRatio?: number;
-  packingDensity?: number;
-  reasoning?: string;
-}
+// --- Ranges & constants from prompt-spec.json ---
+const ranges = spec.ranges;
+const constants = spec.constants;
 
 // --- Core functions ---
 
@@ -70,7 +27,7 @@ async function detectGeometry(
   imageParts: Part[],
   modelName: string,
   onFirstToken?: () => void,
-): Promise<GeometryResponse> {
+): Promise<{ parsed: GeometryResponse; rawText: string }> {
   const stream = await ai.models.generateContentStream({
     model: modelName,
     contents: {
@@ -93,7 +50,8 @@ async function detectGeometry(
   }
 
   if (!fullText) throw new Error("Geometry: APIレスポンスが空です");
-  return parseJsonSafe<GeometryResponse>(fullText, "Geometry");
+  const parsed = parseJsonSafe<GeometryResponse>(fullText, "Geometry");
+  return { parsed, rawText: fullText };
 }
 
 async function estimateFill(
@@ -101,7 +59,7 @@ async function estimateFill(
   imageParts: Part[],
   modelName: string,
   onFirstToken?: () => void,
-): Promise<FillResponse> {
+): Promise<{ parsed: FillResponse; rawText: string }> {
   const stream = await ai.models.generateContentStream({
     model: modelName,
     contents: {
@@ -124,21 +82,11 @@ async function estimateFill(
   }
 
   if (!fullText) throw new Error("Fill: APIレスポンスが空です");
-  return parseJsonSafe<FillResponse>(fullText, "Fill");
+  const parsed = parseJsonSafe<FillResponse>(fullText, "Fill");
+  return { parsed, rawText: fullText };
 }
 
-/** L方向テーパー乗算 + W方向単純平均で体積を計算。
- *  fillL/fillW = mound上端面の充填率（0~1）
- *  底面の充填率は BOTTOM_FILL（0.9）とする。
- *  taper = L方向の形状係数（0.5~1.0）
- *    1.0 = 箱型（fillLそのまま）
- *    0.5 = 急斜面（fillLの半分）
- *  effectiveL = fillL × taper
- *  effectiveW = (BOTTOM_FILL + fillW) / 2   ← W方向は単純平均
- *  V = bedL × bedW × H × effectiveL × effectiveW
- */
-const BOTTOM_FILL = 0.9;  // 底面の長さ・幅方向の充填率
-
+/** WASM経由でbox-overlay計算を実行し、CalculationLog付きの結果を返す */
 function calculateBoxOverlay(
   heightM: number,
   fillL: number,
@@ -147,26 +95,42 @@ function calculateBoxOverlay(
   packing: number,
   truckClass: string,
   materialType: string,
-): { volume: number; tonnage: number; density: number; effectivePacking: number } {
-  const spec = truckSpecs[truckClass];
-  if (!spec) throw new Error(`Unknown truck class: ${truckClass}`);
-  const density = materials[materialType]?.density ?? 2.5;
+): { volume: number; tonnage: number; density: number; effectivePacking: number; calculationLog: CalculationLog } {
+  const truckSpec = truckSpecs[truckClass];
+  if (!truckSpec) throw new Error(`Unknown truck class: ${truckClass}`);
 
-  // L方向: fillL × taper（テーパーで減衰、増やさない）
+  // Call WASM calculateTonnage
+  const wasmResult = JSON.parse(
+    wasmCalculateTonnage(heightM, fillL, fillW, taper, packing, materialType, truckClass)
+  ) as { volume: number; tonnage: number; effectivePacking: number; density: number };
+
+  // Reconstruct intermediate values for calculationLog
   const effectiveL = fillL * taper;
-  // W方向: 底面と上面の単純平均（後ろから見えるのでAI値をそのまま使用）
-  const effectiveW = (BOTTOM_FILL + fillW) / 2;
-  const volume = spec.bedLength * spec.bedWidth * heightM * effectiveL * effectiveW;
+  const effectiveW = (constants.BOTTOM_FILL + fillW) / 2;
+  const compressionFactor = 1.0 + constants.COMPRESSION_FACTOR * (wasmResult.volume - constants.COMPRESSION_REF_VOLUME);
 
-  // 自重圧縮補正: ボリュームが大きいほど下層が圧縮され充填密度が上がる
-  // 基準体積 = 水積み容量の70%。それより大きければ密度UP、小さければDOWN
-  const refVolume = 2.0;
-  const compressionFactor = 1.0 + 0.15 * (volume - refVolume);
-  const effectivePacking = clamp(packing * compressionFactor, 0.7, 0.95);
+  const calculationLog: CalculationLog = {
+    heightM,
+    fillRatioL: fillL,
+    fillRatioW: fillW,
+    taperRatio: taper,
+    packingDensity: packing,
+    effectiveL,
+    effectiveW,
+    volume: wasmResult.volume,
+    compressionFactor,
+    effectivePacking: wasmResult.effectivePacking,
+    density: wasmResult.density,
+    tonnage: wasmResult.tonnage,
+  };
 
-  const tonnage = volume * density * effectivePacking;
-
-  return { volume, tonnage, density, effectivePacking };
+  return {
+    volume: wasmResult.volume,
+    tonnage: wasmResult.tonnage,
+    density: wasmResult.density,
+    effectivePacking: wasmResult.effectivePacking,
+    calculationLog,
+  };
 }
 
 // --- Helpers ---
@@ -241,6 +205,7 @@ export const analyzeBoxOverlayEnsemble = async (
   abortSignal?: { cancelled: boolean },
   modelName: string = "gemini-3-flash-preview",
   onDetailedProgress?: (progress: AnalysisProgress) => void,
+  stockItemId?: string,
 ): Promise<BoxOverlayResult> => {
   let lastNotifyTime = 0;
   const notify = async (progress: AnalysisProgress, wait = false) => {
@@ -277,11 +242,12 @@ export const analyzeBoxOverlayEnsemble = async (
     inlineData: { mimeType: "image/jpeg" as const, data: base64 },
   }));
 
-  const spec = truckSpecs[truckClass];
-  if (!spec) throw new Error(`Unknown truck class: ${truckClass}`);
+  const truckSpec = truckSpecs[truckClass];
+  if (!truckSpec) throw new Error(`Unknown truck class: ${truckClass}`);
 
   // Step 1: Detect geometry (ensemble, take median of height_m)
   const heightMList: number[] = [];
+  const geometryRunLogs: GeometryRunLog[] = [];
 
   for (let i = 0; i < ensembleCount; i++) {
     if (abortSignal?.cancelled) break;
@@ -297,7 +263,7 @@ export const analyzeBoxOverlayEnsemble = async (
 
     startPhase();
     try {
-      const geo = await detectGeometry(ai, imageParts, modelName, () => {
+      const { parsed: geo, rawText: geoRawText } = await detectGeometry(ai, imageParts, modelName, () => {
         notify({
           phase: "geometry",
           detail: `モデル応答開始${runLabel} — 結果を受信中...`,
@@ -324,19 +290,22 @@ export const analyzeBoxOverlayEnsemble = async (
           total: ensembleCount,
         });
         console.warn(`Geometry run ${i + 1}: tailgateTopY invalid, skip`);
+        const runDuration = Date.now() - phaseStart;
+        geometryRunLogs.push({ runIndex: i, rawResponse: geoRawText, parsed: geo, scaleMethod: "none", mPerNorm: 0, cargoHeightM: 0, durationMs: runDuration });
         continue;
       }
 
-      // スケール計算: 後板優先、後板が使えないときのみプレート
-      // プレートは一部しか写っていないことがあり、スケールが不正確になりやすい
-      const PLATE_HEIGHT_M = 0.22; // 日本の大板ナンバープレート高さ
-      const PLATE_MIN_NORM = 0.03;
+      // WASM heightFromGeometry handles scale calculation (tailgate priority, plate fallback)
+      const plateBoxJson = plateBox && plateBox.length === 4 ? JSON.stringify(plateBox) : null;
+      const geoResult = JSON.parse(
+        wasmHeightFromGeometry(tgTop, tgBot, cargoTop, plateBoxJson, truckSpec.bedHeight)
+      ) as { heightM: number; scaleMethod: string };
 
-      const plateHeightNorm = plateBox && plateBox.length === 4 ? plateBox[3] - plateBox[1] : 0;
-      const hasPlate = plateHeightNorm > PLATE_MIN_NORM;
-      const hasTailgate = tgBot > 0 && tgBot > tgTop;
+      let cargoHeightM = geoResult.heightM;
+      const scaleMethod = geoResult.scaleMethod;
+      let mPerNorm = 0;
 
-      if (!hasPlate && !hasTailgate) {
+      if (scaleMethod === "none") {
         notify({
           phase: "geometry",
           detail: `幾何学検出${runLabel}: スケール基準なし、スキップ`,
@@ -344,31 +313,21 @@ export const analyzeBoxOverlayEnsemble = async (
           total: ensembleCount,
         });
         console.warn(`Geometry run ${i + 1}: no scale reference, skip`);
+        const runDuration = Date.now() - phaseStart;
+        geometryRunLogs.push({ runIndex: i, rawResponse: geoRawText, parsed: geo, scaleMethod: "none", mPerNorm: 0, cargoHeightM: 0, durationMs: runDuration });
         continue;
       }
 
-      let cargoHeightM: number;
-      let scaleMethod: string;
-
-      if (hasTailgate) {
-        // 優先: 後板基準（後板の上下端が両方見えている）
+      // Reconstruct mPerNorm for logging
+      if (scaleMethod === "tailgate") {
         const tgHeightNorm = tgBot - tgTop;
-        const mPerNorm = spec.bedHeight / tgHeightNorm;
-        cargoHeightM = (tgBot - cargoTop) * mPerNorm;
-        scaleMethod = "tailgate";
-        console.log(`  tailgate: tgH_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${cargoHeightM.toFixed(3)}m`);
+        mPerNorm = tgHeightNorm > 0 ? truckSpec.bedHeight / tgHeightNorm : 0;
       } else {
-        // フォールバック: プレート基準（後板下端が見えないとき）
-        const mPerNorm = PLATE_HEIGHT_M / plateHeightNorm;
-        cargoHeightM = spec.bedHeight + (tgTop - cargoTop) * mPerNorm;
-        scaleMethod = "plate";
-        console.log(`  plate: plateH_norm=${plateHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(2)}, H=${cargoHeightM.toFixed(3)}m`);
+        const plateHeightNorm = plateBox && plateBox.length === 4 ? plateBox[3] - plateBox[1] : 0;
+        mPerNorm = plateHeightNorm > 0 ? constants.PLATE_HEIGHT_M / plateHeightNorm : 0;
       }
-      cargoHeightM = clamp(cargoHeightM, 0.0, 0.8);
 
-      console.log(
-        `  scale=${scaleMethod}, cargo_h=${cargoHeightM.toFixed(3)}m`
-      );
+      console.log(`  scale=${scaleMethod}, m/norm=${mPerNorm.toFixed(2)}, H=${cargoHeightM.toFixed(3)}m`);
 
       // ジオメトリ生座標をパラメータに反映
       partialParams.tgTopY = round3(tgTop);
@@ -376,6 +335,8 @@ export const analyzeBoxOverlayEnsemble = async (
       partialParams.tgBotY = round3(tgBot);
 
       endPhase(`幾何学検出${runLabel}`);
+      const runDuration = timings[timings.length - 1].durationMs;
+      geometryRunLogs.push({ runIndex: i, rawResponse: geoRawText, parsed: geo, scaleMethod, mPerNorm, cargoHeightM, durationMs: runDuration });
       await notify({
         phase: "geometry",
         detail: `幾何学検出${runLabel}: 荷高=${cargoHeightM.toFixed(2)}m [${scaleMethod}]`,
@@ -386,6 +347,8 @@ export const analyzeBoxOverlayEnsemble = async (
       heightMList.push(cargoHeightM);
     } catch (err) {
       endPhase(`幾何学検出${runLabel} (エラー)`);
+      const runDuration = timings[timings.length - 1].durationMs;
+      geometryRunLogs.push({ runIndex: i, rawResponse: "", parsed: null, scaleMethod: "none", mPerNorm: 0, cargoHeightM: 0, durationMs: runDuration });
       notify({
         phase: "geometry",
         detail: `幾何学検出${runLabel}: エラー`,
@@ -421,6 +384,7 @@ export const analyzeBoxOverlayEnsemble = async (
   const taperList: number[] = [];
   const packingList: number[] = [];
   let lastReasoning = "";
+  const fillRunLogs: FillRunLog[] = [];
 
   for (let i = 0; i < ensembleCount; i++) {
     if (abortSignal?.cancelled) break;
@@ -436,7 +400,7 @@ export const analyzeBoxOverlayEnsemble = async (
 
     startPhase();
     try {
-      const fill = await estimateFill(ai, imageParts, modelName, () => {
+      const { parsed: fill, rawText: fillRawText } = await estimateFill(ai, imageParts, modelName, () => {
         notify({
           phase: "fill",
           detail: `モデル応答開始${fillRunLabel} — 結果を受信中...`,
@@ -452,6 +416,8 @@ export const analyzeBoxOverlayEnsemble = async (
       const pd = fill.packingDensity ?? 0.7;
 
       endPhase(`充填率推定${fillRunLabel}`);
+      const fillDuration = timings[timings.length - 1].durationMs;
+      fillRunLogs.push({ runIndex: i, rawResponse: fillRawText, parsed: fill, durationMs: fillDuration });
       await notify({
         phase: "fill",
         detail: `充填率推定${fillRunLabel}: L=${fl} W=${fw} T=${tp} P=${pd}`,
@@ -470,6 +436,8 @@ export const analyzeBoxOverlayEnsemble = async (
       }
     } catch (err) {
       endPhase(`充填率推定${fillRunLabel} (エラー)`);
+      const fillDuration = timings[timings.length - 1].durationMs;
+      fillRunLogs.push({ runIndex: i, rawResponse: "", parsed: null, durationMs: fillDuration });
       notify({
         phase: "fill",
         detail: `充填率推定${fillRunLabel}: エラー`,
@@ -484,10 +452,10 @@ export const analyzeBoxOverlayEnsemble = async (
     throw new Error("充填率推定が全ての試行で失敗しました");
   }
 
-  const fillL = clamp(average(fillLList), 0.3, 0.9);
-  const fillW = clamp(average(fillWList), 0.7, 0.9);
-  const taper = clamp(average(taperList), 0.5, 1.0);
-  const packing = clamp(average(packingList), 0.7, 0.9);
+  const fillL = clamp(average(fillLList), ranges.fillRatioL.min, ranges.fillRatioL.max);
+  const fillW = clamp(average(fillWList), ranges.fillRatioW.min, ranges.fillRatioW.max);
+  const taper = clamp(average(taperList), ranges.taperRatio.min, ranges.taperRatio.max);
+  const packing = clamp(average(packingList), ranges.packingDensity.min, ranges.packingDensity.max);
 
   // パラメータに充填率を反映
   partialParams.fillRatioL = round3(fillL);
@@ -539,6 +507,32 @@ export const analyzeBoxOverlayEnsemble = async (
 
   onProgress?.(1, result);
   notify({ phase: "done", detail: "Box-overlay解析完了", params: { ...partialParams } });
+
+  // 解析ログを非同期保存（失敗しても解析結果は返す）
+  if (stockItemId) {
+    const imageInfo: ImageInfoLog = {
+      count: base64Images.length,
+      totalSizeBytes: base64Images.reduce((sum, b64) => sum + Math.floor(b64.length * 3 / 4), 0),
+      mimeType: "image/jpeg",
+    };
+    const analysisLog: AnalysisLog = {
+      id: crypto.randomUUID(),
+      stockItemId,
+      timestamp: Date.now(),
+      modelName,
+      ensembleCount,
+      geometryPrompt: GEOMETRY_PROMPT,
+      fillPrompt: FILL_PROMPT,
+      geometryRuns: geometryRunLogs,
+      fillRuns: fillRunLogs,
+      calculation: calc.calculationLog,
+      finalResult: result,
+      imageInfo,
+    };
+    saveAnalysisLog(analysisLog).catch((err) => {
+      console.error("解析ログ保存エラー:", err);
+    });
+  }
 
   return result;
 };

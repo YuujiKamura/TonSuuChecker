@@ -1,13 +1,9 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export function buildCorePrompt(): string;
+export function calculateTonnage(height: number, fill_ratio_l: number, fill_ratio_w: number, taper_ratio: number, packing_density: number, material_type: string, truck_class?: string | null): string;
 
-export function calculateTonnage(fill_ratio_w: number, height: number, fill_ratio_z: number, packing_density: number, material_type: string, truck_class?: string | null): string;
-
-export function getJsonTemplate(): string;
-
-export function getRangeGuide(): string;
+export function heightFromGeometry(tg_top: number, tg_bot: number, cargo_top: number, plate_box_json: string | null | undefined, bed_height: number): string;
 
 export function validateParams(json: string): string;
 
@@ -15,15 +11,13 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly calculateTonnage: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number];
-    readonly buildCorePrompt: () => [number, number];
-    readonly getJsonTemplate: () => [number, number];
-    readonly getRangeGuide: () => [number, number];
+    readonly calculateTonnage: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
+    readonly heightFromGeometry: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly validateParams: (a: number, b: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 
