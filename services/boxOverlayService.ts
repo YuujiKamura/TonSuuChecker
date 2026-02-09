@@ -140,7 +140,7 @@ function calculateBoxOverlay(
   packing: number,
   truckClass: string,
   materialType: string,
-): { volume: number; tonnage: number; density: number } {
+): { volume: number; tonnage: number; density: number; effectivePacking: number } {
   const spec = truckSpecs[truckClass];
   if (!spec) throw new Error(`Unknown truck class: ${truckClass}`);
   const density = materials[materialType]?.density ?? 2.5;
@@ -150,9 +150,16 @@ function calculateBoxOverlay(
   // W方向: 底面と上面の単純平均（後ろから見えるのでAI値をそのまま使用）
   const effectiveW = (BOTTOM_FILL + fillW) / 2;
   const volume = spec.bedLength * spec.bedWidth * heightM * effectiveL * effectiveW;
-  const tonnage = volume * density * packing;
 
-  return { volume, tonnage, density };
+  // 自重圧縮補正: ボリュームが大きいほど下層が圧縮され充填密度が上がる
+  // 基準体積 = 水積み容量の70%。それより大きければ密度UP、小さければDOWN
+  const refVolume = spec.levelVolume * 0.7;
+  const compressionFactor = 1.0 + 0.08 * (volume - refVolume);
+  const effectivePacking = clamp(packing * compressionFactor, 0.7, 0.95);
+
+  const tonnage = volume * density * effectivePacking;
+
+  return { volume, tonnage, density, effectivePacking };
 }
 
 // --- Helpers ---
@@ -499,6 +506,13 @@ export const analyzeBoxOverlayEnsemble = async (
   const calc = calculateBoxOverlay(heightM, fillL, fillW, taper, packing, truckClass, material);
   endPhase("計算");
 
+  if (calc.effectivePacking !== packing) {
+    console.log(`Packing compression: AI=${packing.toFixed(3)} → effective=${calc.effectivePacking.toFixed(3)} (V=${calc.volume.toFixed(3)}m³)`);
+  }
+
+  // partialParams の packingDensity を補正後の値に更新
+  partialParams.packingDensity = round3(calc.effectivePacking);
+
   const result: BoxOverlayResult = {
     method: "box-overlay",
     truckClass,
@@ -510,7 +524,7 @@ export const analyzeBoxOverlayEnsemble = async (
     fillRatioL: round3(fillL),
     fillRatioW: round3(fillW),
     taperRatio: round3(taper),
-    packingDensity: round3(packing),
+    packingDensity: round3(calc.effectivePacking),
     estimatedVolumeM3: round4(calc.volume),
     estimatedTonnage: round2(calc.tonnage),
     density: calc.density,
