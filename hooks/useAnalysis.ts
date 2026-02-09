@@ -27,6 +27,7 @@ function boxOverlayToEstimationResult(box: BoxOverlayResult): EstimationResult {
     estimatedTonnage: box.estimatedTonnage,
     materialBreakdown: [{ material: box.materialType, percentage: 100, density: box.density }],
     ensembleCount: 1,
+    phaseTimings: box.phaseTimings,
   };
 }
 

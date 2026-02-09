@@ -28,6 +28,9 @@ export interface EstimationResult {
   materialBreakdown: MaterialBreakdown[];
   ensembleCount: number;
 
+  // Profiling
+  phaseTimings?: PhaseTiming[];
+
   // Deprecated (旧データ互換)
   frustumRatio?: number;
   voidRatio?: number;
@@ -105,6 +108,12 @@ export interface StockItem {
   chatHistory?: ChatMessage[];
 }
 
+// フェーズごとの所要時間
+export interface PhaseTiming {
+  label: string;
+  durationMs: number;
+}
+
 // Box-overlay geometry-calibrated estimation result
 export interface BoxOverlayResult {
   method: 'box-overlay';
@@ -118,6 +127,7 @@ export interface BoxOverlayResult {
   estimatedTonnage: number;
   density: number;
   reasoning: string;
+  phaseTimings?: PhaseTiming[];
 }
 
 // Re-exports for backward compatibility

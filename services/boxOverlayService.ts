@@ -1,6 +1,6 @@
 import { GoogleGenAI, Part } from "@google/genai";
 import { saveCostEntry } from "./costTracker";
-import { BoxOverlayResult, AnalysisProgress } from "../types";
+import { BoxOverlayResult, AnalysisProgress, PhaseTiming } from "../types";
 import { getApiKey, checkIsFreeTier } from "./configService";
 import { truckSpecs, materials } from "../domain/promptSpec";
 
@@ -188,7 +188,16 @@ export const analyzeBoxOverlayEnsemble = async (
     lastNotifyTime = Date.now();
   };
 
+  // --- Phase timing profiler ---
+  const timings: PhaseTiming[] = [];
+  let phaseStart = Date.now();
+  const startPhase = () => { phaseStart = Date.now(); };
+  const endPhase = (label: string) => {
+    timings.push({ label, durationMs: Date.now() - phaseStart });
+  };
+
   await notify({ phase: "preparing", detail: "Box-overlay解析を準備中..." });
+  startPhase();
 
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("APIキーが設定されていません");
@@ -217,6 +226,7 @@ export const analyzeBoxOverlayEnsemble = async (
       total: ensembleCount,
     }, true);
 
+    startPhase();
     try {
       const geo = await detectGeometry(ai, imageParts, modelName, () => {
         notify({
@@ -268,6 +278,7 @@ export const analyzeBoxOverlayEnsemble = async (
       console.log(
         `  tg_h_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
       );
+      endPhase(`幾何学検出${runLabel}`);
       await notify({
         phase: "geometry",
         detail: `幾何学検出${runLabel}: 荷高=${cargoHeightM.toFixed(2)}m`,
@@ -276,6 +287,7 @@ export const analyzeBoxOverlayEnsemble = async (
       }, true);
       heightMList.push(cargoHeightM);
     } catch (err) {
+      endPhase(`幾何学検出${runLabel} (エラー)`);
       notify({
         phase: "geometry",
         detail: `幾何学検出${runLabel}: エラー`,
@@ -313,6 +325,7 @@ export const analyzeBoxOverlayEnsemble = async (
       total: ensembleCount,
     }, true);
 
+    startPhase();
     try {
       const fill = await estimateFill(ai, imageParts, modelName, () => {
         notify({
@@ -328,6 +341,7 @@ export const analyzeBoxOverlayEnsemble = async (
       const fw = fill.fillRatioW ?? 0.8;
       const pd = fill.packingDensity ?? 0.7;
 
+      endPhase(`充填率推定${fillRunLabel}`);
       await notify({
         phase: "fill",
         detail: `充填率推定${fillRunLabel}: L=${fl} W=${fw} P=${pd}`,
@@ -344,6 +358,7 @@ export const analyzeBoxOverlayEnsemble = async (
         lastReasoning = fill.reasoning;
       }
     } catch (err) {
+      endPhase(`充填率推定${fillRunLabel} (エラー)`);
       notify({
         phase: "fill",
         detail: `充填率推定${fillRunLabel}: エラー`,
@@ -364,8 +379,10 @@ export const analyzeBoxOverlayEnsemble = async (
 
   // Step 3: Calculate tonnage
   await notify({ phase: "calculating", detail: "体積・重量計算中..." }, true);
+  startPhase();
 
   const calc = calculateBoxOverlay(heightM, fillL, fillW, packing, truckClass, material);
+  endPhase("計算");
 
   const result: BoxOverlayResult = {
     method: "box-overlay",
@@ -379,6 +396,7 @@ export const analyzeBoxOverlayEnsemble = async (
     estimatedTonnage: round2(calc.tonnage),
     density: calc.density,
     reasoning: lastReasoning,
+    phaseTimings: timings,
   };
 
   onProgress?.(1, result);

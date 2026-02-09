@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { EstimationResult, ChatMessage } from '../types';
-import { Save, Check, ChevronDown, ChevronUp, Download, Image, FileJson, RefreshCcw } from 'lucide-react';
+import { Save, Check, ChevronDown, ChevronUp, Download, Image, FileJson, RefreshCcw, Clock } from 'lucide-react';
 import AIChatSection from './AIChatSection';
 import * as chatService from '../services/chatService';
 import { LoadGrade } from '../domain/specs';
@@ -290,6 +290,38 @@ const AnalysisResult: React.FC<AnalysisResultProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* フェーズタイミング */}
+            {result.phaseTimings && result.phaseTimings.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 mb-1 flex items-center gap-1">
+                  <Clock size={10} />フェーズ別所要時間
+                </p>
+                <div className="bg-slate-950/50 rounded-lg p-2 font-mono text-xs space-y-0.5">
+                  {result.phaseTimings.map((t, i) => {
+                    const sec = (t.durationMs / 1000).toFixed(1);
+                    const totalMs = result.phaseTimings!.reduce((s, p) => s + p.durationMs, 0);
+                    const pct = totalMs > 0 ? (t.durationMs / totalMs) * 100 : 0;
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-green-500">✓</span>
+                        <span className="flex-1 text-slate-300 truncate">{t.label}</span>
+                        <div className="w-20 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-slate-400 tabular-nums w-12 text-right">{sec}s</span>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
+                    <span className="flex-1 text-slate-400 font-bold">Total</span>
+                    <span className="text-white tabular-nums w-12 text-right font-bold">
+                      {(result.phaseTimings.reduce((s, p) => s + p.durationMs, 0) / 1000).toFixed(1)}s
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ダウンロードボタン */}
             <div className="pt-2 border-t border-slate-700">
