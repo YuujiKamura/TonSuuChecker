@@ -177,11 +177,11 @@ export const analyzeBoxOverlayEnsemble = async (
   for (let i = 0; i < ensembleCount; i++) {
     if (abortSignal?.cancelled) break;
 
+    const runLabel = ensembleCount > 1 ? ` (${i + 1}/${ensembleCount})` : "";
+
     notify({
       phase: "geometry",
-      detail: ensembleCount > 1
-        ? `幾何学検出中... (${i + 1}/${ensembleCount}回目)`
-        : "幾何学検出中...",
+      detail: `Gemini APIにリクエスト送信中...${runLabel}`,
       current: i + 1,
       total: ensembleCount,
     });
@@ -192,6 +192,12 @@ export const analyzeBoxOverlayEnsemble = async (
 
       const plateBox = geo.plateBox;
       if (!plateBox || plateBox.length !== 4) {
+        notify({
+          phase: "geometry",
+          detail: `幾何学検出${runLabel}: ナンバープレート未検出、スキップ`,
+          current: i + 1,
+          total: ensembleCount,
+        });
         console.warn(`Geometry run ${i + 1}: plateBox not detected, skip`);
         continue;
       }
@@ -205,6 +211,12 @@ export const analyzeBoxOverlayEnsemble = async (
       );
 
       if (tgTop <= 0 || tgBot <= 0 || tgTop >= tgBot) {
+        notify({
+          phase: "geometry",
+          detail: `幾何学検出${runLabel}: 後板位置が不正、スキップ`,
+          current: i + 1,
+          total: ensembleCount,
+        });
         console.warn(`Geometry run ${i + 1}: tailgate detection invalid, skip`);
         continue;
       }
@@ -218,8 +230,20 @@ export const analyzeBoxOverlayEnsemble = async (
       console.log(
         `  tg_h_norm=${tgHeightNorm.toFixed(4)}, m/norm=${mPerNorm.toFixed(3)}, cargo_h=${cargoHeightM.toFixed(3)}m`
       );
+      notify({
+        phase: "geometry",
+        detail: `幾何学検出${runLabel}: 荷高=${cargoHeightM.toFixed(2)}m`,
+        current: i + 1,
+        total: ensembleCount,
+      });
       heightMList.push(cargoHeightM);
     } catch (err) {
+      notify({
+        phase: "geometry",
+        detail: `幾何学検出${runLabel}: エラー`,
+        current: i + 1,
+        total: ensembleCount,
+      });
       console.error(`Geometry run ${i + 1} error:`, err);
     }
   }
@@ -242,11 +266,11 @@ export const analyzeBoxOverlayEnsemble = async (
   for (let i = 0; i < ensembleCount; i++) {
     if (abortSignal?.cancelled) break;
 
+    const fillRunLabel = ensembleCount > 1 ? ` (${i + 1}/${ensembleCount})` : "";
+
     notify({
       phase: "fill",
-      detail: ensembleCount > 1
-        ? `充填率推定中... (${i + 1}/${ensembleCount}回目)`
-        : "充填率推定中...",
+      detail: `充填率推定 リクエスト送信中...${fillRunLabel}`,
       current: i + 1,
       total: ensembleCount,
     });
@@ -259,6 +283,13 @@ export const analyzeBoxOverlayEnsemble = async (
       const fw = fill.fillRatioW ?? 0.8;
       const pd = fill.packingDensity ?? 0.7;
 
+      notify({
+        phase: "fill",
+        detail: `充填率推定${fillRunLabel}: L=${fl} W=${fw} P=${pd}`,
+        current: i + 1,
+        total: ensembleCount,
+      });
+
       console.log(`Fill run ${i + 1}: L=${fl}, W=${fw}, p=${pd}`);
 
       fillLList.push(fl);
@@ -268,6 +299,12 @@ export const analyzeBoxOverlayEnsemble = async (
         lastReasoning = fill.reasoning;
       }
     } catch (err) {
+      notify({
+        phase: "fill",
+        detail: `充填率推定${fillRunLabel}: エラー`,
+        current: i + 1,
+        total: ensembleCount,
+      });
       console.error(`Fill run ${i + 1} error:`, err);
     }
   }
