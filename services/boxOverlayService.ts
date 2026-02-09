@@ -57,9 +57,10 @@ interface FillResponse {
 async function detectGeometry(
   ai: GoogleGenAI,
   imageParts: Part[],
-  modelName: string
+  modelName: string,
+  onFirstToken?: () => void,
 ): Promise<GeometryResponse> {
-  const response = await ai.models.generateContent({
+  const stream = await ai.models.generateContentStream({
     model: modelName,
     contents: {
       parts: [...imageParts, { text: GEOMETRY_PROMPT }],
@@ -70,17 +71,27 @@ async function detectGeometry(
     },
   });
 
-  const text = response.text;
-  if (!text) throw new Error("Geometry: APIレスポンスが空です");
-  return JSON.parse(text) as GeometryResponse;
+  let firstChunk = true;
+  let fullText = "";
+  for await (const chunk of stream) {
+    if (firstChunk) {
+      onFirstToken?.();
+      firstChunk = false;
+    }
+    fullText += chunk.text ?? "";
+  }
+
+  if (!fullText) throw new Error("Geometry: APIレスポンスが空です");
+  return JSON.parse(fullText) as GeometryResponse;
 }
 
 async function estimateFill(
   ai: GoogleGenAI,
   imageParts: Part[],
-  modelName: string
+  modelName: string,
+  onFirstToken?: () => void,
 ): Promise<FillResponse> {
-  const response = await ai.models.generateContent({
+  const stream = await ai.models.generateContentStream({
     model: modelName,
     contents: {
       parts: [...imageParts, { text: FILL_PROMPT }],
@@ -91,9 +102,18 @@ async function estimateFill(
     },
   });
 
-  const text = response.text;
-  if (!text) throw new Error("Fill: APIレスポンスが空です");
-  return JSON.parse(text) as FillResponse;
+  let firstChunk = true;
+  let fullText = "";
+  for await (const chunk of stream) {
+    if (firstChunk) {
+      onFirstToken?.();
+      firstChunk = false;
+    }
+    fullText += chunk.text ?? "";
+  }
+
+  if (!fullText) throw new Error("Fill: APIレスポンスが空です");
+  return JSON.parse(fullText) as FillResponse;
 }
 
 function calculateBoxOverlay(
@@ -187,7 +207,14 @@ export const analyzeBoxOverlayEnsemble = async (
     });
 
     try {
-      const geo = await detectGeometry(ai, imageParts, modelName);
+      const geo = await detectGeometry(ai, imageParts, modelName, () => {
+        notify({
+          phase: "geometry",
+          detail: `モデル応答開始${runLabel} — 結果を受信中...`,
+          current: i + 1,
+          total: ensembleCount,
+        });
+      });
       await saveCostEntry(modelName, imageParts.length, isFreeTier);
 
       const plateBox = geo.plateBox;
@@ -276,7 +303,14 @@ export const analyzeBoxOverlayEnsemble = async (
     });
 
     try {
-      const fill = await estimateFill(ai, imageParts, modelName);
+      const fill = await estimateFill(ai, imageParts, modelName, () => {
+        notify({
+          phase: "fill",
+          detail: `モデル応答開始${fillRunLabel} — 結果を受信中...`,
+          current: i + 1,
+          total: ensembleCount,
+        });
+      });
       await saveCostEntry(modelName, imageParts.length, isFreeTier);
 
       const fl = fill.fillRatioL ?? 0.7;
