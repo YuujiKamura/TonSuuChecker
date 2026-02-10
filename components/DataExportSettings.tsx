@@ -48,6 +48,7 @@ const DataExportSettings: React.FC<DataExportSettingsProps> = ({
   const [dataStats, setDataStats] = useState({ stock: 0, vehicles: 0 });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importActionRef = useRef<HTMLDivElement>(null);
 
   // データ件数を取得
   useEffect(() => {
@@ -102,6 +103,13 @@ const DataExportSettings: React.FC<DataExportSettingsProps> = ({
 
     const preview = await previewImportFile(file);
     setImportPreview(preview);
+
+    // プレビュー表示後にインポートボタンまでスクロール
+    if (preview.valid) {
+      setTimeout(() => {
+        importActionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    }
   };
 
   // インポート実行
@@ -361,7 +369,7 @@ const DataExportSettings: React.FC<DataExportSettingsProps> = ({
             )}
 
             {/* ボタン */}
-            <div className="flex gap-2">
+            <div ref={importActionRef} className="flex gap-2">
               <button
                 onClick={resetImport}
                 className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-bold transition-all"

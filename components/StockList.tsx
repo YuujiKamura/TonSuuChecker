@@ -1,7 +1,8 @@
 import React from 'react';
 import { StockItem } from '../types';
 import { ArrowLeft, FileSpreadsheet, Plus } from 'lucide-react';
-import { countExportableEntries } from '../services/excelExporter';
+import { countExportableEntries, exportPhotoReportFromStock } from '../services/excelExporter';
+import { ExportSettings } from './shared/ExportConfigModal';
 import { useStockList } from '../hooks/useStockList';
 import StockItemRow from './StockItemRow';
 import StockAddModal from './StockAddModal';
@@ -27,6 +28,9 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
     newImageUrl,
     handleNewImageSelect, handleAddEntry, resetAddForm
   } = useStockList({ items, onAdd });
+
+  const [showPhotoExportModal, setShowPhotoExportModal] = React.useState(false);
+  const itemsWithPhotos = items.filter(item => item.base64Images && item.base64Images.length > 0);
 
   const renderItem = (item: StockItem) => (
     <StockItemRow
@@ -67,6 +71,16 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
           <span className="hidden sm:inline">Excel</span>
           <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
             {countExportableEntries(items)}
+          </span>
+        </button>
+        <button
+          onClick={() => setShowPhotoExportModal(true)}
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold rounded-xl transition-all shrink-0"
+        >
+          <span className="text-base">📷</span>
+          <span className="hidden sm:inline">写真付き</span>
+          <span className="bg-cyan-800 px-2 py-0.5 rounded-full text-xs">
+            {itemsWithPhotos.length}
           </span>
         </button>
       </div>
@@ -127,6 +141,28 @@ const StockList: React.FC<StockListProps> = ({ items, onAdd, onUpdate, onDelete,
         items={items}
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
+      />
+
+      {/* 写真付きExcel出力モーダル */}
+      <ExportConfigModal
+        items={itemsWithPhotos}
+        isOpen={showPhotoExportModal}
+        onClose={() => setShowPhotoExportModal(false)}
+        title="写真付きExcel出力設定"
+        exportLabel="写真付きExcel出力"
+        itemCountLabel="写真付きのエントリー"
+        onExport={async (config: ExportSettings) => {
+          await exportPhotoReportFromStock(
+            itemsWithPhotos,
+            {
+              projectNumber: config.projectNumber,
+              projectName: config.projectName,
+              contractorName: config.contractorName,
+              siteManager: config.siteManager
+            },
+            `積載量管理写真_${new Date().toISOString().split('T')[0]}.xlsx`
+          );
+        }}
       />
     </div>
   );
