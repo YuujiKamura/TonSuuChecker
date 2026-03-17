@@ -10,15 +10,18 @@ import ReferenceImageSettings from './components/ReferenceImageSettings';
 import AnalysisResult from './components/AnalysisResult';
 import CostDashboard from './components/CostDashboard';
 import ApiKeySetup from './components/ApiKeySetup';
+import PromptEditor from './components/PromptEditor';
+import MultiStepReview, { StepResult } from './components/MultiStepReview';
 import { getStockItems, saveStockItem, updateStockItem, deleteStockItem, getTaggedItems, getHistoryItems, addEstimation, getLatestEstimation, refreshStockCache } from './services/stockService';
 import { refreshVehicleCache } from './services/referenceImages';
 import { getTodayCost, formatCost, refreshCostCache } from './services/costTracker';
 import { migrateFromLocalStorage, requestPersistentStorage, getIndexedDBUsage, saveLearningFeedback } from './services/indexedDBService';
 import { extractPhotoTakenAt } from './services/exifUtils';
 import { initFromUrlParams } from './services/sheetSync';
-import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE } from './services/geminiService';
+import { analyzeGaraImageEnsemble, mergeResults, getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey, isQuotaError, QUOTA_ERROR_MESSAGE, runHeightEstimation, runVoidRatioEstimation, calculateFinalResult, MultiStepValue, isLocalDev } from './services/geminiService';
 import { EstimationResult, StockItem, ChatMessage, LearningFeedback, AnalysisProgress } from './types';
-import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet } from 'lucide-react';
+import { RefreshCcw, Activity, AlertCircle, ZapOff, Archive, Settings as SettingsIcon, Truck, FileSpreadsheet, FileText } from 'lucide-react';
+import { PROMPT_TEMPLATES, getSelectedTemplateId, setSelectedTemplateId } from './promptTemplates';
 
 // 学習フィードバック要約の最大文字数
 const FEEDBACK_SUMMARY_MAX_LENGTH = 200;
@@ -103,7 +106,16 @@ const App: React.FC = () => {
   const [showReferenceSettings, setShowReferenceSettings] = useState(false);
   const [showApiKeySetup, setShowApiKeySetup] = useState(false);
   const [showReportView, setShowReportView] = useState(false);
+  const [promptTemplateId, setPromptTemplateId] = useState(getSelectedTemplateId());
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [pendingAnalysis, setPendingAnalysis] = useState<{base64s: string[], urls: string[], capacity?: number} | null>(null);
+
+  // マルチステップレビュー用の状態
+  const [showMultiStepReview, setShowMultiStepReview] = useState(false);
+  const [multiStepSteps, setMultiStepSteps] = useState<StepResult[]>([]);
+  const [multiStepCurrentStep, setMultiStepCurrentStep] = useState(0);
+  const [multiStepFinalResult, setMultiStepFinalResult] = useState<{volume: number; tonnage: number} | null>(null);
+  const [multiStepImages, setMultiStepImages] = useState<{base64s: string[], urls: string[]}>({base64s: [], urls: []});
 
   // 最大積載量
   const [maxCapacity, setMaxCapacity] = useState<number | undefined>(undefined);
@@ -206,6 +218,163 @@ const App: React.FC = () => {
     setLogs(prev => [newLog, ...prev.slice(0, 49)]);
   };
 
+
+  // マルチステップ解析を開始（ローカルCLIモード用）
+  const startMultiStepAnalysis = async (base64s: string[], urls: string[], capacity?: number) => {
+    setShowMultiStepReview(true);
+    setMultiStepImages({ base64s, urls });
+    setMultiStepFinalResult(null);
+    setMultiStepCurrentStep(1);
+
+    // 初期ステップ状態
+    const initialSteps: StepResult[] = [
+      { stepNumber: 1, name: '高さ', value: 0, unit: 'm', reasoning: '', status: 'running' },
+      { stepNumber: 2, name: '空隙率', value: 0, unit: '', reasoning: '', status: 'pending' },
+    ];
+    setMultiStepSteps(initialSteps);
+
+    // Step 1: 高さ推定を実行
+    try {
+      const heightResult = await runHeightEstimation(base64s);
+      setMultiStepSteps(prev => prev.map(s =>
+        s.stepNumber === 1
+          ? { ...s, value: heightResult.value, reasoning: heightResult.reasoning, status: 'awaiting_approval' as const }
+          : s
+      ));
+    } catch (err: any) {
+      console.error('Step 1 error:', err);
+      setError(`高さ推定エラー: ${err.message}`);
+      setShowMultiStepReview(false);
+    }
+  };
+
+  // ステップを承認
+  const handleMultiStepApprove = async (stepNumber: number) => {
+    setMultiStepSteps(prev => prev.map(s =>
+      s.stepNumber === stepNumber ? { ...s, status: 'approved' as const } : s
+    ));
+
+    if (stepNumber === 1) {
+      // Step 2を開始
+      setMultiStepCurrentStep(2);
+      setMultiStepSteps(prev => prev.map(s =>
+        s.stepNumber === 2 ? { ...s, status: 'running' as const } : s
+      ));
+
+      try {
+        const voidResult = await runVoidRatioEstimation(multiStepImages.base64s);
+        setMultiStepSteps(prev => prev.map(s =>
+          s.stepNumber === 2
+            ? { ...s, value: voidResult.value, reasoning: voidResult.reasoning, status: 'awaiting_approval' as const }
+            : s
+        ));
+      } catch (err: any) {
+        console.error('Step 2 error:', err);
+        setError(`空隙率推定エラー: ${err.message}`);
+        setShowMultiStepReview(false);
+      }
+    } else if (stepNumber === 2) {
+      // 最終計算 - calculateFinalResultを使用
+      const height = multiStepSteps.find(s => s.stepNumber === 1)?.value || 0.5;
+      const voidRatio = multiStepSteps.find(s => s.stepNumber === 2)?.value || 0.45;
+      const result = calculateFinalResult(height, voidRatio, maxCapacity);
+      setMultiStepFinalResult({ volume: result.estimatedVolumeM3, tonnage: result.estimatedTonnage });
+    }
+  };
+
+  // ステップを指摘して再推論
+  const handleMultiStepReject = async (stepNumber: number, feedback: string) => {
+    // 再推論中ステータスに変更
+    setMultiStepSteps(prev => prev.map(s =>
+      s.stepNumber === stepNumber ? { ...s, status: 'retrying' as const } : s
+    ));
+
+    try {
+      if (stepNumber === 1) {
+        const heightResult = await runHeightEstimation(multiStepImages.base64s, feedback);
+        setMultiStepSteps(prev => prev.map(s =>
+          s.stepNumber === 1
+            ? { ...s, value: heightResult.value, reasoning: heightResult.reasoning, status: 'awaiting_approval' as const }
+            : s
+        ));
+      } else if (stepNumber === 2) {
+        const voidResult = await runVoidRatioEstimation(multiStepImages.base64s, feedback);
+        setMultiStepSteps(prev => prev.map(s =>
+          s.stepNumber === 2
+            ? { ...s, value: voidResult.value, reasoning: voidResult.reasoning, status: 'awaiting_approval' as const }
+            : s
+        ));
+      }
+    } catch (err: any) {
+      console.error(`Step ${stepNumber} retry error:`, err);
+      setError(`再推論エラー: ${err.message}`);
+      // エラー時は元の状態に戻す
+      setMultiStepSteps(prev => prev.map(s =>
+        s.stepNumber === stepNumber ? { ...s, status: 'awaiting_approval' as const } : s
+      ));
+    }
+  };
+
+  // マルチステップ完了→保存
+  const handleMultiStepComplete = async () => {
+    const height = multiStepSteps.find(s => s.stepNumber === 1)?.value || 0.5;
+    const voidRatio = multiStepSteps.find(s => s.stepNumber === 2)?.value || 0.45;
+
+    const finalResult = calculateFinalResult(height, voidRatio, maxCapacity);
+
+    // 保存処理（既存のstartAnalysisと同様）
+    const itemId = currentId || crypto.randomUUID();
+    setPendingResult(finalResult);
+    setCurrentId(itemId);
+
+    try {
+      const existingStock = await getStockItems();
+      let existingItem: StockItem | undefined;
+
+      if (currentId) {
+        existingItem = existingStock.find(item => item.id === currentId);
+      }
+
+      if (!existingItem) {
+        existingItem = existingStock.find(item =>
+          item.imageUrls.length === multiStepImages.urls.length &&
+          item.imageUrls[0] === multiStepImages.urls[0]
+        );
+      }
+
+      const effectiveMaxCapacity = maxCapacity || finalResult.estimatedMaxCapacity;
+
+      if (existingItem) {
+        await addEstimation(existingItem.id, finalResult);
+        if (effectiveMaxCapacity) {
+          await updateStockItem(existingItem.id, { maxCapacity: effectiveMaxCapacity });
+        }
+      } else {
+        const photoTakenAt = multiStepImages.base64s[0] ? await extractPhotoTakenAt(multiStepImages.base64s[0]) : undefined;
+        const stockItem: StockItem = {
+          id: itemId,
+          timestamp: Date.now(),
+          photoTakenAt,
+          base64Images: multiStepImages.base64s,
+          imageUrls: multiStepImages.urls,
+          maxCapacity: effectiveMaxCapacity,
+          result: finalResult,
+          estimations: [finalResult],
+        };
+        await saveStockItem(stockItem);
+      }
+      await refreshStock();
+      setPendingResult(null);
+      setPendingImageUrls([]);
+      setPendingBase64Images([]);
+    } catch (err) {
+      console.error('ストック追加エラー:', err);
+    }
+
+    setShowMultiStepReview(false);
+    setMultiStepSteps([]);
+    setMultiStepFinalResult(null);
+  };
 
   // 解析開始の統一エントリーポイント
   const requestAnalysis = (base64s: string[], urls: string[], initialMaxCapacity?: number, stockItemId?: string) => {
@@ -537,8 +706,13 @@ const App: React.FC = () => {
               const { base64, url } = pendingCapture!;
               setPendingCapture(null);
               setMaxCapacity(capacity);
-              // startAnalysis 内で pending state を設定するのでここでは不要
-              startAnalysis([base64], [url], false, capacity);
+
+              // ローカル開発モードの場合はマルチステップ解析を使用
+              if (isLocalDev()) {
+                startMultiStepAnalysis([base64], [url], capacity);
+              } else {
+                startAnalysis([base64], [url], false, capacity);
+              }
             }}
             onStock={currentId ? undefined : async () => {
               const dataUrl = 'data:image/jpeg;base64,' + pendingCapture.base64;
@@ -587,6 +761,16 @@ const App: React.FC = () => {
               >
                 <Truck size={16} />
                 <span className="hidden sm:inline">車両</span>
+              </button>
+              {/* プロンプト編集 */}
+              <button
+                onClick={() => setShowPromptEditor(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm font-bold transition-all bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+              >
+                <FileText size={14} />
+                <span className="text-xs">
+                  {promptTemplateId === 'ellipsoid' ? '半楕円体' : promptTemplateId === 'rust' ? '台形体' : '2段階'}
+                </span>
               </button>
               <button
                 onClick={() => setShowSettings(true)}
@@ -912,6 +1096,30 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* プロンプト編集モーダル */}
+      <PromptEditor
+        isOpen={showPromptEditor}
+        onClose={() => setShowPromptEditor(false)}
+        onTemplateChange={(id) => setPromptTemplateId(id)}
+      />
+
+      {/* マルチステップレビュー */}
+      {showMultiStepReview && (
+        <MultiStepReview
+          imageUrl={multiStepImages.urls[0] || ''}
+          steps={multiStepSteps}
+          currentStep={multiStepCurrentStep}
+          finalResult={multiStepFinalResult || undefined}
+          onApprove={handleMultiStepApprove}
+          onReject={handleMultiStepReject}
+          onCancel={() => {
+            setShowMultiStepReview(false);
+            setMultiStepSteps([]);
+            setMultiStepFinalResult(null);
+          }}
+          onComplete={handleMultiStepComplete}
+        />
+      )}
 
       <style>{`
         @keyframes scan-vertical {

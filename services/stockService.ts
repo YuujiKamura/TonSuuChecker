@@ -166,12 +166,14 @@ export interface GradedStockItem extends StockItem {
 }
 
 // 車両クラスと等級で過去データを選択（各等級から最新1件）
-export const selectStockByGrade = async (targetClass: TruckClass): Promise<GradedStockItem[]> => {
+// excludeMemo: 同じ車番（memo）のアイテムを除外（解析対象と同一車両の過去データを除外するため）
+export const selectStockByGrade = async (targetClass: TruckClass, excludeMemo?: string): Promise<GradedStockItem[]> => {
   const judgedItems = await getJudgedItems();
 
-  // 同じ車両クラスでフィルタ
+  // 同じ車両クラスでフィルタ（同一車番は除外）
   const sameClassItems = judgedItems.filter(item => {
     if (!item.maxCapacity) return false;
+    if (excludeMemo && item.memo === excludeMemo) return false;  // 同じ車番を除外
     return getTruckClass(item.maxCapacity) === targetClass;
   });
 

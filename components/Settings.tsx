@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Key, Cloud, Truck, Cpu, Gauge, Zap, BrainCircuit, ExternalLink, Database } from 'lucide-react';
+import { ArrowLeft, Key, Cloud, Truck, Cpu, Gauge, Zap, BrainCircuit, ExternalLink, Database, FileText } from 'lucide-react';
 import { getApiKey, setApiKey, clearApiKey, isGoogleAIStudioKey } from '../services/geminiService';
 import SyncSettings from './SyncSettings';
 import ReferenceImageSettings from './ReferenceImageSettings';
 import DataExportSettings from './DataExportSettings';
+import PromptSettings from './PromptSettings';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ const Settings: React.FC<SettingsProps> = ({
   onApiKeyChange,
   onDataChanged,
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'vehicles' | 'data'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'vehicles' | 'data' | 'prompt'>('general');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [isGoogleAIStudio, setIsGoogleAIStudio] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -105,6 +106,13 @@ const Settings: React.FC<SettingsProps> = ({
           >
             <Database size={14} className="inline mr-1" />
             データ
+          </button>
+          <button
+            onClick={() => setActiveTab('prompt')}
+            className={`flex-1 py-3 text-sm font-bold transition-colors ${activeTab === 'prompt' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-400 hover:text-white'}`}
+          >
+            <FileText size={14} className="inline mr-1" />
+            AI
           </button>
         </div>
 
@@ -230,6 +238,10 @@ const Settings: React.FC<SettingsProps> = ({
 
           {activeTab === 'data' && (
             <DataExportSettings isOpen={true} onClose={() => {}} embedded={true} onDataChanged={onDataChanged} />
+          )}
+
+          {activeTab === 'prompt' && (
+            <PromptSettings embedded={true} />
           )}
         </div>
       </div>

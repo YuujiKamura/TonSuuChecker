@@ -1,14 +1,276 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { saveCostEntry } from './costTracker';
 import { EstimationResult, AnalysisHistory, StockItem, ExtractedFeature, ChatMessage, LearningFeedback, AnalysisProgress } from "../types";
-import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT, LOAD_GRADES_PROMPT } from "../constants";
-import { getReferenceImages } from './referenceImages';
+import { SYSTEM_PROMPT, TRUCK_SPECS_PROMPT, WEIGHT_FORMULA_PROMPT } from "../constants";
 import { getRecentLearningFeedback } from './indexedDBService';
-import { GradedStockItem, selectStockByGrade, getTruckClass, TruckClass } from './stockService';
+import { getSelectedTemplate, getSelectedTemplateId } from '../promptTemplates';
+
+// ローカル開発環境かどうかを判定
+export const isLocalDev = (): boolean => {
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+};
+
+// Gemini CLI経由で推論（ローカル開発用、無料）
+const runCliInference = async (
+  base64Images: string[],
+  prompt: string
+): Promise<EstimationResult> => {
+  const response = await fetch('/api/gemini-cli', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, base64Images })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'CLI inference failed');
+  }
+
+  const result = await response.json();
+  return { ...result, ensembleCount: 1 };
+};
+
+// マルチステップ推論用プロンプト
+const MULTISTEP_PROMPTS = {
+  step1_height: `【高さ推定タスク】
+画像のダンプトラック荷台を観察してください。
+後板（あおり）高0.34mを基準として、積載物の山頂までの高さを推定してください。
+回答: {"height": 数値(m), "reasoning": "根拠"}`,
+
+  step2_void: `【空隙率推定タスク】
+同じ画像の積載物を観察してください。
+- 塊の大きさ（細かい/普通/大きい）
+- 塊間の隙間の量
+- 半楕円体モデルと実際の山盛り形状の差
+これらを総合して空隙率を推定してください。
+回答: {"voidRatio": 数値(0.30〜0.55), "reasoning": "根拠"}`
+};
+
+// ステップ結果の型
+export interface MultiStepValue {
+  stepNumber: number;
+  name: string;
+  value: number;
+  unit: string;
+  reasoning: string;
+}
+
+// JSONを安全に抽出するヘルパー
+const extractJsonFromText = (text: string): any | null => {
+  // まず直接JSONパースを試す
+  try { return JSON.parse(text); } catch {}
+  // コードブロック内のJSONを試す
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    try { return JSON.parse(codeBlockMatch[1].trim()); } catch {}
+  }
+  // {}で囲まれた部分を試す
+  const braceMatch = text.match(/\{[\s\S]*?\}/);
+  if (braceMatch) {
+    try { return JSON.parse(braceMatch[0]); } catch {}
+  }
+  return null;
+};
+
+// 単一ステップを実行（CLI経由）
+export const runSingleStepInference = async (
+  base64Images: string[],
+  stepPrompt: string
+): Promise<{ value: number; reasoning: string }> => {
+  const response = await fetch('/api/gemini-cli', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: stepPrompt, base64Images })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Step inference failed');
+  }
+
+  const rawText = await response.text();
+  console.log('[Step] Raw response:', rawText);
+
+  // JSONを抽出
+  const json = extractJsonFromText(rawText);
+  if (!json) {
+    throw new Error('Failed to parse step result');
+  }
+
+  return {
+    value: json.height || json.voidRatio || 0,
+    reasoning: json.reasoning || ''
+  };
+};
+
+// 高さ推定ステップを実行
+export const runHeightEstimation = async (
+  base64Images: string[],
+  feedback?: string  // ユーザーからの指摘（再推論時）
+): Promise<MultiStepValue> => {
+  let prompt = MULTISTEP_PROMPTS.step1_height;
+  if (feedback) {
+    prompt += `\n\n【ユーザーからの指摘】\n${feedback}\nこの指摘を考慮して再度推定してください。`;
+  }
+  const result = await runSingleStepInference(base64Images, prompt);
+  return {
+    stepNumber: 1,
+    name: '高さ',
+    value: result.value,
+    unit: 'm',
+    reasoning: result.reasoning
+  };
+};
+
+// 空隙率推定ステップを実行
+export const runVoidRatioEstimation = async (
+  base64Images: string[],
+  feedback?: string  // ユーザーからの指摘（再推論時）
+): Promise<MultiStepValue> => {
+  let prompt = MULTISTEP_PROMPTS.step2_void;
+  if (feedback) {
+    prompt += `\n\n【ユーザーからの指摘】\n${feedback}\nこの指摘を考慮して再度推定してください。`;
+  }
+  const result = await runSingleStepInference(base64Images, prompt);
+  return {
+    stepNumber: 2,
+    name: '空隙率',
+    value: result.value,
+    unit: '',
+    reasoning: result.reasoning
+  };
+};
+
+// 承認済みの値から最終結果を計算
+export const calculateFinalResult = (
+  height: number,
+  voidRatio: number,
+  maxCapacity?: number
+): EstimationResult => {
+  const volume = (2/3) * Math.PI * (3.4/2) * (2.0/2) * height;
+  const tonnage = volume * 2.5 * (1 - voidRatio);
+
+  return {
+    isTargetDetected: true,
+    truckType: '4tダンプ',
+    licensePlate: null,
+    materialType: 'As殻',
+    estimatedVolumeM3: Number(volume.toFixed(2)),
+    estimatedTonnage: Number(tonnage.toFixed(2)),
+    estimatedMaxCapacity: maxCapacity || 3.75,
+    maxCapacityReasoning: '',
+    confidenceScore: 0.85,
+    reasoning: `【ステップ承認済み】height=${height}m, voidRatio=${voidRatio}\n体積=(2/3)×π×1.7×1.0×${height}=${volume.toFixed(2)}m³\n重量=${volume.toFixed(2)}×2.5×(1-${voidRatio})=${tonnage.toFixed(2)}t`,
+    materialBreakdown: [{ material: 'As殻', percentage: 100, density: 2.5 }],
+    height,
+    voidRatio,
+    ensembleCount: 1,
+  } as EstimationResult;
+};
+
+// Gemini CLI経由でマルチステップ推論
+const runCliMultiStepInference = async (
+  base64Images: string[],
+  maxCapacity?: number
+): Promise<EstimationResult> => {
+  const response = await fetch('/api/gemini-cli-multiturn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompts: [
+        MULTISTEP_PROMPTS.step1_height,
+        MULTISTEP_PROMPTS.step2_void,
+      ],
+      base64Images
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'CLI multistep failed');
+  }
+
+  const { steps, result: rawResult } = await response.json();
+  console.log('[MultiStep] steps:', steps);
+  console.log('[MultiStep] rawResult:', rawResult);
+
+  // Step1から高さを抽出
+  let height = 0.5;
+  let heightReasoning = '';
+  if (steps?.[0]) {
+    const json = extractJsonFromText(steps[0]);
+    if (json?.height) {
+      height = json.height;
+      heightReasoning = json.reasoning || '';
+    }
+  }
+
+  // Step2から空隙率を抽出
+  let voidRatio = 0.45;
+  let voidReasoning = '';
+  if (steps?.[1]) {
+    const json = extractJsonFromText(steps[1]);
+    if (json?.voidRatio) {
+      voidRatio = json.voidRatio;
+      voidReasoning = json.reasoning || '';
+    }
+  }
+
+  // 値が抽出できなかった場合、rawResultから再試行
+  if (height === 0.5 || voidRatio === 0.45) {
+    const fullJson = extractJsonFromText(rawResult || '');
+    if (fullJson) {
+      if (fullJson.height && height === 0.5) height = fullJson.height;
+      if (fullJson.voidRatio && voidRatio === 0.45) voidRatio = fullJson.voidRatio;
+    }
+  }
+
+  console.log(`[MultiStep] Extracted: height=${height}m, voidRatio=${voidRatio}`);
+
+  // クライアントサイドで計算（半楕円体）
+  const volume = (2/3) * Math.PI * (3.4/2) * (2.0/2) * height;
+  const tonnage = volume * 2.5 * (1 - voidRatio);
+
+  return {
+    isTargetDetected: true,
+    truckType: '4tダンプ',
+    licensePlate: null,
+    materialType: 'As殻',
+    estimatedVolumeM3: Number(volume.toFixed(2)),
+    estimatedTonnage: Number(tonnage.toFixed(2)),
+    estimatedMaxCapacity: maxCapacity || 3.75,
+    maxCapacityReasoning: '',
+    confidenceScore: 0.8,
+    reasoning: `【マルチステップ推論】\n高さ: ${height}m (${heightReasoning})\n空隙率: ${voidRatio} (${voidReasoning})\n体積=(2/3)×π×1.7×1.0×${height}=${volume.toFixed(2)}m³\n重量=${volume.toFixed(2)}×2.5×(1-${voidRatio})=${tonnage.toFixed(2)}t`,
+    materialBreakdown: [{ material: 'As殻', percentage: 100, density: 2.5 }],
+    height,
+    voidRatio,
+    ensembleCount: 1,
+  } as EstimationResult;
+};
 
 // APIキーがGoogleAIStudioの無料枠かどうかをチェック
 const checkIsFreeTier = (): boolean => {
   return localStorage.getItem('gemini_api_key_source') === 'google_ai_studio';
+};
+
+// CLI用プロンプト構築（選択されたテンプレートを使用）
+const buildCliPrompt = (maxCapacity?: number): string => {
+  const template = getSelectedTemplate();
+  const capacityLine = maxCapacity
+    ? `【重要】この車両の最大積載量は${maxCapacity}トンです。`
+    : '最大積載量は画像から推定してください。';
+
+  return `${capacityLine}
+
+画像のダンプトラック積載物の重量を推定してください。
+
+${template.volumePrompt}
+
+【追加出力項目】
+estimatedMaxCapacity: 最大積載量の推定値
+materialBreakdown: [{"material": string, "percentage": number, "density": number}]`;
 };
 
 // クォータ制限エラーかどうかを判定（共通関数）
@@ -42,49 +304,8 @@ async function runSingleInference(
   maxCapacity?: number,
   runIndex: number = 0,
   userFeedback?: ChatMessage[],
-  taggedStock?: StockItem[],  // 実測値付きの過去データ
   learningFeedback?: LearningFeedback[]  // 学習用フィードバック（過去の指摘）
 ): Promise<EstimationResult> {
-  // 参考画像を取得
-  const referenceImages = await getReferenceImages();
-  const refImageParts: any[] = [];
-  let refImagePrompt = '';
-
-  if (referenceImages.length > 0) {
-    refImagePrompt = '\n【登録車両】以下は登録済み車両の画像です。解析対象の車両と比較して、最も近い車両を特定し、その最大積載量を参考にしてください。\n';
-    referenceImages.forEach((ref, idx) => {
-      const mimeType = ref.mimeType || 'image/jpeg';
-      refImageParts.push({ inlineData: { mimeType, data: ref.base64 } });
-      refImagePrompt += `- 登録車両${idx + 1}: ${ref.name}（最大積載量: ${ref.maxCapacity}t）\n`;
-    });
-  }
-
-  // 実測値付き過去データのプロンプト生成（等級別）
-  const taggedStockParts: any[] = [];
-  let taggedStockPrompt = '';
-  if (taggedStock && taggedStock.length > 0) {
-    // GradedStockItem かどうかをチェック
-    const isGraded = (item: StockItem): item is GradedStockItem =>
-      'gradeName' in item && 'loadRatio' in item;
-
-    taggedStockPrompt = `\n${LOAD_GRADES_PROMPT}\n\n【実測データ（等級別）】同じ車両クラスで過去に実測した画像です。「この見た目で何トンだったか」を参考にしてください。\n`;
-    taggedStock.forEach((item, idx) => {
-      if (item.base64Images[0]) {
-        taggedStockParts.push({ inlineData: { mimeType: 'image/jpeg', data: item.base64Images[0] } });
-        if (isGraded(item)) {
-          // 等級付きデータ
-          taggedStockPrompt += `- 【${item.gradeName}】実測${item.actualTonnage}t / 最大${item.maxCapacity}t（${item.loadRatio.toFixed(0)}%）${item.memo ? ` ${item.memo}` : ''}\n`;
-        } else {
-          // 従来のデータ（後方互換）
-          const ratio = item.actualTonnage && item.maxCapacity
-            ? ((item.actualTonnage / item.maxCapacity) * 100).toFixed(0)
-            : '?';
-          taggedStockPrompt += `- 実測${item.actualTonnage}t / 最大${item.maxCapacity}t（${ratio}%）${item.memo ? ` ${item.memo}` : ''}\n`;
-        }
-      }
-    });
-    taggedStockPrompt += '\n※ 上記の実測データと見比べて、解析対象がどの等級に近いか判断してください。\n';
-  }
 
   const maxCapacityInstruction = maxCapacity
     ? `【重要】この車両の最大積載量は${maxCapacity}トンです。estimatedMaxCapacityには${maxCapacity}を設定してください。`
@@ -139,6 +360,9 @@ async function runSingleInference(
 - 独自の理論や解釈を展開しないこと
 - 上記に記載されていない判定基準を使用しないこと`;
 
+  // 選択されたプロンプトテンプレートを取得
+  const template = getSelectedTemplate();
+
   const promptText = `画像の内容を判定し、重量を推定してください。
 
 ${maxCapacityInstruction}
@@ -147,99 +371,16 @@ ${maxCapacityInstruction}
 ${TRUCK_SPECS_PROMPT}
 ※ すり切り=あおり高さまで、山盛り=すり切り×1.3
 
-【重量計算の基準】
-${WEIGHT_FORMULA_PROMPT}
-
-■ 体積の判定方法
-1. 車両規格を特定し、上記の基準容積を参照
-2. 荷台の埋まり具合を目視で判定（例: すり切りの80%、山盛り等）
-3. 基準容積 × 埋まり具合 = 見かけ体積
-
-【空隙率の判定基準】★必ず2段階で判定すること
-
-STEP1: 塊サイズで基準値を決定
-- 細かい（〜30cm）: 0.30
-- 普通（30〜60cm）: 0.35
-- 大きい（60cm〜）: 0.40
-
-STEP2: 積み方で補正値を加算（必須）
-- きっちり詰めている（隙間が少ない）: +0.00
-- 普通に積んでいる: +0.05
-- 乱雑に積んでいる（隙間が見える）: +0.10
-- 非常に疎（隙間だらけ）: +0.15
-
-最終空隙率 = STEP1 + STEP2
-
-【計算例】
-- 大きい塊(0.40) + 乱雑(+0.10) = 0.50
-- 大きい塊(0.40) + 非常に疎(+0.15) = 0.55
-- 普通の塊(0.35) + 普通(+0.05) = 0.40
-
-★「隙間が多い」と判断したら、必ず補正を加算せよ（0.40のまま使うな）
-
-【高さ推定】★最重要：高さの過小評価は重量の過小評価に直結する
-
-■ 高さとは「最高点」のこと（平均ではない）
-- 高さ = 荷台床面から積載物の最高点までの距離
-- 山の傾斜は「上面積比率」で調整するので、高さは最高点で測る
-- 平らに均した想定の高さではない
-
-■ 高さの測り方（自由推定）
-1. 後板（あおり）の上端を基準点とする（4tダンプ: 0.32m）
-2. 積載物の最高点が後板上端からどれだけ上にあるかを判定
-3. 後板と同じ高さ分上に出ていれば「2.0倍」= 0.64m
-4. 小数点以下まで自由に推定（1.75倍、1.92倍など）
-
-■ 判定の目安
-- 後板上端ギリギリ → 1.0倍 → 0.32m
-- 後板の半分の高さ分、上に出ている → 1.5倍 → 0.48m
-- 後板と同じ高さ分、上に出ている → 2.0倍 → 0.64m
-- 後板より高く出ている → 2.5倍以上もありうる
-
-■ 上面積比率（山の形状）
-- 平らな山（台形に近い）: 70-80%
-- 普通の山盛り: 55-65%
-- 尖った山（三角形に近い）: 40-50%
-
-★警告: 高さを控えめに見積もる癖があるなら、見た目より1.2倍して報告せよ
-
-【幻覚禁止】存在しない空間を創作するな
-- 「隅に空間がある」「一部が空いている」等は、明確に見える場合のみ記載
-- 見えないものを推測で補わない
-- 荷台がガラで埋まっているなら「みっちり積載」と判定する
-- 上面積比率は、山の形状（平ら/山型/尖った山型）から判定する
-
-【体積計算式】（台形体として計算）
-体積 = (底面積 + 上面積) / 2 × 高さ
-- 4tダンプ底面積: 3.4m × 2.06m = 7.0m²
-- 増トン底面積: 4.0m × 2.2m = 8.8m²
-
-例: 4tダンプ、高さ0.51m（1.5倍）、上面積55%の場合
-→ (7.0 + 3.85) / 2 × 0.51 = 2.77m³
-
-【積載量の現実チェック】
-- 4tダンプでも高く積めば4t超になることは普通にある
-- 推定値が最大積載量を超えても、それが視覚的に妥当なら正しい推定として報告する
-- 「積みすぎ」かどうかの判断は推定精度とは別問題
-
-■ 錐台充填割合（frustumRatio: 0.3〜1.0）
-- 荷台を目一杯積んだ時の理想的な錐台形状に対して、実際にどれくらい充填されているかの割合
-- 1.0 = 錐台にきっちり充填（山盛り・満載）
-- 0.7〜0.8 = やや少なめだが十分に積載
-- 0.5 = 半分程度
-- 0.3 = 少量
-- 【重要】後板付近の脱落防止用の傾斜は減点しないこと（安全対策であり荷量不足ではない）
-- frustumRatioは体積計算に反映すること（estimatedVolumeM3に反映済みの値を出力）
+${template.volumePrompt}
 
 【回答ルール（厳守）】
 - 事実のみを記述し、推測・創作・持論は一切禁止
 - reasoningには以下の形式で記載:
-  「車両: ○tダンプ。積載状態: ○○。体積: (○m²+○m²)/2×○m=○m³。素材: ○○、塊サイズ○○。密度○t/m³、空隙率○を適用。計算: ○×○×(1-○)=○t」
+  「車両: ○tダンプ。体積: (○m²+○m²)/2×○m=○m³。素材: ○○、塊サイズ○○。密度○t/m³、空隙率○を適用。計算: ○×○×(1-○)=○t」
 - 計算式: 体積 × 密度 × (1-空隙率) = 推定重量
 - maxCapacityReasoningには視覚的根拠のみを記載（確認できない情報は「確認不可」）
 - 与えられたパラメータ（密度・空隙率）をそのまま使用すること。独自の数値を使わないこと
-${taggedStockPrompt ? '- 【重要】実測データがある場合は、類似の積載状況を参考に推定精度を向上させること' : '- 過去の推定結果があっても無視し、この画像の視覚的特徴のみから独立して判断すること'}
-${refImagePrompt}${taggedStockPrompt}
+- この画像の視覚的特徴のみから独立して判断すること
 ${userFeedback && userFeedback.length > 0 ? `
 【ユーザーからの指摘・修正】
 以下は前回の解析結果に対するユーザーからのフィードバックです。これらの指摘を考慮して再解析してください。
@@ -270,15 +411,12 @@ ${learningFeedback.map((fb, idx) => {
     model: modelName,
     contents: {
       parts: [
-        ...refImageParts,  // 参考画像（登録車両）
-        ...(taggedStockParts.length > 0 ? [{ text: '【実測データ画像】' }, ...taggedStockParts] : []),  // 実測データ画像
-        { text: (refImageParts.length > 0 || taggedStockParts.length > 0) ? '【解析対象の画像】' : '' },
         ...imageParts,  // 解析対象の画像
         { text: promptText }
       ],
     },
     config: {
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: template.systemPrompt,
       responseMimeType: "application/json",
       temperature: 0.4,  // 推論のバリエーションを増やす
       topP: 0.95,
@@ -296,15 +434,14 @@ ${learningFeedback.map((fb, idx) => {
           estimatedTonnage: { type: Type.NUMBER },
           estimatedMaxCapacity: { type: Type.NUMBER },
           maxCapacityReasoning: { type: Type.STRING },
-          frustumRatio: { type: Type.NUMBER, description: '錐台形状に対する充填割合 (0.3〜1.0)' },
           confidenceScore: { type: Type.NUMBER },
           reasoning: { type: Type.STRING },
           loadCondition: { type: Type.STRING, nullable: true },  // 積載状態
           chunkSize: { type: Type.STRING, nullable: true },      // 塊サイズ
-          lowerArea: { type: Type.NUMBER, nullable: true },      // 底面積
-          upperArea: { type: Type.NUMBER, nullable: true },      // 上面積
-          height: { type: Type.NUMBER, nullable: true },         // 高さ
-          voidRatio: { type: Type.NUMBER, nullable: true },      // 空隙率
+          lowerArea: { type: Type.NUMBER },                      // 底面積（必須）
+          upperArea: { type: Type.NUMBER },                      // 上面積（必須）
+          height: { type: Type.NUMBER },                         // 高さ（必須）
+          voidRatio: { type: Type.NUMBER },                      // 空隙率（必須）
           materialBreakdown: {
             type: Type.ARRAY,
             items: {
@@ -318,7 +455,7 @@ ${learningFeedback.map((fb, idx) => {
             }
           }
         },
-        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "frustumRatio", "confidenceScore", "reasoning", "materialBreakdown"]
+        required: ["isTargetDetected", "truckType", "materialType", "estimatedVolumeM3", "estimatedTonnage", "estimatedMaxCapacity", "maxCapacityReasoning", "confidenceScore", "reasoning", "materialBreakdown", "lowerArea", "upperArea", "height", "voidRatio"]
       }
     },
   });
@@ -341,7 +478,6 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
 
   const avgTonnage = validResults.reduce((sum, r) => sum + r.estimatedTonnage, 0) / resultCount;
   const avgVolume = validResults.reduce((sum, r) => sum + r.estimatedVolumeM3, 0) / resultCount;
-  const avgFrustumRatio = validResults.reduce((sum, r) => sum + (r.frustumRatio ?? 1.0), 0) / resultCount;
 
   const finalTruckType = getMode(validResults.map(r => r.truckType));
   const finalLicenseNumber = getMode(validResults.map(r => r.licenseNumber));
@@ -363,7 +499,6 @@ export function mergeResults(results: EstimationResult[]): EstimationResult {
     estimatedTonnage: Number(avgTonnage.toFixed(2)),
     estimatedVolumeM3: Number(avgVolume.toFixed(2)),
     estimatedMaxCapacity: finalMaxCapacity ? Number(finalMaxCapacity) : closestToAvg.estimatedMaxCapacity,
-    frustumRatio: Number(avgFrustumRatio.toFixed(2)),
     ensembleCount: count,
     reasoning: `【統合推論】有効サンプル:${resultCount}/${count}。${closestToAvg.reasoning}`
   };
@@ -428,7 +563,7 @@ export const analyzeGaraImageEnsemble = async (
   onProgress: (current: number, result: EstimationResult) => void,
   abortSignal?: { cancelled: boolean },
   modelName: string = 'gemini-3-flash-preview',
-  _taggedStock: StockItem[] = [],  // 未使用（等級別選択に移行）
+  _taggedStock: StockItem[] = [],  // 未使用（後方互換性のため残す）
   maxCapacity?: number,
   userFeedback?: ChatMessage[],  // ユーザーからの指摘・修正
   onDetailedProgress?: (progress: AnalysisProgress) => void  // 詳細な進捗通知
@@ -438,7 +573,6 @@ export const analyzeGaraImageEnsemble = async (
   };
 
   notifyProgress({ phase: 'preparing', detail: '解析を準備中...' });
-
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('APIキーが設定されていません');
@@ -454,67 +588,27 @@ export const analyzeGaraImageEnsemble = async (
     console.warn('学習フィードバックの取得に失敗:', err);
   }
 
-  notifyProgress({ phase: 'loading_references', detail: '登録車両データを読み込み中...' });
-
   const imageParts = base64Images.map(base64 => ({
     inlineData: { mimeType: 'image/jpeg', data: base64 }
   }));
 
   const results: EstimationResult[] = [];
   let lastError: Error | null = null;
-  let gradedStock: GradedStockItem[] = [];
-  let detectedTruckClass: TruckClass | null = null;
-
-  // maxCapacityが指定されてる場合は最初から等級別データを取得
-  if (maxCapacity) {
-    detectedTruckClass = getTruckClass(maxCapacity);
-    if (detectedTruckClass !== 'unknown') {
-      notifyProgress({
-        phase: 'loading_stock',
-        detail: `${detectedTruckClass}クラスの実測データを取得中...`,
-        current: 0,
-        total: targetCount
-      });
-      gradedStock = await selectStockByGrade(detectedTruckClass);
-      console.log(`等級別データ取得: ${detectedTruckClass}クラス, ${gradedStock.length}件`);
-      if (gradedStock.length > 0) {
-        notifyProgress({
-          phase: 'loading_stock',
-          detail: `実測データ ${gradedStock.length}件を参照`,
-          current: 0,
-          total: targetCount
-        });
-      }
-    }
-  }
 
   for (let i = 0; i < targetCount; i++) {
     if (abortSignal?.cancelled) break;
 
-    // 1回目は等級別データなしで推論（車両クラス判定のため）
-    // 2回目以降は等級別データありで推論
-    const stockForInference = (i === 0 && !maxCapacity) ? [] : gradedStock;
-
     notifyProgress({
       phase: 'inference',
       detail: targetCount > 1
-        ? `プロンプト構築中... (${i + 1}/${targetCount}回目)`
-        : `プロンプト構築中...`,
-      current: i + 1,
-      total: targetCount
-    });
-
-    notifyProgress({
-      phase: 'inference',
-      detail: targetCount > 1
-        ? `Gemini APIにリクエスト送信中... (${i + 1}/${targetCount}回目)${stockForInference.length > 0 ? ` [参照${stockForInference.length}件]` : ''}`
-        : `Gemini APIにリクエスト送信中...${stockForInference.length > 0 ? ` [参照${stockForInference.length}件]` : ''}`,
+        ? `Gemini APIにリクエスト送信中... (${i + 1}/${targetCount}回目)`
+        : `Gemini APIにリクエスト送信中...`,
       current: i + 1,
       total: targetCount
     });
 
     try {
-      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, stockForInference, learningFeedback);
+      const res = await runSingleInference(ai, imageParts, modelName, maxCapacity, i, userFeedback, learningFeedback);
 
       notifyProgress({
         phase: 'inference',
@@ -527,35 +621,6 @@ export const analyzeGaraImageEnsemble = async (
 
       if (i === 0 && !res.isTargetDetected) {
         return [res];
-      }
-
-      // 1回目の結果から車両クラスを判定し、2回目以降用の等級別データを取得
-      if (i === 0 && !maxCapacity && res.estimatedMaxCapacity) {
-        detectedTruckClass = getTruckClass(res.estimatedMaxCapacity);
-        if (detectedTruckClass !== 'unknown') {
-          notifyProgress({
-            phase: 'loading_stock',
-            detail: `車両クラス判定: ${detectedTruckClass}（推定${res.estimatedMaxCapacity}t）`,
-            current: i + 1,
-            total: targetCount
-          });
-          notifyProgress({
-            phase: 'loading_stock',
-            detail: `${detectedTruckClass}クラスの実測データを取得中...`,
-            current: i + 1,
-            total: targetCount
-          });
-          gradedStock = await selectStockByGrade(detectedTruckClass);
-          console.log(`1回目推論から車両クラス判定: ${detectedTruckClass}（推定${res.estimatedMaxCapacity}t）, 等級別データ${gradedStock.length}件`);
-          if (gradedStock.length > 0) {
-            notifyProgress({
-              phase: 'loading_stock',
-              detail: `実測データ ${gradedStock.length}件を参照`,
-              current: i + 1,
-              total: targetCount
-            });
-          }
-        }
       }
 
       results.push(res);
