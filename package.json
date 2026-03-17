@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node -e \"const fs=require('fs'),s='../tonsuu-core/prompt-spec.json';fs.existsSync(s)&&fs.copyFileSync(s,'./prompt-spec.json')\"",
     "build": "vite build",
     "preview": "vite preview",
     "report": "npx tsx scripts/generateReport.ts",

@@ -1,0 +1,23 @@
+[
+  {
+    "file": "isuzu_white_1121_disposal.jpg",
+    "description": "ISUZU白4tダンプ(11-21) 処分場 As殻少なめ",
+    "actual_tonnage": 3.05,
+    "ensemble_count": 1,
+    "strategy": "depth-volume",
+    "truck_type": "4tダンプ",
+    "material_type": "As殻",
+    "height": 0.3107,
+    "packing_density": 0.7,
+    "fill_ratio_l": null,
+    "fill_ratio_w": null,
+    "fill_ratio_z": null,
+    "fill_ratio": null,
+    "estimated_volume_m3": 2.1781,
+    "estimated_tonnage": 3.81,
+    "confidence_score": 0,
+    "reasoning": "depth-volume (floor_plane_bed_height_0.32m, scale=0.12841)",
+    "error": 0.7600000000000002,
+    "error_pct": 24.9
+  }
+]
