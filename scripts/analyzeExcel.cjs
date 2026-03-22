@@ -1,6 +1,6 @@
 const XLSX = require('xlsx');
 
-const filePath = 'H:\\マイドライブ\\過去の現場_元請\\2024.0819 市道沈目舞原第3号線舗装補修工事\\２竣工時\\1 実施数量\\産廃集計表.xls';
+const filePath = './test-data/sample.xls';
 
 const workbook = XLSX.readFile(filePath, { cellStyles: true, cellDates: true });
 

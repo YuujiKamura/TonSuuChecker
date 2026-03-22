@@ -33,3 +33,4 @@ public/pdf.worker.min.mjs
 
 .next/
 stderr_*.txt
+TonSuuChecker_local.code-workspace
