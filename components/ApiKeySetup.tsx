@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ExternalLink, Key, Truck } from 'lucide-react';
+import { ExternalLink, Key, Truck, AlertTriangle } from 'lucide-react';
 
 interface ApiKeySetupProps {
   onComplete: (apiKey: string, isGoogleAIStudio: boolean) => void;
@@ -52,6 +52,56 @@ const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onComplete, onCancel }) => {
           >
             Google AI Studioを開く <ExternalLink size={16} />
           </a>
+        </div>
+
+        {/* 警告: キー作成後は必ず制限をかける */}
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
+          <div className="flex items-start gap-2 mb-3">
+            <AlertTriangle size={20} className="text-red-400 shrink-0 mt-0.5" />
+            <h3 className="text-sm font-bold text-red-300">
+              安全のため、キーには必ず制限をかけてください
+            </h3>
+          </div>
+          <div className="text-xs text-slate-300 space-y-2">
+            <p className="text-slate-400">
+              制限なしのキーが漏洩すると、第三者に悪用され高額請求になる可能性があります。
+              以下をGoogle Cloud Consoleで設定してください。
+            </p>
+            <div className="bg-slate-900/60 rounded-lg p-3 space-y-2">
+              <div>
+                <p className="text-red-200 font-bold mb-1">① アプリケーション制限: HTTPリファラー</p>
+                <code className="block bg-black/40 text-yellow-300 text-[10px] px-2 py-1 rounded break-all font-mono">
+                  https://yuujikamura.github.io/TonSuuChecker/*
+                </code>
+              </div>
+              <div>
+                <p className="text-red-200 font-bold mb-1">② API制限: 以下のみ許可</p>
+                <code className="block bg-black/40 text-yellow-300 text-[10px] px-2 py-1 rounded font-mono">
+                  Generative Language API
+                </code>
+              </div>
+              <div>
+                <p className="text-red-200 font-bold mb-1">③ 課金上限アラートの設定（推奨）</p>
+                <p className="text-slate-400 text-[11px]">例: 月 $5 で通知</p>
+              </div>
+            </div>
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full bg-red-600/80 hover:bg-red-500 text-white font-bold py-2.5 rounded-xl transition-all text-xs"
+            >
+              Google Cloud Console を開く <ExternalLink size={14} />
+            </a>
+            <a
+              href="https://qiita.com/pythonista0328/items/f9eb8b7fb6a14087df35"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full text-[11px] text-slate-400 hover:text-slate-200 underline"
+            >
+              参考: Qiita「APIキーの制限方法」 <ExternalLink size={11} />
+            </a>
+          </div>
         </div>
 
         {/* ステップ2: キーを貼り付け */}

@@ -32,6 +32,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify no secrets in build artifact
+        run: |
+          if grep -rE 'AIza[A-Za-z0-9_-]{35}' dist/; then
+            echo "::error::API key found in build output"
+            exit 1
+          fi
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
